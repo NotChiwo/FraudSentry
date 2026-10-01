@@ -1,0 +1,14 @@
+# Netlify security headers (copied to dist/ on build).
+# The same CSP also ships inside index.html as a <meta> tag so it applies when
+# the file is opened locally; frame-ancestors only works as a real HTTP header.
+# 'unsafe-inline' is limited to the app's own bundled script/style because
+# vite-plugin-singlefile inlines everything with no stable per-build hash.
+# 'wasm-unsafe-eval' lets the Tesseract OCR engine (WebAssembly) compile; it does
+# NOT allow JavaScript eval(). Without it OCR fails — do not remove it.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net data: blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin

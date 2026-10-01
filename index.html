@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FraudSentry — Transaction Fraud Detection System</title>
+    <meta name="description" content="FraudSentry: An Online Transaction Fraud Detection System Using Random Forest Algorithm" />
+    <meta name="theme-color" content="#0f172a" />
+    <!--
+      Content-Security-Policy — ships inside the file itself so it applies
+      no matter how/where this HTML is opened (local file, any static host).
+      script-src/style-src need 'unsafe-inline' because vite-plugin-singlefile
+      inlines the whole app as one <script>/<style> block with no per-build
+      stable hash — a known, documented trade-off of single-file bundling.
+      'wasm-unsafe-eval' is REQUIRED: Tesseract's OCR engine is WebAssembly,
+      and without it the browser refuses to compile the engine (OCR then
+      silently fails). It permits WebAssembly compilation only — it does NOT
+      re-enable JavaScript eval(). Do not remove it.
+      Everything else is scoped tightly: only cdn.jsdelivr.net (the pinned,
+      SRI-verified Tesseract engine) and Google Fonts are allowed as external
+      origins; no other network destination, no plugins, no base-uri
+      rebinding. (frame-ancestors is not enforceable via <meta> per spec —
+      that protection is added as a real HTTP header at the hosting layer,
+      see public/_headers.)
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net;
+      worker-src 'self' blob: https://cdn.jsdelivr.net;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: blob:;
+      connect-src 'self' https://cdn.jsdelivr.net data: blob:;
+      object-src 'none';
+      base-uri 'none';
+      form-action 'self';
+    " />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <noscript>FraudSentry runs entirely in your browser and needs JavaScript enabled.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

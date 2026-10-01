@@ -1,0 +1,22 @@
+<!doctype html>
+<!--
+  Dev-only harness (never part of the production build — vite only bundles
+  index.html). Runs the app's REAL OCR pipeline (src/services/ocr.ts) on a
+  local image so parser changes can be tested against genuine, noisy
+  Tesseract output instead of hand-cleaned text. Driven by tools/ocr-corpus.mjs.
+-->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>OCR corpus harness</title></head>
+  <body>
+    <input type="file" id="f" accept="image/*" />
+    <pre id="out"></pre>
+    <script type="module">
+      import { runOcr } from '../src/services/ocr.ts';
+      window.__runOcr = async () => {
+        const file = document.getElementById('f').files[0];
+        return await runOcr(file);
+      };
+      window.__ready = true;
+    </script>
+  </body>
+</html>

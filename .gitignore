@@ -1,0 +1,22 @@
+# dependencies & build output (reproducible: npm install / npm run build)
+node_modules/
+dist/
+
+# old V6 build kept locally for reference only (its OCR is broken — see CHANGELOG)
+FraudSentry-V6.html
+
+# NEVER commit real receipt data or anything holding real names/numbers:
+# raw OCR corpora, hand-labelled answers, redaction name lists, test output.
+corpus*/
+*.local.json
+e2e-out/
+sheets/
+
+# editor / OS / env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
