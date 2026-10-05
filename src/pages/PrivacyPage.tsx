@@ -11,7 +11,7 @@ const SECTIONS = [
   },
   {
     icon: Server, color: '#6366f1', title: 'Temporary file handling',
-    body: 'Uploaded files are held in memory only for the duration of a scan and are not written to any server. A short history of your results is stored locally in your browser (localStorage) so you can re-open and export them. Clearing your history from the Reports page removes this immediately.',
+    body: 'Uploaded files are held in memory only for the duration of a scan and are not written to any server. A short history of your results is stored locally in your browser (localStorage) so you can re-open and export them. New receipts are compared against the fields in this local history (reference number, amount, recipient, date) to warn you about a reused or edited copy of an earlier receipt; that comparison also happens only in your browser. Clearing your history from the Reports page removes this immediately.',
   },
   {
     icon: Eye, color: '#10b981', title: 'How results are used',

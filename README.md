@@ -19,6 +19,7 @@ FraudSentry lets Filipino users check whether a GCash / Maya / GoTyme / MariBank
 Two scorers look at the **same evidence** and are blended **50 / 50**:
 
 1. **Rule-based findings** — each failed check (ELA hotspots, missing recipient, edited-amount formatting, unsent "Confirm transaction" screen, …) has a named weight.
+   Internal-consistency checks (`src/services/consistencyChecks.ts`) look for an edited figure: amount + fee must equal the total, and the receipt cannot be dated in the future. `src/services/historyMatch.ts` compares the receipt with earlier scans on this device (same reference with a different amount means an edited copy).
 2. **Random Forest** — the evidence becomes a 10-feature vector (`buildFeatureVector` in `src/services/sampleDataset.ts`) and is voted on by the shared forest (`src/engine/sharedModel.ts`).
 
 Retraining on the Detection Model page replaces the forest used by every future scan — **but only if the training data uses the same 10 evidence features** (header: `ela_hotspot,has_exif,editor_trace,ocr_confidence,ref_present,ref_valid,institution_known,amount_present,failed_signals,metadata_consistency,label`). A model trained on unrelated columns (e.g. the PaySim dataset) is evaluated on the Model page but never wired into scans, because feeding receipt evidence into it would produce a meaningless number.
@@ -72,6 +73,7 @@ Developer tools in `tools/` (never part of the build):
 ## Deliberate design decisions (don't "fix" these)
 - **Issuer detection checks app-distinctive markers before a generic keyword loop** (`detectSourceFromText`). A flat "does the text mention GCash" check matches the *destination* bank and misclassifies receipts (e.g. a GoTyme receipt sending to GCash).
 - **`/insta[prf]ay/`** — Tesseract misreads the InstaPay logo as "instaray" and, in this app's own pipeline, consistently as "instaFay". Both are real, repeated OCR outputs.
+- **Consistency and history findings need a stable reading.** Fee and total must read the same in at least two OCR passes, dates get a 12–36 h grace period, and rescanning the same receipt only adds a note, never a finding. They are meant to have **no false alarms on genuine receipts**, not to catch every fake.
 - **Maya "Confirm transaction" screens** are flagged as a Critical *Unconfirmed Transaction*: nothing has been sent yet, so it can never be proof of payment.
 - Two OCR edge cases are intentionally **not** regex-patched (a masked account number and an asterisk-masked sender name that OCR reads as different noise each time). Fixing those needs better image preprocessing, not looser regexes.
 

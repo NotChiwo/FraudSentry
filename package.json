@@ -1,7 +1,7 @@
 {
   "name": "fraudsentry",
   "private": true,
-  "version": "7.0.0",
+  "version": "7.1.0",
   "type": "module",
   "description": "FraudSentry: An Online Transaction Fraud Detection System Using Random Forest Algorithm (single-file, no backend)",
   "scripts": {

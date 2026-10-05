@@ -23,6 +23,8 @@ import { generateId, scoreToRiskLevel, clamp } from '../utils/helpers';
 import { runOcr } from '../services/ocr';
 import { analyzeForensics } from '../services/imageForensics';
 import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction } from '../services/receiptParser';
+import { reconcileAmounts, checkReceiptDate } from '../services/consistencyChecks';
+import { matchAgainstHistory, PriorScan } from '../services/historyMatch';
 import { buildFeatureVector } from '../services/sampleDataset';
 import { scoreWithSharedModel } from './sharedModel';
 
@@ -49,8 +51,10 @@ export async function analyzeTransactionImage(
     ocrOverride?: OcrResult;
     extractedOverride?: ExtractedTransactionData;
     previewDataUrl?: string;
-    /** reference numbers from earlier scans — used to flag a reused receipt in the action plan */
-    previousReferences?: string[];
+    /** earlier scans on this device — to catch a reused or edited copy of a receipt */
+    history?: PriorScan[];
+    /** clock used for the future-date check (tests) */
+    now?: Date;
   },
 ): Promise<ImageScanResult> {
   const onStage = opts?.onStage;
@@ -153,6 +157,33 @@ export async function analyzeTransactionImage(
     findings.push(finding('text', 'Amount Consistency Check', amtSig.detail, 'high', false, 0.46));
   }
 
+  // ── Arithmetic: amount + fee must equal the total ──
+  // An editor who changes the amount often forgets the total (or vice versa).
+  const recon = reconcileAmounts(ocrTexts, extracted.amount);
+  if (recon.status === 'consistent') {
+    findings.push(finding('text', 'Amount Reconciliation', recon.detail, 'low', true, 0.40));
+  } else if (recon.status === 'mismatch') {
+    findings.push(finding('text', 'Amount Reconciliation', recon.detail, 'high', false, 0.40));
+  }
+
+  // ── Timestamp sanity: no receipt can be dated in the future ──
+  const dateCheck = checkReceiptDate(extracted.date, extracted.time, opts?.now);
+  if (dateCheck.status === 'ok') {
+    findings.push(finding('timestamp', 'Receipt Date Plausibility', `The receipt date (${[extracted.date, extracted.time].filter(Boolean).join(' ')}) is a valid date that is not in the future.`, 'low', true, 0.50));
+  } else if (dateCheck.status === 'future') {
+    findings.push(finding('timestamp', 'Receipt Date Plausibility', dateCheck.detail, 'critical', false, 0.50));
+  } else if (dateCheck.status === 'invalid') {
+    findings.push(finding('timestamp', 'Receipt Date Plausibility', dateCheck.detail, 'medium', false, 0.15));
+  }
+
+  // ── Earlier scans: reused receipt / edited copy ──
+  const hist = matchAgainstHistory(extracted, opts?.history ?? []);
+  if (hist.kind === 'edited-copy') {
+    findings.push(finding('reference', 'Earlier Scan Comparison', hist.detail, 'critical', false, 0.55));
+  } else if (hist.kind === 'same-moment') {
+    findings.push(finding('reference', 'Earlier Scan Comparison', hist.detail, 'high', false, 0.30));
+  }
+
   // ── Score: rule findings + Random Forest, blended 50/50 ──
   const failed = findings.filter(f => !f.passed);
   const heuristicScore = clamp(failed.reduce((s, f) => s + f.weight, 0), 0, 1);
@@ -163,6 +194,9 @@ export async function analyzeTransactionImage(
   // A definitive structural fact (no transfer exists yet) is not a
   // probability — never let the blend dilute it below Critical.
   if (unconfirmed) riskScore = Math.max(riskScore, 0.7);
+  // Same for a future date or totals that don't add up: never below High.
+  // (Both are read from stable multi-pass OCR, so a lone misread can't trigger them.)
+  if (dateCheck.status === 'future' || recon.status === 'mismatch' || hist.kind === 'edited-copy') riskScore = Math.max(riskScore, 0.45);
   const riskLevel: RiskLevel = scoreToRiskLevel(riskScore);
 
   const legitimacyLabel =
@@ -181,8 +215,7 @@ export async function analyzeTransactionImage(
     : riskLevel === 'medium' ? 'Proceed with caution. Cross-check the reference number and amount against your own received-funds history.'
     : 'No tampering indicators were found. As best practice, still confirm the funds actually landed in your account before releasing anything of value.';
 
-  const cleanRef = extracted.referenceNo ? extracted.referenceNo.replace(/\s/g, '') : null;
-  const reused = !!cleanRef && (opts?.previousReferences ?? []).some(r => r.replace(/\s/g, '') === cleanRef);
+  const reused = hist.kind === 'reused';
   const actionPlan = buildActionPlan(riskLevel, source, extracted, failed, reused);
 
   return {
@@ -231,6 +264,9 @@ function buildActionPlan(
       ? `Open your own ${app} app and search your received transactions for reference ${ref}. If it is not there, the payment did not reach you.`
       : `Ask the sender for the transaction reference number, then look it up inside your own ${app} app.`);
     if (reused) plan.push('This exact receipt was submitted before — ask why the same proof is being used twice before going any further.');
+    if (failed.some(f => f.label === 'Earlier Scan Comparison')) plan.push('You scanned a receipt with the same details before, but the figures differ. Put both screenshots side by side, and trust only the amount that actually arrived in your own account.');
+    if (failed.some(f => f.label === 'Amount Reconciliation')) plan.push('The amount, fee and total on this receipt do not add up. Compare the amount that actually arrived in your account with BOTH figures — an edited amount is the most common fake.');
+    if (failed.some(f => f.label === 'Receipt Date Plausibility' && f.severity === 'critical')) plan.push('The receipt is dated in the future. Ask the sender to show the transaction live inside their app, and check the date and time in your own history.');
     if (failedLabel('No Recipient Identified')) plan.push('A genuine transfer receipt always names its recipient. Ask the sender to show the transaction inside their app on a live video call.');
     plan.push('If money was already lost, keep the screenshot and chat as evidence and report to your platform and local authorities (PNP-ACG hotline or nearest station).');
   } else if (riskLevel === 'medium') {

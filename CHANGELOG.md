@@ -1,5 +1,16 @@
 # Changelog
 
+## V7.1 — 2026-10-05
+
+New checks that catch the most common way a fake receipt is made: editing a figure on a genuine screenshot.
+
+- **Amount reconciliation.** Amount + fee must equal the total (`1,000.00 / +Fee 10.00 / Total ₱1,010.00`). An editor who changes the amount and forgets the total, or the other way round, now gets a **High** finding. The fee and total have to read the same way in at least two OCR passes, so a single misread can't raise it. A waived fee ("PHP 15.00 FREE") counts as zero. On the 62 real receipts it reconciled 27, flagged none, and skipped the rest (no fee/total printed).
+- **Receipt date plausibility.** A receipt dated after the moment it is checked gets a **Critical** finding (with 12 h grace for clock/time-zone skew; date-only receipts get 36 h). Impossible dates/times ("Feb 30", "13:75") get a Medium finding, because they can also be OCR misreads. No real receipt was flagged.
+- **Earlier-scan comparison.** Every new receipt is compared with the local scan history. The same reference number with a **different amount** is flagged as an *edited copy* (Critical finding, risk never below High). The same recipient at the same minute with different figures is flagged as High. The same receipt again (same reference and amount) only adds a note, because it is often the user re-checking their own file. A long reference with one misread digit still counts as the same reference. Over the 62 real receipts this found the 4 pairs of genuinely duplicated files and nothing else.
+- **(fix) Principal vs total.** When a load/bill receipt's "Amount" row is missed, the parser took the total (₱1,020) instead of the principal (₱1,000). If the total minus the fee is printed on the receipt, that value is now used. Amount accuracy on the 62-receipt set: 58/59 → 59/59 (in-sample).
+- The action plan gives a concrete next step for each new finding. The Privacy page states that the history comparison runs only in the browser.
+- Tests: 93 → **118**, with new `consistencyChecks` and `historyMatch` suites. The "edited" cases are real redacted OCR with one figure changed.
+
 ## V7 — 2026-10-01
 
 V7 was rebuilt from the newest real TypeScript source available (V5, June 2026) and brought up to the V6 build (whose source was not available) by diffing the V6 bundle module by module. Every V6 feature is carried over; the items below marked **(fix)** are defects found in V6 during this work, verified against the original `FraudSentry-V6.html` where applicable.

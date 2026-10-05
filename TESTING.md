@@ -1,10 +1,10 @@
 # Testing — what is verified, and what is not
 
-Everything listed as **verified** below was actually executed on 2026-10-01 against this source / its built `dist/index.html`. Nothing here is estimated or simulated. Items that need real people are marked **pending** — they have **not** been done.
+Everything listed as **verified** below was actually executed on 2026-10-01 (V7) and re-run on 2026-10-05 (V7.1) against this source / its built `dist/index.html`. Nothing here is estimated or simulated. Items that need real people are marked **pending** — they have **not** been done.
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**93 / 93 passing.**
+**118 / 118 passing.**
 
 | Suite | Tests | What it covers |
 |---|---|---|
@@ -12,6 +12,8 @@ Everything listed as **verified** below was actually executed on 2026-10-01 agai
 | `messageAnalysis.test.ts` | 22 | PH scam rules, negated OTP warnings, bare-domain links, critical-flag floor, receipt ↔ conversation linkage incl. masked numbers / one-digit OCR errors / "to you" false-contradiction |
 | `knowledgeBase.test.ts` | 22 | Every Knowledge Base example is detected with the right scam type; 11 ordinary messages stay Low |
 | `model.test.ts` | 13 | Random Forest reproducibility, held-out metrics computed from real predictions, importances, the evidence-schema gate (PaySim / headerless / reordered rejected), shared-model wiring, feature vector |
+| `consistencyChecks.test.ts` | 17 | Amount + fee = total on real receipts (incl. waived fee, "tFee" misread); edited-amount and edited-total copies of a real receipt flagged; a misread in one pass ignored; principal vs total; date parsing; future, impossible and skewed dates |
+| `historyMatch.test.ts` | 8 | Same receipt rescanned → reused note only; a real receipt with its amount edited → edited copy; the 8 distinct real receipts never match each other; same recipient at the same minute; one-digit OCR tolerance on long references |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
 **Do the tests actually catch bugs?** The 29 parser tests were also run against the **real V6 parser** (extracted from `FraudSentry-V6.html`): **12 fail** there (GoTyme misclassification, `000006ReferenceNo`, Maya references, unsent-screen detection, consensus reference, …) and all pass on V7.
@@ -28,15 +30,27 @@ Everything listed as **verified** below was actually executed on 2026-10-01 agai
 | Version | Issuer app | Amount | Reference no. |
 |---|---|---|---|
 | **V6** — its real parser on its real (2-pass) OCR | 47/61 (77%) | 53/59 (90%) | 41/60 (68%) |
-| **V7** — final parser on fixed 3-pass OCR | **57/61 (93%)** | **58/59 (98%)** | **55/60 (92%)** |
+| **V7** — final parser on fixed 3-pass OCR | 57/61 (93%) | 58/59 (98%) | 55/60 (92%) |
+| **V7.1** — + principal-vs-total fix | **57/61 (93%)** | **59/59 (100%)** | **55/60 (92%)** |
 
 What changed the numbers: GoTyme receipts no longer labelled GCash/Maya (8), Maya "Reference ID"s now read (12 — V6 read 0), GoTyme Trace IDs no longer swallow the next row, GCash references no longer absorb next-line digits, the revived OCR pass 1 fixed several amounts, consensus voting fixed disagreeing reference reads, bank-SMS tags (`[BPI]`) identify the issuer.
 
-Remaining V7 misses (10): tiny, low-resolution reposts where Tesseract never read the reference/label at all (5), screens with no issuer marker in the text (4), and one Smart load screen where the parser takes the total (₱1,020) instead of the amount (₱1,000).
+Remaining V7 misses (10): tiny, low-resolution reposts where Tesseract never read the reference/label at all (5), screens with no issuer marker in the text (4), and one Smart load screen where the parser took the total (₱1,020) instead of the amount (₱1,000). That one was fixed in V7.1.
 
 **Read these numbers carefully:**
 - The parser changes were developed **while looking at this same set**, so these are **in-sample** figures and likely optimistic. An unbiased accuracy figure for the thesis needs a **fresh, held-out** set of receipts that was not used during development.
 - One person labelled the data; the sample is a convenience sample, not representative of all receipts.
+
+### V7.1 consistency checks on the same 62 real receipts
+Every one of these receipts is treated as genuine, so any alarm would be a false positive.
+
+| Check | Result |
+|---|---|
+| Amount + fee = total | 27 reconciled · **0 mismatches** · 35 not applicable (no fee/total printed or unstable read) |
+| Future / impossible date | 49 ok · **0 flagged** · 13 no readable date |
+| Earlier-scan comparison (each receipt vs the other 61) | **0 edited-copy / same-moment alarms**; 8 "reused" notes, all of which are the 4 pairs of files that really are the same receipt (identical hand-labelled reference) |
+
+This measures **false alarms only**. How often these checks catch real edited receipts has **not** been measured on a real set of fakes; the unit tests use real receipts with one figure changed. A fake built carefully (amount *and* total edited consistently, date untouched, never scanned before on this device) will not trip any of these.
 
 ## 3. End-to-end tests of the built file (Playwright)
 
@@ -44,8 +58,8 @@ Remaining V7 misses (10): tiny, low-resolution reposts where Tesseract never rea
 
 | Engine | Result | First scan (OCR + forensics) |
 |---|---|---|
-| Chromium | **18 / 18** | ≈ 11.5 s |
-| WebKit (Safari's engine) | **18 / 18** | ≈ 16.8 s |
+| Chromium | **18 / 18** (V7.1: also 7/7 on the new checks) | ≈ 11.6 s |
+| WebKit (Safari's engine) | **18 / 18** (V7.1: also 7/7 on the new checks) | ≈ 14.2 s |
 | Firefox | **not tested** — Playwright's Firefox could not be launched on the test machine (`spawn UNKNOWN`) | — |
 
 Network audit: the only external hosts contacted were `cdn.jsdelivr.net` (Tesseract) and Google Fonts. No receipt or text is uploaded anywhere.
@@ -56,7 +70,7 @@ WebKit is a strong proxy for iPhone browsers but is **not** a real iOS Safari de
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.
-- `npm audit` → 0 vulnerabilities.
+- `npm audit` → 0 vulnerabilities on 2026-10-01. On 2026-10-05 a new advisory (GHSA-vfj7-8cjw-p6xm, `braces`, "high") reports 3 findings via `vite-plugin-singlefile → micromatch → braces`. No patched `braces` exists yet. It is a **build-time only** dependency: it matches file-name globs from our own build config, and none of it is shipped in the built app. Re-check when a fixed version is released.
 - Tesseract SRI hash recomputed from the npm tarball → matches.
 
 ## 5. Pending — requires real respondents (NOT done)

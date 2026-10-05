@@ -16,6 +16,7 @@
 // ============================================================
 
 import { EvidenceSource, ExtractedTransactionData } from '../types';
+import { correctPrincipal } from './consistencyChecks';
 
 const SOURCE_KEYWORDS: Record<Exclude<EvidenceSource, 'Unknown'>, string[]> = {
   GCash: ['gcash', 'g-cash'], Maya: ['maya', 'paymaya'],
@@ -294,7 +295,7 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const source = detectSourceFromText(text, filename);
 
-  const amount = extractAmount(text);
+  const amount = correctPrincipal([text], extractAmount(text));
   const receiverContact = extractPhone(text);
 
   // Reference / transaction numbers.
@@ -458,7 +459,7 @@ export function parseReceiptMulti(texts: string[], filename = ''): { data: Extra
     senderName: pickName(D.map(d => d.senderName)),
     receiverName: pickName(D.map(d => d.receiverName)),
     receiverContact: mode(D.map(d => d.receiverContact)),
-    amount: mode(D.map(d => d.amount)),
+    amount: correctPrincipal(list, mode(D.map(d => d.amount))),
     date: mode(D.map(d => d.date)),
     time: mode(D.map(d => d.time)),
     referenceNo: pickReference(D.map(d => d.referenceNo)),

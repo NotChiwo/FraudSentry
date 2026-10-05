@@ -80,14 +80,14 @@ export default function ScannerPage() {
     setStageLabel('Reading image');
     setError('');
     try {
-      // references from EARLIER scans (read before this scan is added to history)
-      const previousReferences = useAppStore.getState().imageScans
-        .map(s => s.extracted.referenceNo).filter((r): r is string => !!r && r.replace(/\s/g, '').length >= 6);
+      // EARLIER scans (read before this scan is added to history)
+      const history = useAppStore.getState().imageScans
+        .map(s => ({ id: s.id, filename: s.filename, scannedAt: s.scannedAt, extracted: s.extracted }));
       const scan = await analyzeTransactionImage(f, {
         previewDataUrl: preview,
         ocrOverride: opts?.ocrOverride,
         extractedOverride: opts?.extractedOverride,
-        previousReferences: opts?.extractedOverride ? [] : previousReferences,
+        history: opts?.extractedOverride ? [] : history,
         onStage: (s: string) => {
           setStageLabel(s);
           if (/forensic/i.test(s)) setStatus('forensics');
