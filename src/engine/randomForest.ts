@@ -80,6 +80,19 @@ export class RandomForest {
   }
 
   fit(X: number[][], y: number[]): void {
+    for (const _ of this.fitSteps(X, y)) { /* run to completion */ }
+  }
+
+  /**
+   * Same training as fit(), one tree per step, yielding to the event loop in
+   * between so a page stays responsive. Builds an identical forest (same RNG
+   * sequence) — enforced by a test.
+   */
+  async fitAsync(X: number[][], y: number[]): Promise<void> {
+    for (const _ of this.fitSteps(X, y)) await new Promise<void>(r => setTimeout(r, 0));
+  }
+
+  private *fitSteps(X: number[][], y: number[]): Generator<number> {
     this.nFeatures = X[0]?.length ?? 0;
     const featPerSplit = Math.max(1, Math.ceil(Math.sqrt(this.nFeatures)));
     this.importances = new Array(this.nFeatures).fill(0);
@@ -92,6 +105,7 @@ export class RandomForest {
       const root = this.buildTree(X, y, idx, 0, featPerSplit);
       this.trees.push(root);
       this.accumulateImportance(root);
+      if (t < this.opts.nTrees - 1) yield t;
     }
     // normalise importances to sum to 1
     const total = this.importances.reduce((a, b) => a + b, 0) || 1;

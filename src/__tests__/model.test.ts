@@ -1,10 +1,28 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RandomForest, trainTestSplit, computeMetrics } from '../engine/randomForest';
 import { generateDemoDataset, FEATURE_SPECS, isEvidenceSchema, buildFeatureVector } from '../services/sampleDataset';
-import { setSharedModel, scoreWithSharedModel, getSharedModelMeta, resetSharedModelForTests } from '../engine/sharedModel';
+import { setSharedModel, scoreWithSharedModel, getSharedModelMeta, resetSharedModelForTests, warmUpSharedModel } from '../engine/sharedModel';
 import type { ForensicReport, OcrResult, ExtractedTransactionData } from '../types';
 
 describe('Random Forest (from scratch)', () => {
+  it('background training (fitAsync) builds exactly the same forest as fit()', async () => {
+    const ds = generateDemoDataset();
+    const a = new RandomForest({ nTrees: 15, maxDepth: 7, seed: 42 }); a.fit(ds.X, ds.y);
+    const b = new RandomForest({ nTrees: 15, maxDepth: 7, seed: 42 }); await b.fitAsync(ds.X, ds.y);
+    expect(b.treeCount).toBe(15);
+    expect(b.predictBatch(ds.X)).toEqual(a.predictBatch(ds.X));
+    expect(ds.X.slice(0, 50).map(x => b.predictProba(x))).toEqual(ds.X.slice(0, 50).map(x => a.predictProba(x)));
+    expect(b.importances).toEqual(a.importances);
+  });
+  it('warmUpSharedModel gives the same live-scan scores as the on-demand default model', async () => {
+    const ds = generateDemoDataset();
+    resetSharedModelForTests();
+    const sync = ds.X.slice(0, 40).map(x => scoreWithSharedModel(x).probability);
+    resetSharedModelForTests();
+    await warmUpSharedModel();
+    expect(ds.X.slice(0, 40).map(x => scoreWithSharedModel(x).probability)).toEqual(sync);
+    expect(getSharedModelMeta().datasetSource).toBe('demo');
+  });
   it('training is reproducible with a fixed seed', () => {
     const ds = generateDemoDataset();
     const a = new RandomForest({ nTrees: 20, maxDepth: 6, seed: 42 }); a.fit(ds.X, ds.y);

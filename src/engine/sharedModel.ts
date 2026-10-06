@@ -41,18 +41,42 @@ let forest: RandomForest | null = null;
 let meta: SharedModelMeta | null = null;
 const listeners = new Set<(m: SharedModelMeta) => void>();
 
-function trainDefault() {
-  const ds = generateDemoDataset();
-  const rf = new RandomForest({ nTrees: DEFAULT_TREES, maxDepth: DEFAULT_DEPTH, seed: 42 });
-  rf.fit(ds.X, ds.y);
+let warming: Promise<void> | null = null;
+
+function install(rf: RandomForest, rows: number) {
   forest = rf;
   meta = {
     datasetSource: 'demo',
     nTrees: DEFAULT_TREES,
     maxDepth: DEFAULT_DEPTH,
-    trainRows: ds.X.length,
+    trainRows: rows,
     trainedAt: new Date().toISOString(),
   };
+}
+
+function trainDefault() {
+  const ds = generateDemoDataset();
+  const rf = new RandomForest({ nTrees: DEFAULT_TREES, maxDepth: DEFAULT_DEPTH, seed: 42 });
+  rf.fit(ds.X, ds.y);
+  install(rf, ds.X.length);
+}
+
+/**
+ * Train the default forest in the background, one tree at a time, so the
+ * first scan doesn't freeze the page (training blocked the main thread for
+ * ~1.2 s under 4x CPU throttling). Safe to call repeatedly.
+ */
+export function warmUpSharedModel(): Promise<void> {
+  if (forest) return Promise.resolve();
+  if (!warming) {
+    warming = (async () => {
+      const ds = generateDemoDataset();
+      const rf = new RandomForest({ nTrees: DEFAULT_TREES, maxDepth: DEFAULT_DEPTH, seed: 42 });
+      await rf.fitAsync(ds.X, ds.y);
+      if (!forest) install(rf, ds.X.length);   // a retrained model may have been set meanwhile
+    })().finally(() => { warming = null; });
+  }
+  return warming;
 }
 
 function ensure(): { forest: RandomForest; meta: SharedModelMeta } {
@@ -105,4 +129,5 @@ export function scoreWithSharedModel(features: number[]): ForestAnalysis {
 export function resetSharedModelForTests() {
   forest = null;
   meta = null;
+  warming = null;
 }

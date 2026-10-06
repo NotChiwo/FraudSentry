@@ -19,7 +19,11 @@ export interface OcrResult {
   engine: string;          // e.g. "Tesseract 5 (eng+fil)" or "unavailable"
   durationMs: number;
   available: boolean;      // false if OCR engine could not load (offline)
+  words?: OcrWord[];       // positioned words from pass 1 (original pixels), for on-image highlights
+  imageSize?: { w: number; h: number };
 }
+
+export interface OcrWord { text: string; x0: number; y0: number; x1: number; y1: number }
 
 // ── Image Forensics (all computed client-side, no fabrication) ──
 export interface ForensicSignal {
