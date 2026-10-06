@@ -92,8 +92,8 @@ export default function MessageAnalyzerPage() {
       {/* Input */}
       <div className="card" style={{ padding: 18, marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Source platform:</span>
-          <select value={platform} onChange={e => setPlatform(e.target.value as MessagePlatform)} className="input-field" style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Source platform:</span>
+          <select aria-label="Where did you receive this message?" value={platform} onChange={e => setPlatform(e.target.value as MessagePlatform)} className="input-field" style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
             {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
           {ocrConfidence != null && <span className="badge badge-accent" style={{ marginLeft: 'auto' }}>OCR {Math.round(ocrConfidence)}%</span>}
@@ -115,7 +115,7 @@ export default function MessageAnalyzerPage() {
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 <img src={preview} alt="screenshot" style={{ width: 130, borderRadius: 10, border: '1px solid var(--border-default)' }} />
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>Extracted text (editable):</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 5 }}>Extracted text (editable):</div>
                   <textarea className="input-field" rows={5} value={text} onChange={e => setText(e.target.value)} style={{ resize: 'vertical', lineHeight: 1.55 }} />
                 </div>
               </div>
@@ -161,7 +161,7 @@ function MessageResult({ result }: { result: MessageScanResult }) {
           </div>
           <div style={{ textAlign: 'center', flexShrink: 0 }}>
             <div className="mono" style={{ fontSize: 30, fontWeight: 800, color: meta.hex, lineHeight: 1 }}>{pct}%</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3 }}>Risk</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3 }}>Risk</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
@@ -173,7 +173,7 @@ function MessageResult({ result }: { result: MessageScanResult }) {
       <div className="card" style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <Highlighter size={15} color="var(--accent-light)" />
-          <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Conversation risk mapping</h3>
+          <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Conversation risk mapping</h2>
         </div>
         <HighlightedText text={result.sourceText} flags={result.flags} />
         {result.flags.length === 0 && (
@@ -197,7 +197,7 @@ function MessageResult({ result }: { result: MessageScanResult }) {
         <div className="card" style={{ padding: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <ListChecks size={15} color="var(--accent-light)" />
-            <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Why this score</h3>
+            <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Why this score</h2>
           </div>
           {result.flags.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -211,7 +211,7 @@ function MessageResult({ result }: { result: MessageScanResult }) {
                         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>“{f.keyword}”</span>
                         <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: c }}>+{Math.round(f.weight * 100)}%</span>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.45 }}>{f.reason}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.45 }}>{f.reason}</div>
                     </div>
                   </div>
                 );
@@ -225,7 +225,7 @@ function MessageResult({ result }: { result: MessageScanResult }) {
           <div className="card" style={{ padding: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <Link2 size={15} color="var(--accent-light)" />
-              <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Link analysis</h3>
+              <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Link analysis</h2>
             </div>
             {result.links.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -233,8 +233,8 @@ function MessageResult({ result }: { result: MessageScanResult }) {
                   const c = l.severity === 'critical' ? 'var(--accent-red)' : l.severity === 'high' ? 'var(--accent-orange)' : l.severity === 'medium' ? 'var(--accent-amber)' : 'var(--accent-emerald)';
                   return (
                     <div key={i} style={{ padding: '10px 12px', background: 'var(--bg-subtle)', border: `1px solid ${c}44`, borderRadius: 8 }}>
-                      <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-primary)', wordBreak: 'break-all', fontWeight: 600 }}>{l.url}</div>
-                      <div style={{ fontSize: 11, color: c, marginTop: 3 }}>{l.reason}</div>
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all', fontWeight: 600 }}>{l.url}</div>
+                      <div style={{ fontSize: 12, color: c, marginTop: 3 }}>{l.reason}</div>
                     </div>
                   );
                 })}
@@ -245,7 +245,7 @@ function MessageResult({ result }: { result: MessageScanResult }) {
           <div className="card" style={{ padding: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <ShieldAlert size={15} color="var(--accent-emerald)" />
-              <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Recommended actions</h3>
+              <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Recommended actions</h2>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               {result.recommendedActions.map((a, i) => (

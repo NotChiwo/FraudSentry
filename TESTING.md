@@ -1,19 +1,22 @@
 # Testing — what is verified, and what is not
 
-Everything listed as **verified** below was actually executed on 2026-10-01 (V7) and re-run on 2026-10-05 (V7.1) against this source / its built `dist/index.html`. Nothing here is estimated or simulated. Items that need real people are marked **pending** — they have **not** been done.
+Everything listed as **verified** below was actually executed on 2026-10-01 (V7), re-run on 2026-10-05 (V7.1) and again on 2026-10-07 (V8) against this source / its built `dist/index.html`. Nothing here is estimated or simulated. Items that need real people are marked **pending** — they have **not** been done.
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**118 / 118 passing.**
+**139 / 139 passing** (V8).
 
 | Suite | Tests | What it covers |
 |---|---|---|
 | `receiptParser.test.ts` | 29 | Issuer detection, field extraction and the Maya unsent-screen rule on **real OCR output** (redacted, see below); multi-pass merge (consensus reference, all-pass issuer detection, UI-label payees); synthetic edge cases |
 | `messageAnalysis.test.ts` | 22 | PH scam rules, negated OTP warnings, bare-domain links, critical-flag floor, receipt ↔ conversation linkage incl. masked numbers / one-digit OCR errors / "to you" false-contradiction |
 | `knowledgeBase.test.ts` | 22 | Every Knowledge Base example is detected with the right scam type; 11 ordinary messages stay Low |
-| `model.test.ts` | 13 | Random Forest reproducibility, held-out metrics computed from real predictions, importances, the evidence-schema gate (PaySim / headerless / reordered rejected), shared-model wiring, feature vector |
+| `model.test.ts` | 15 | Random Forest reproducibility, held-out metrics computed from real predictions, importances, the evidence-schema gate (PaySim / headerless / reordered rejected), shared-model wiring, feature vector; V8: background training (`fitAsync`) builds the identical forest, and warm-up gives identical live-scan scores |
 | `consistencyChecks.test.ts` | 17 | Amount + fee = total on real receipts (incl. waived fee, "tFee" misread); edited-amount and edited-total copies of a real receipt flagged; a misread in one pass ignored; principal vs total; date parsing; future, impossible and skewed dates |
 | `historyMatch.test.ts` | 8 | Same receipt rescanned → reused note only; a real receipt with its amount edited → edited copy; the 8 distinct real receipts never match each other; same recipient at the same minute; one-digit OCR tolerance on long references |
+| `forensicSignals.test.ts` | 8 | V8 thresholds: a typical genuine chat-forwarded JPEG raises nothing; the highest genuine ELA value measured (17.5 %) is not flagged; progressive/EXIF noted but unscored; editor signature, renamed file and odd crop still fire; future-date wording mentions the device clock |
+| `fieldLocator.test.ts` | 4 | Field highlights: amount (not total), multi-group reference, date and recipient mapped to word boxes; values not on the image are not outlined |
+| `activity.test.ts` | 7 | Home-page numbers: all zero without history, last-7-days, risky count, day streak (incl. ending yesterday, reset after a gap), milestones earned only from real history |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
 **Do the tests actually catch bugs?** The 29 parser tests were also run against the **real V6 parser** (extracted from `FraudSentry-V6.html`): **12 fail** there (GoTyme misclassification, `000006ReferenceNo`, Maya references, unsent-screen detection, consensus reference, …) and all pass on V7.
@@ -52,14 +55,35 @@ Every one of these receipts is treated as genuine, so any alarm would be a false
 
 This measures **false alarms only**. How often these checks catch real edited receipts has **not** been measured on a real set of fakes; the unit tests use real receipts with one figure changed. A fake built carefully (amount *and* total edited consistently, date untouched, never scanned before on this device) will not trip any of these.
 
+### V8: genuine-receipt false positives in image forensics
+`analyzeForensics` was run on all **63** images in the receipt folder (43 JPEG, 20 PNG), treating them as genuine. ELA hotspot % ranged **2.0–17.5** (median 6.4, 90th percentile 11.4). The ELA mean score was at most **8**, so the old `mean > 55` branch never fired.
+
+| Check | V7.1 (old rule) | V8 (new rule) |
+|---|---|---|
+| ELA "high" (hotspots > 4.5 %) → now "medium hint" (> 20 %) | fired on **39 / 63** (16 / 20 PNG) | fires on **0 / 63** |
+| Progressive JPEG | scored on 31 / 43 JPEGs | noted, weight 0 |
+| EXIF missing | scored on 16 / 43 JPEGs | noted, weight 0 |
+
+Real scans of clean GCash, GoTyme and MariBank receipts now score **0.00** on the rules (V7.1: 0.38–0.44). The Maya unsent screen still scores Critical (0.70).
+
+**Caveats.**
+- The new ELA threshold was chosen from genuine images only. Its catch rate on real edited receipts is **unmeasured**.
+- The folder includes `fake.png` and `zzzzzz.png`, whose authenticity is unconfirmed. `fake.png` (hotspots 12.2 %) was flagged by the old rule and is not flagged by the new one. If it is a real fake, that is a lost detection, but the old rule could not separate it from genuine images either.
+
+### V8: OCR output unchanged by the performance work
+12 real receipts were re-OCR'd with the V8 pipeline (filters in a Web Worker) and compared with the saved V7.1 corpus. **12 / 12 were identical**: pass texts, confidences and order. The old pipeline re-run the same day was also 12 / 12 identical to the corpus, so it is deterministic. A first attempt that also up-scaled inside the worker (OffscreenCanvas) changed the output on all 12, so it was rejected.
+
+### V8: field highlights on real OCR
+On those 12 receipts, `locateFields` outlined the amount on 10 of 11 receipts where an amount was extracted, the reference on 8 / 9, the date on 7 / 10 and the recipient on 5 / 6.
+
 ## 3. End-to-end tests of the built file (Playwright)
 
 `dist/index.html` driven through every module with **real receipts**: consent → BUG-008 / renamed-file rejection → GoTyme receipt scan (issuer, Trace ID, Random Forest card, action plan, PDF download) → Maya unsent screen (Critical) → Message Analyzer → Cross-Evidence linkage → Model page (demo model connects; PaySim model evaluated but **not** connected) → overflow check on 9 pages × 4 widths (375, 414, 768, 1280) → network audit → console errors.
 
 | Engine | Result | First scan (OCR + forensics) |
 |---|---|---|
-| Chromium | **18 / 18** (V7.1: also 7/7 on the new checks) | ≈ 11.6 s |
-| WebKit (Safari's engine) | **18 / 18** (V7.1: also 7/7 on the new checks) | ≈ 14.2 s |
+| Chromium | **19 / 19** (V8; adds the verify-in-your-own-app banner check) | ≈ 7.6 s |
+| WebKit (Safari's engine) | **19 / 19** (V8) | ≈ 10.9 s |
 | Firefox | **not tested** — Playwright's Firefox could not be launched on the test machine (`spawn UNKNOWN`) | — |
 
 Network audit: the only external hosts contacted were `cdn.jsdelivr.net` (Tesseract) and Google Fonts. No receipt or text is uploaded anywhere.
@@ -68,8 +92,28 @@ The same OCR flow was also run against the original `FraudSentry-V6.html`: it **
 
 WebKit is a strong proxy for iPhone browsers but is **not** a real iOS Safari device test.
 
+### V8: accessibility audit (axe-core 4, Chromium only)
+- **Scope:** 9 pages × 2 widths (390, 1280) × 2 themes, plus the results screen after real scans of 3 receipts at both widths = 42 views.
+- **Result: 0 axe violations.** On 2026-10-06 (V7.1) the same audit found 3 critical, 3 serious and 3 moderate rule types.
+- **Also measured:** no horizontal overflow; no text element under 12 px; at most 2 interactive elements under 44 × 44 px per view at 390 px. Those are the off-screen skip link and a 20 px checkbox inside a 44 px label.
+- **Not covered:** WebKit/Firefox axe runs, screen readers, keyboard-only walkthroughs, real phones. **This is not a WCAG conformance claim.**
+
+### V8: main-thread responsiveness during a real scan
+Long tasks (> 50 ms) measured with `PerformanceObserver` while scanning the same real receipt at 390 px under Chrome DevTools **4× CPU throttling**. The throttle approximates a slower phone CPU; it is **not** a real-device measurement.
+
+| | Total blocked | Longest single block |
+|---|---|---|
+| V7.1 | 5,659 ms | 2,569 ms |
+| V8, run 1 / run 2 | 1,387 / 1,515 ms | 484 / 528 ms |
+
+Profiling showed where the V7.1 time went:
+- The OCR enhance/binarise filters: about 1.9 s.
+- Training the demo Random Forest on the first scan: about 1.2 s.
+- React rendering the long results page.
+
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.
+- `npm audit --omit=dev` (shipped dependencies) → **0 vulnerabilities** on 2026-10-07; CI now runs it on every push.
 - `npm audit` → 0 vulnerabilities on 2026-10-01. On 2026-10-05 a new advisory (GHSA-vfj7-8cjw-p6xm, `braces`, "high") reports 3 findings via `vite-plugin-singlefile → micromatch → braces`. No patched `braces` exists yet. It is a **build-time only** dependency: it matches file-name globs from our own build config, and none of it is shipped in the built app. Re-check when a fixed version is released.
 - Tesseract SRI hash recomputed from the npm tarball → matches.
 
@@ -77,7 +121,8 @@ WebKit is a strong proxy for iPhone browsers but is **not** a real iOS Safari de
 - **Usability testing** with target users.
 - **ISO/IEC 25010 evaluation** by the 10 IT experts specified in the methodology.
 - Real-device testing on iPhone Safari and Android Chrome; Firefox.
-- A **held-out** receipt set for an unbiased parser-accuracy figure (see §2).
+- A **held-out** receipt set for an unbiased parser-accuracy figure (see §2), and a set of real/simulated edited receipts to measure how often the forensic and consistency checks catch fakes.
+- A Filipino-language review of the UI copy.
 
 Do not fill these in with estimated values.
 

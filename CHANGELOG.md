@@ -1,5 +1,47 @@
 # Changelog
 
+## V8 — 2026-10-07
+
+A redesigned, faster app built on the 2026-10-06 audit (`docs/AUDIT-2026-10-06.md`). Every number below was measured; see TESTING.md.
+
+### Faster scanning (the "laggy" feel)
+- **Image preprocessing moved off the main thread.** The sharpen and Otsu filters for OCR passes 2 and 3 now run in a Web Worker (`ocrPreprocess.worker.ts`, shared math in `ocrFilters.ts`). Under 4× CPU throttling they had frozen the page for about 1.9 s per scan. The up-scale stays on the main thread on purpose: doing it in the worker changed the pixels slightly, and that changed Tesseract's output. With the upscale kept on the main thread, OCR output is **identical** to V7.1 on 12/12 real receipts (same text, confidences and pass order).
+- **The demo Random Forest trains in the background.** It now trains one tree at a time during idle time after the app opens. Before, it trained in one go on the first scan and blocked for about 1.2 s. A test proves `fitAsync` builds exactly the same forest as `fit`.
+- **Cheaper rendering.** No `backdrop-filter` on cards, no infinite blurred background animations, and no 80 ms page-transition delay.
+- **Result:** main-thread blocking during a real scan (390 px, 4× throttle) went from 5,659 ms total / 2,569 ms longest to about 1,400–1,500 ms total / about 500 ms longest.
+
+### New scan experience
+- **Live scan view driven by real pipeline events.** It shows the current step (image check → engine start → three OCR passes with Tesseract's own % progress → scoring), the words found on pass 1 drawn on the receipt as they are found, a real elapsed timer, and **Cancel**.
+- **Plain-language verdict.** An icon + text + colour verdict (never colour alone), a one-sentence reason, and a four-step risk meter. Every verdict carries a "This is not a payment confirmation, check your own app" banner.
+- **Quick facts, top reasons, what to do next.** Amount, reference, app and date are shown up front, then up to 3 reasons and the next steps. On a Low verdict, minor items are labelled "notes", not "reasons".
+- **"Where we read it."** The amount, reference, date and recipient are outlined on your screenshot, using word positions from OCR pass 1 (`fieldLocator.ts`).
+- **"How this was decided" expander.** The rule score + Random Forest vote = final risk, every check with its weight, the ELA heatmap and OCR pass confidences. Jargon stays out of the main view.
+- **More ways in, friendlier errors.** A Paste button (plus Ctrl+V), take-photo, retake tips on low OCR confidence, and friendly cancel/error states.
+
+### Fewer false alarms on genuine receipts (audit findings)
+- **ELA re-thresholded** from 4.5 % to 20 % hotspots, measured on 63 genuine images where hotspots ranged 2.0–17.5 %. It is now a medium-severity *hint* with weight 0.15. The old threshold flagged 39/63 genuine images as "high". How many real edits the new threshold catches is **not measured**.
+- **Not scored any more:** progressive JPEG encoding and missing EXIF are noted but carry no weight. They fired on most genuine chat-forwarded images.
+- **Reference format uses per-app rules.** A genuine 6-digit MariBank reference is no longer flagged "unusual".
+- **Future-dated receipt** is now **High** (was Critical), and the message tells the user to check their phone's date first. A wrong device clock produced false Criticals.
+- **"No Recipient Identified" fixes.** It no longer claims fields were read when they weren't, and it is skipped on an unsent "Confirm transaction" screen, where the Unconfirmed Transaction finding already explains it.
+- **Effect on real scans:** clean GCash/GoTyme/MariBank receipts now score 0.00 on the rules (were 0.38–0.44). The Maya unsent screen is still Critical.
+
+### Navigation, Home and History
+- **Grouped sidebar:** Check (Home, Check Receipt, Check Message, History) · Learn · **Research tools** (Cross-Evidence, Detection Model, labelled "Thesis demo"). The NEW badges are gone.
+- **Mobile bottom tab bar** with safe-area insets and a "More" sheet. This replaces the floating hamburger.
+- **Home:** a new hero; activity numbers computed only from this device's history (total, last 7 days, risky results, day streak, small honest milestones; all zero until you check something); a "scam to know today" from the Knowledge Base; tools laid out 2 + 2 (no orphan card).
+- **History (was Reports):** search, type and "high risk only" filters, delete one, delete all, and a plain "your data stays on this device" note.
+- **Theme:** the first visit follows the device's light/dark setting.
+
+### Accessibility (axe-core, Chromium)
+- **0 violations in 42 views** (9 pages × 2 widths × 2 themes + the results screen for 3 real receipts). Before: 3 critical, 3 serious and 3 moderate rule types.
+- **Fixes:** `<main>` landmark, skip link, focus moved to the page on navigation, labels on the select / sliders / icon buttons, no nested interactive elements, contrast tokens re-chosen (WCAG formula) in both themes, nothing under 12 px, body text 15 px (16 px on phones), 44 px targets, `aria-live` scan and result announcements, heading order fixed.
+- **Not claimed:** WCAG conformance. Screen-reader, keyboard-only and real-device testing are still pending.
+
+### Engineering
+- **CI** runs `npm audit --omit=dev`. README no longer claims plain `npm audit` is clean (concern 4 from the audit).
+- **Tests:** 118 → **139** (new suites: forensic thresholds, field locator, on-device activity; plus forest warm-up equivalence).
+
 ## V7.1 — 2026-10-05
 
 New checks that catch the most common way a fake receipt is made: editing a figure on a genuine screenshot.

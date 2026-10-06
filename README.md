@@ -10,8 +10,8 @@ FraudSentry lets Filipino users check whether a GCash / Maya / GoTyme / MariBank
 
 | Module | Page | Engine |
 |---|---|---|
-| **Transaction Check** — upload a receipt → OCR → field parsing → image forensics → risk score | `src/pages/ScannerPage.tsx` | `src/services/ocr.ts`, `receiptParser.ts`, `imageForensics.ts`, `fieldValidation.ts`, `src/engine/imageVerification.ts` |
-| **Message Analyzer** — PH scam-language & phishing-link detection | `src/pages/MessageAnalyzerPage.tsx` | `src/engine/messageAnalysis.ts` |
+| **Check Receipt** — upload a receipt → OCR → field parsing → image forensics → risk score | `src/pages/ScannerPage.tsx` | `src/services/ocr.ts`, `receiptParser.ts`, `imageForensics.ts`, `fieldValidation.ts`, `src/engine/imageVerification.ts` |
+| **Check Message** — PH scam-language & phishing-link detection | `src/pages/MessageAnalyzerPage.tsx` | `src/engine/messageAnalysis.ts` |
 | **Cross-Evidence** — is this receipt really about this conversation? | `src/pages/CrossEvidencePage.tsx` | `correlateEvidence()` in `messageAnalysis.ts` |
 | **Detection Model** — train / evaluate the Random Forest live | `src/pages/ModelPage.tsx` | `src/engine/randomForest.ts` (from scratch), `src/engine/sharedModel.ts` |
 
@@ -34,9 +34,11 @@ Retraining on the Detection Model page replaces the forest used by every future 
 npm install
 npm run typecheck     # tsc --noEmit — must report 0 errors
 npm test              # vitest — unit/regression suite
-npm run build         # → dist/index.html (~1.26 MB, self-contained) + dist/_headers
-npm audit             # must report 0 vulnerabilities
+npm run build         # → dist/index.html (~1.31 MB, self-contained) + dist/_headers
+npm audit --omit=dev  # shipped (runtime) dependencies: must report 0 vulnerabilities
 ```
+
+Plain `npm audit` currently also lists a build-time-only advisory (`vite-plugin-singlefile → micromatch → braces`, no fix released yet). That code never ships in the built app. See TESTING.md §4.
 
 `dist/index.html` can be opened directly from disk or hosted on any static host. `dist/_headers` sets the Content-Security-Policy and security headers on Netlify.
 

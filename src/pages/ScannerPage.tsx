@@ -1,70 +1,73 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import type { LucideIcon } from 'lucide-react';
 import {
-  ScanLine, UploadCloud, FileImage, X, RefreshCw, Download, AlertTriangle,
-  CheckCircle2, ShieldAlert, Loader2, Pencil, Camera, Eye, Layers, Fingerprint, Gauge, Copy,
-  Trees, ChevronDown, Info, WifiOff,
+  ScanLine, UploadCloud, FileImage, X, RefreshCw, Download, AlertTriangle, CheckCircle2, ShieldAlert,
+  Pencil, Camera, ClipboardPaste, ChevronDown, Info, WifiOff, Copy, ShieldCheck, Smartphone, Clock,
+  Eye, ScanText, Sparkles, Square,
 } from 'lucide-react';
 import { analyzeTransactionImage } from '../engine/imageVerification';
+import { OcrCancelled } from '../services/ocr';
+import type { OcrProgress } from '../services/ocr';
 import { generateImageReport } from '../services/reportGenerator';
 import { validateExtraction, FieldCheck, FieldStatus, FieldConfidence } from '../services/fieldValidation';
 import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../services/uploadValidation';
+import { locateFields, FieldBox } from '../services/fieldLocator';
 import { useAppStore } from '../store/useAppStore';
-import { ImageScanResult, ExtractedTransactionData, ScanStatus, OcrResult } from '../types';
-import { formatBytes, formatPHP, formatRelativeTime, RISK_META } from '../utils/helpers';
+import { ImageScanResult, ExtractedTransactionData, OcrResult, OcrWord, RiskLevel, VerificationFinding } from '../types';
+import { formatBytes, formatPHP, formatRelativeTime } from '../utils/helpers';
 
-const STAGES = [
-  { key: 'preprocessing', label: 'Upload received',     desc: 'Reading and validating the image file' },
-  { key: 'forensics',     label: 'Forensic analysis',    desc: 'Inspecting compression, metadata & error levels' },
-  { key: 'ocr',           label: 'OCR text extraction',  desc: 'Reading the on-screen text' },
-  { key: 'analyzing',     label: 'Evidence scoring',     desc: 'Rule-based findings + Random Forest vote' },
-  { key: 'complete',      label: 'Assessment ready',     desc: 'Final evidence-based verdict' },
-];
+// Plain-language verdicts. The technical label (legitimacyLabel) still goes in the PDF report.
+export const VERDICT: Record<RiskLevel, { title: string; level: string; Icon: typeof CheckCircle2 }> = {
+  low:      { title: 'No signs of editing found', level: 'Low risk', Icon: CheckCircle2 },
+  medium:   { title: "Some details don't add up", level: 'Medium risk', Icon: AlertTriangle },
+  high:     { title: 'Suspicious — verify before trusting', level: 'High risk', Icon: AlertTriangle },
+  critical: { title: 'Likely fake — do not accept', level: 'Critical risk', Icon: ShieldAlert },
+};
+const LEVELS: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
 
-function stageIndex(s: ScanStatus): number {
-  const order: ScanStatus[] = ['preprocessing', 'forensics', 'ocr', 'analyzing', 'complete'];
-  return order.indexOf(s);
-}
+type Phase = 'idle' | 'selected' | 'scanning' | 'complete';
+type Step = 'image' | 'engine' | 'read' | 'score';
+interface Live { step: Step; pass?: 1 | 2 | 3; progress?: number; words?: OcrWord[]; imageSize?: { w: number; h: number }; startedAt: number }
 
 export default function ScannerPage() {
   const addImageScan = useAppStore(s => s.addImageScan);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string>('');
-  const [status, setStatus] = useState<ScanStatus>('idle');
-  const [stageLabel, setStageLabel] = useState('');
+  const [preview, setPreview] = useState('');
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [live, setLive] = useState<Live | null>(null);
   const [result, setResult] = useState<ImageScanResult | null>(null);
   const [duplicateOf, setDuplicateOf] = useState<ImageScanResult | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<ExtractedTransactionData | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const reset = () => {
-    setFile(null); setPreview(''); setStatus('idle'); setResult(null); setDuplicateOf(null);
-    setError(''); setEditing(false); setEditData(null); setStageLabel('');
+    abortRef.current?.abort();
+    setFile(null); setPreview(''); setPhase('idle'); setResult(null); setDuplicateOf(null);
+    setError(''); setNotice(''); setEditing(false); setEditData(null); setLive(null);
   };
 
   const handleFile = useCallback(async (f: File) => {
     const err = await validateImageFile(f);
     if (err) { setError(err); return; }
-    setError(''); setResult(null); setEditing(false);
+    setError(''); setNotice(''); setResult(null); setEditing(false);
     setFile(f);
+    setPhase('selected');
     const reader = new FileReader();
     reader.onload = () => setPreview(reader.result as string);
     reader.readAsDataURL(f);
   }, []);
 
-  // Paste a screenshot straight from the clipboard (Ctrl/Cmd+V) — the fastest
-  // path on desktop when the receipt was just copied from a chat.
-  const busy = status !== 'idle' && status !== 'complete' && status !== 'error';
+  // Paste a screenshot straight from the clipboard (Ctrl/Cmd+V).
+  const busy = phase === 'scanning';
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (busy) return;
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (const item of Array.from(items)) {
+      for (const item of Array.from(e.clipboardData?.items || [])) {
         if (item.type.startsWith('image/')) {
           const f = item.getAsFile();
           if (f) { e.preventDefault(); handleFile(f); return; }
@@ -75,12 +78,25 @@ export default function ScannerPage() {
     return () => window.removeEventListener('paste', onPaste);
   }, [handleFile, busy]);
 
-  const runScan = async (f: File, opts?: { ocrOverride?: OcrResult; extractedOverride?: ExtractedTransactionData }) => {
-    setStatus('preprocessing');
-    setStageLabel('Reading image');
-    setError('');
+  const pasteFromClipboard = async () => {
     try {
-      // EARLIER scans (read before this scan is added to history)
+      const items = await (navigator.clipboard as Clipboard & { read?: () => Promise<ClipboardItem[]> }).read?.();
+      for (const it of items || []) {
+        const type = it.types.find(t => t.startsWith('image/'));
+        if (type) { const blob = await it.getType(type); handleFile(new File([blob], `pasted.${type.split('/')[1]}`, { type })); return; }
+      }
+      setError('No image found on the clipboard. Copy a screenshot first, or press Ctrl+V.');
+    } catch {
+      setError('Your browser blocked clipboard access. Press Ctrl+V (or long-press → Paste) instead.');
+    }
+  };
+
+  const runScan = async (f: File, opts?: { ocrOverride?: OcrResult; extractedOverride?: ExtractedTransactionData }) => {
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setPhase('scanning'); setError(''); setNotice('');
+    setLive({ step: 'image', startedAt: performance.now() });
+    try {
       const history = useAppStore.getState().imageScans
         .map(s => ({ id: s.id, filename: s.filename, scannedAt: s.scannedAt, extracted: s.extracted }));
       const scan = await analyzeTransactionImage(f, {
@@ -88,15 +104,19 @@ export default function ScannerPage() {
         ocrOverride: opts?.ocrOverride,
         extractedOverride: opts?.extractedOverride,
         history: opts?.extractedOverride ? [] : history,
+        signal: ctrl.signal,
         onStage: (s: string) => {
-          setStageLabel(s);
-          if (/forensic/i.test(s)) setStatus('forensics');
-          else if (/ocr|text/i.test(s)) setStatus('ocr');
-          else if (/scor|evidence/i.test(s)) setStatus('analyzing');
+          if (/scor|evidence/i.test(s)) setLive(l => l && { ...l, step: 'score' });
+          else if (/forensic/i.test(s)) setLive(l => l && { ...l, step: 'image' });
         },
+        onOcrProgress: (p: OcrProgress) => setLive(l => {
+          if (!l) return l;
+          if (p.phase === 'engine') return { ...l, step: 'engine' };
+          if (p.phase === 'read') return { ...l, step: 'read', pass: p.pass, progress: p.progress, words: p.words ?? l.words, imageSize: p.imageSize ?? l.imageSize };
+          return l;
+        }),
       });
-      setStatus('complete');
-      // Reused-receipt check: has this reference number been seen before?
+      if (ctrl.signal.aborted) return;
       const ref = scan.extracted.referenceNo;
       const prior = ref && ref.replace(/\s/g, '').length >= 6 && !opts?.extractedOverride
         ? useAppStore.getState().imageScans.find(s => s.extracted.referenceNo && s.extracted.referenceNo.replace(/\s/g, '') === ref.replace(/\s/g, ''))
@@ -105,12 +125,20 @@ export default function ScannerPage() {
       setResult(scan);
       setEditData(scan.extracted);
       addImageScan(scan);
+      setPhase('complete');
     } catch (e: unknown) {
-      setStatus('error');
-      setError((e instanceof Error && e.message) || "We couldn't read this receipt. This can happen when the image is blurry, heavily cropped, very small, or in an unsupported format. Try a clearer, uncropped screenshot.");
+      if (e instanceof OcrCancelled || ctrl.signal.aborted) {
+        setPhase('selected'); setNotice('Scan cancelled. Nothing was saved.');
+      } else {
+        setPhase('selected');
+        setError((e instanceof Error && e.message) || "We couldn't read this receipt. Try a clearer, uncropped screenshot.");
+      }
+    } finally {
+      setLive(null);
     }
   };
 
+  const cancelScan = () => abortRef.current?.abort();
   const reanalyzeWithEdits = async () => {
     if (!file || !result || !editData) return;
     setEditing(false);
@@ -119,569 +147,455 @@ export default function ScannerPage() {
 
   return (
     <div className="page" style={{ maxWidth: 1180 }}>
-      <PageHeader />
+      {phase !== 'complete' && (
+        <div className="page-head">
+          <div className="page-head-ico"><ScanLine size={22} /></div>
+          <div>
+            <h1>Check a receipt</h1>
+            <p>Upload a payment screenshot. We read it, look for signs of editing, and explain what we found. Only your own bank or e-wallet app can confirm money actually arrived.</p>
+          </div>
+        </div>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }}>
-        {/* Upload zone */}
-        {!result && !busy && (
-          <div className="card animate-fade-up" style={{ padding: 0, overflow: 'hidden' }}>
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Upload a transaction screenshot"
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
-              style={{
-                margin: 20, borderRadius: 14, padding: '48px 24px', textAlign: 'center',
-                border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border-strong)'}`,
-                background: dragOver ? 'var(--bg-accent-tint)' : 'var(--bg-subtle)',
-                transition: 'all 0.2s', cursor: 'pointer',
-              }}
-              onClick={() => inputRef.current?.click()}
-            >
-              <div style={{ width: 60, height: 60, margin: '0 auto 16px', borderRadius: 16, background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <UploadCloud size={28} color="var(--accent-light)" />
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-                Drop a transaction screenshot here
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
-                GCash · Maya · GoTyme · MariBank · BPI · BDO · Metrobank · UnionBank · Landbank · online banking receipts
-              </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button className="btn-primary" onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}>
-                  <FileImage size={16} /> Choose file
-                </button>
-                <button className="btn-secondary" onClick={e => { e.stopPropagation(); cameraRef.current?.click(); }}>
-                  <Camera size={15} /> Use camera
-                </button>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 16 }}>
-                PNG, JPG, or WEBP · up to 10 MB · or paste with Ctrl+V · processed entirely in your browser
-              </div>
+      <div className="sr-only" aria-live="polite">
+        {phase === 'scanning' && live ? stepAnnouncement(live) : phase === 'complete' && result ? `Result: ${VERDICT[result.riskLevel].title}. ${VERDICT[result.riskLevel].level}.` : ''}
+      </div>
+
+      {error && (
+        <div className="alert alert-error" role="alert">
+          <AlertTriangle size={18} aria-hidden="true" />
+          <span>{error}</span>
+          <button type="button" className="btn-ghost" onClick={() => setError('')}>Dismiss</button>
+        </div>
+      )}
+      {notice && !error && (
+        <div className="alert alert-info" role="status">
+          <Info size={18} aria-hidden="true" /><span>{notice}</span>
+          <button type="button" className="btn-ghost" onClick={() => setNotice('')}>OK</button>
+        </div>
+      )}
+
+      {phase === 'idle' && (
+        <div
+          className={`dropzone${dragOver ? ' over' : ''}`}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
+        >
+          <div className="dropzone-art" aria-hidden="true">
+            <div className="phone-outline"><span className="phone-line w1" /><span className="phone-line w2" /><span className="phone-line w3" /><span className="phone-line w4" /><span className="dz-scan" /></div>
+          </div>
+          <h2 className="dz-title">Drop a payment screenshot here</h2>
+          <p className="dz-sub">GCash · Maya · GoTyme · MariBank · BPI · BDO · other PH banks</p>
+          <div className="dz-actions">
+            <button type="button" className="btn-primary" onClick={() => inputRef.current?.click()}><FileImage size={18} /> Choose screenshot</button>
+            <button type="button" className="btn-secondary" onClick={() => cameraRef.current?.click()}><Camera size={17} /> Take photo</button>
+            <button type="button" className="btn-secondary" onClick={pasteFromClipboard}><ClipboardPaste size={17} /> Paste</button>
+          </div>
+          <p className="dz-foot">PNG, JPG or WEBP · up to 10 MB · read entirely in this browser — nothing is uploaded</p>
+          <input ref={inputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} hidden aria-label="Choose a receipt screenshot"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden aria-label="Take a photo of a receipt"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+        </div>
+      )}
+
+      {phase === 'selected' && file && (
+        <div className="card selected-card pop-in">
+          {preview ? <img src={preview} alt="Selected receipt" className="selected-thumb" /> : <div className="selected-thumb skeleton" />}
+          <div className="selected-info">
+            <div className="selected-name">{file.name}</div>
+            <div className="muted">{formatBytes(file.size)} · {(file.type.replace('image/', '') || 'image').toUpperCase()}</div>
+            <ul className="selected-checks">
+              <li><Eye size={15} aria-hidden="true" /> Check the image for signs of editing</li>
+              <li><ScanText size={15} aria-hidden="true" /> Read the amount, reference, date and recipient</li>
+              <li><Sparkles size={15} aria-hidden="true" /> Score the evidence and explain why</li>
+            </ul>
+          </div>
+          <div className="selected-actions">
+            <button type="button" className="btn-primary btn-lg" onClick={() => runScan(file)}><ScanLine size={19} /> Verify authenticity</button>
+            <button type="button" className="btn-ghost" onClick={reset}><X size={15} /> Choose another</button>
+          </div>
+        </div>
+      )}
+
+      {phase === 'scanning' && live && <ScanLive live={live} preview={preview} onCancel={cancelScan} />}
+
+      {phase === 'complete' && result && (
+        <>
+          {!result.ocr.available && (
+            <div className="alert alert-warn">
+              <WifiOff size={18} aria-hidden="true" />
+              <span><b>The text reader didn't load.</b> It downloads once from the internet on first use and couldn't be reached. The image checks below still ran, but no text was read. Check your connection and retry.</span>
+              <button type="button" className="btn-primary" onClick={() => file && runScan(file)}><RefreshCw size={15} /> Retry scan</button>
             </div>
-            <input ref={inputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} hidden
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
-          </div>
-        )}
-
-        {error && (
-          <div className="card" role="alert" style={{ padding: '14px 18px', display: 'flex', gap: 10, alignItems: 'center', borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.06)' }}>
-            <AlertTriangle size={17} color="var(--accent-red)" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{error}</span>
-            <button className="btn-ghost" style={{ marginLeft: 'auto' }} onClick={() => setError('')}>Dismiss</button>
-          </div>
-        )}
-
-        {/* Preview + run */}
-        {file && !result && !busy && (
-          <div className="card animate-fade-up" style={{ padding: 18, display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
-            <img src={preview} alt="Selected receipt" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border-default)' }} />
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{file.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{formatBytes(file.size)} · {file.type.replace('image/', '').toUpperCase()}</div>
+          )}
+          {duplicateOf && (
+            <div className="alert alert-warn">
+              <Copy size={18} aria-hidden="true" />
+              <span><b>Seen before.</b> Reference <span className="mono">{result.extracted.referenceNo}</span> was already checked {formatRelativeTime(duplicateOf.scannedAt)}. If you didn't scan the same receipt twice, be careful: sending one real screenshot to several sellers is a common scam.</span>
             </div>
-            <button className="btn-ghost" onClick={reset}><X size={14} /> Remove</button>
-            <button className="btn-primary" onClick={() => runScan(file)}><ScanLine size={16} /> Verify authenticity</button>
+          )}
+          <ResultView
+            result={result} preview={preview} editing={editing} editData={editData}
+            setEditing={setEditing} setEditData={setEditData} onReanalyze={reanalyzeWithEdits} onReset={reset}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function stepAnnouncement(l: Live): string {
+  if (l.step === 'image') return 'Checking the image for signs of editing';
+  if (l.step === 'engine') return 'Starting the text reader';
+  if (l.step === 'read') return `Reading the text, pass ${l.pass ?? 1} of 3`;
+  return 'Scoring the evidence';
+}
+
+/* ── live scan view (every number here is a real event from the pipeline) ── */
+const PASS_NAMES = ['Original', 'Sharpened', 'High-contrast'];
+function ScanLive({ live, preview, onCancel }: { live: Live; preview: string; onCancel: () => void }) {
+  const [now, setNow] = useState(performance.now());
+  useEffect(() => { const t = setInterval(() => setNow(performance.now()), 250); return () => clearInterval(t); }, []);
+  const secs = Math.max(0, (now - live.startedAt) / 1000);
+  const order: Step[] = ['image', 'engine', 'read', 'score'];
+  const at = order.indexOf(live.step);
+  const steps: { key: Step; label: string; sub: string }[] = [
+    { key: 'image', label: 'Checking the image', sub: 'Compression, metadata and edit traces' },
+    { key: 'engine', label: 'Starting the text reader', sub: 'First use downloads the OCR engine once' },
+    { key: 'read', label: 'Reading the text', sub: 'Three passes, each from a differently prepared image' },
+    { key: 'score', label: 'Scoring the evidence', sub: 'Rule-based findings + Random Forest vote' },
+  ];
+  const words = live.words || [];
+  const size = live.imageSize;
+  return (
+    <div className="card scan-live pop-in">
+      <div className="scan-stage">
+        <div className="scan-window">
+          <div className="scan-inner">
+          {preview && <img src={preview} alt="Receipt being scanned" />}
+          {size && words.slice(0, 220).map((w, i) => (
+            <span key={i} className="word-box" style={{
+              left: `${(w.x0 / size.w) * 100}%`, top: `${(w.y0 / size.h) * 100}%`,
+              width: `${((w.x1 - w.x0) / size.w) * 100}%`, height: `${((w.y1 - w.y0) / size.h) * 100}%`,
+              animationDelay: `${Math.min(i * 12, 1400)}ms`,
+            }} />
+          ))}
           </div>
-        )}
-
-        {/* Progress timeline */}
-        {busy && <ScanProgress status={status} stageLabel={stageLabel} preview={preview} />}
-
-        {/* Result */}
-        {result && status === 'complete' && (
-          <>
-            {!result.ocr.available && (
-              <div className="card animate-fade-up" style={{ padding: 16, borderColor: 'var(--accent-amber)' }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <WifiOff size={16} color="var(--accent-amber)" style={{ flexShrink: 0, marginTop: 2 }} />
-                  <div style={{ flex: 1, minWidth: 220 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Text reading engine didn't load</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.55 }}>
-                      The OCR engine downloads once from the internet on first use. It couldn't be reached just now — the image-forensics results below are still valid, but no text fields were read. Check your connection and retry.
+          <span className="scan-beam" aria-hidden="true" />
+          <span className="scan-corner tl" /><span className="scan-corner tr" /><span className="scan-corner bl" /><span className="scan-corner br" />
+        </div>
+        {words.length > 0 && <div className="scan-count"><b className="mono">{words.length}</b> words found on pass 1</div>}
+      </div>
+      <div className="scan-steps">
+        <div className="scan-steps-head">
+          <h2 className="section-title"><span className="spinner" aria-hidden="true" /> Checking your receipt</h2>
+          <span className="mono muted" aria-label={`${Math.floor(secs)} seconds elapsed`}><Clock size={14} aria-hidden="true" /> {secs.toFixed(0)}s</span>
+        </div>
+        <ol className="steps">
+          {steps.map((s, i) => {
+            const state = i < at ? 'done' : i === at ? 'active' : 'todo';
+            return (
+              <li key={s.key} className={`step ${state}`}>
+                <span className="step-dot" aria-hidden="true">{state === 'done' ? <CheckCircle2 size={16} /> : i + 1}</span>
+                <div className="step-body">
+                  <div className="step-label">{s.label}{state === 'done' && <span className="sr-only"> (done)</span>}</div>
+                  <div className="step-sub">{s.sub}</div>
+                  {s.key === 'read' && state !== 'todo' && (
+                    <div className="passes">
+                      {[1, 2, 3].map(n => {
+                        const cur = live.pass ?? 0;
+                        const pct = state === 'done' || n < cur ? 100 : n === cur ? Math.round((live.progress ?? 0) * 100) : 0;
+                        return (
+                          <div key={n} className="pass-row">
+                            <span className="pass-name">{PASS_NAMES[n - 1]}</span>
+                            <span className="pass-track" role="progressbar" aria-label={`${PASS_NAMES[n - 1]} pass`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+                              <span className="pass-fill" style={{ width: `${pct}%` }} />
+                            </span>
+                            <span className="pass-pct mono">{pct}%</span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                  <button className="btn-primary" onClick={() => file && runScan(file)} style={{ alignSelf: 'center' }}><RefreshCw size={14} /> Retry scan</button>
+                  )}
                 </div>
-              </div>
-            )}
-            {duplicateOf && (
-              <div className="fade-up" style={{ display: 'flex', gap: 11, alignItems: 'flex-start', padding: '13px 15px', background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 12 }}>
-                <Copy size={17} color="var(--accent-amber)" style={{ flexShrink: 0, marginTop: 1 }} />
-                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>Reused reference number.</strong> Reference <span className="mono" style={{ color: 'var(--accent-amber)' }}>{result.extracted.referenceNo}</span> was already submitted in an earlier scan ({formatRelativeTime(duplicateOf.scannedAt)}). If you did not scan the same receipt twice, be careful — sending one genuine payment screenshot to several people is a common scam. Confirm the payment directly in your own account.
-                </div>
-              </div>
-            )}
-            <ResultView
-              result={result}
-              preview={preview}
-              editing={editing}
-              editData={editData}
-              setEditing={setEditing}
-              setEditData={setEditData}
-              onReanalyze={reanalyzeWithEdits}
-              onReset={reset}
-            />
-          </>
-        )}
+              </li>
+            );
+          })}
+        </ol>
+        <button type="button" className="btn-secondary" onClick={onCancel}><Square size={14} /> Cancel</button>
       </div>
     </div>
   );
 }
 
-function PageHeader() {
-  return (
-    <div style={{ marginBottom: 22 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <ScanLine size={19} color="var(--accent-light)" />
-        </div>
-        <div>
-          <h1 style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: 'var(--text-primary)' }}>Transaction Authenticity Check</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-            Upload a payment screenshot. We read the text, inspect the image for signs of editing, and explain the risk — without pretending to know if money actually changed hands.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+/* ── result ── */
+function firstSentence(s: string): string {
+  const m = s.match(/^.*?[.!?](\s|$)/);
+  return (m ? m[0] : s).trim();
 }
-
-function ScanProgress({ status, stageLabel, preview }: { status: ScanStatus; stageLabel: string; preview: string }) {
-  const current = stageIndex(status);
-  return (
-    <div className="card animate-fade-up" style={{ padding: 24 }} aria-live="polite">
-      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-        <div className="scan-frame" style={{ position: 'relative', width: 190, maxWidth: '100%', height: 210, borderRadius: 12, overflow: 'hidden', flexShrink: 0 }}>
-          {preview && <img src={preview} alt="Receipt being scanned" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.9)' }} />}
-          <div className="scan-line" style={{ top: 0 }} />
-          <span className="scan-corner tl" /><span className="scan-corner tr" />
-          <span className="scan-corner bl" /><span className="scan-corner br" />
-        </div>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <Loader2 size={16} color="var(--accent-light)" style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: 14, fontWeight: 650, color: 'var(--text-primary)' }}>{stageLabel || 'Analyzing'}…</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {STAGES.map((st, i) => {
-              const done = i < current;
-              const active = i === current;
-              return (
-                <div key={st.key} className="timeline-node" style={{ paddingBottom: 14 }}>
-                  <div className="timeline-dot" style={{
-                    background: done ? 'var(--accent-emerald)' : active ? 'var(--accent)' : 'var(--bg-input)',
-                    borderColor: 'var(--bg-base)',
-                  }}>
-                    {done ? <CheckCircle2 size={11} color="#fff" /> : active ? <Loader2 size={10} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : null}
-                  </div>
-                  <div style={{ fontSize: 12.5, fontWeight: active ? 700 : 500, color: active ? 'var(--text-primary)' : done ? 'var(--text-secondary)' : 'var(--text-muted)' }}>{st.label}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{st.desc}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function topFailures(r: ImageScanResult): VerificationFinding[] {
+  const rank: Record<RiskLevel, number> = { critical: 3, high: 2, medium: 1, low: 0 };
+  return r.findings.filter(f => !f.passed).sort((a, b) => rank[b.severity] - rank[a.severity] || b.weight - a.weight);
+}
+function oneLineReason(r: ImageScanResult): string {
+  const top = topFailures(r)[0];
+  if (!top) return 'We read the receipt and none of our checks found a sign of editing or a missing detail.';
+  if (r.riskLevel === 'low') return `None of the checks found a serious problem. Minor note: ${top.label.toLowerCase()}.`;
+  return `${top.label}: ${firstSentence(top.detail)}`;
 }
 
 function ResultView(props: {
-  result: ImageScanResult; preview: string; editing: boolean;
-  editData: ExtractedTransactionData | null;
-  setEditing: (v: boolean) => void;
-  setEditData: (d: ExtractedTransactionData) => void;
+  result: ImageScanResult; preview: string; editing: boolean; editData: ExtractedTransactionData | null;
+  setEditing: (v: boolean) => void; setEditData: (d: ExtractedTransactionData) => void;
   onReanalyze: () => void; onReset: () => void;
 }) {
   const { result, preview, editing, editData, setEditing, setEditData, onReanalyze, onReset } = props;
-  const [techOpen, setTechOpen] = useState(false);
-  const meta = RISK_META[result.riskLevel];
-  const pct = Math.round(result.riskScore * 100);
-
-  // Per-field validation / cross-check (only meaningful when OCR ran).
+  const [howOpen, setHowOpen] = useState(false);
+  const [showBoxes, setShowBoxes] = useState(true);
+  const v = VERDICT[result.riskLevel];
+  const app = result.source === 'Unknown' ? 'bank or e-wallet' : result.source;
+  const failures = topFailures(result);
   const validation = useMemo(
     () => (result.ocr.available ? validateExtraction(result.extracted, result.ocr.text, result.source, result.ocr.passes) : null),
     [result],
   );
   const vmap: Record<string, FieldCheck | undefined> = {};
   validation?.checks.forEach(c => { vmap[c.key] = c; });
-
-  const Verdict = result.riskLevel === 'low' ? CheckCircle2 : result.riskLevel === 'critical' ? ShieldAlert : AlertTriangle;
-
-  // Authenticity breakdown sub-scores (derived from real findings)
-  const sub = breakdownScores(result);
-  const fa = result.forestAnalysis;
+  const boxes = useMemo(() => locateFields(result.ocr.words, result.extracted), [result]);
+  const size = result.ocr.imageSize;
 
   return (
-    <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {/* Verdict banner */}
-      <div className="card" style={{ padding: 22, borderColor: `${meta.hex}55`, background: meta.soft }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ width: 50, height: 50, borderRadius: 13, background: `${meta.hex}22`, border: `1px solid ${meta.hex}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span className={`verdict-ico verdict-${result.riskLevel}`} style={{ display: 'inline-flex' }}><Verdict size={26} color={meta.hex} /></span>
-          </div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)' }}>{result.legitimacyLabel}</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.55 }}>{result.recommendedAction}</div>
-            {result.actionPlan && result.actionPlan.length > 0 && (
-              <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--bg-card-solid)', border: `1px solid ${meta.hex}33`, borderRadius: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: meta.hex, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>What to do next</div>
-                <ol style={{ margin: 0, paddingLeft: 20, listStyle: 'decimal', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {result.actionPlan.map((step, i) => <li key={i} style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{step}</li>)}
-                </ol>
-              </div>
-            )}
-          </div>
-          <div style={{ textAlign: 'center', flexShrink: 0 }}>
-            <div className="mono" style={{ fontSize: 34, fontWeight: 800, color: meta.hex, lineHeight: 1 }}>{pct}%</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>Risk Score</div>
-            <span className={`badge badge-${result.riskLevel}`} style={{ marginTop: 6 }}>{meta.label}</span>
+    <div className="result">
+      {/* 1 · verdict */}
+      <section className={`verdict vd-${result.riskLevel}`} aria-labelledby="verdict-title">
+        <div className="verdict-top">
+          <span className={`verdict-badge verdict-ico verdict-${result.riskLevel}`} aria-hidden="true"><v.Icon size={30} /></span>
+          <div className="verdict-text">
+            <div className="verdict-level">{v.level}</div>
+            <h1 id="verdict-title" className="verdict-title">{v.title}</h1>
+            <p className="verdict-reason">{oneLineReason(result)}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
-          <button className="btn-primary" onClick={() => generateImageReport(result)}><Download size={15} /> Download PDF report</button>
-          <button className="btn-secondary" onClick={onReset}><RefreshCw size={14} /> Scan another</button>
+        <div className="level-meter" aria-hidden="true">
+          {LEVELS.map(l => (
+            <div key={l} className={`lm-seg lm-${l}${l === result.riskLevel ? ' on' : ''}`}><span>{VERDICT[l].level.replace(' risk', '')}</span></div>
+          ))}
         </div>
-      </div>
+        <div className="verify-banner">
+          <Smartphone size={20} aria-hidden="true" />
+          <div>
+            <b>{result.riskLevel === 'low' ? 'This is not a payment confirmation.' : 'Do not release anything yet.'}</b>{' '}
+            Open your own {app} app and check that {result.extracted.amount != null ? <b className="mono">{formatPHP(result.extracted.amount)}</b> : 'the money'} actually arrived{result.extracted.referenceNo ? <> (reference <span className="mono">{result.extracted.referenceNo}</span>)</> : null}. A screenshot alone can never prove that.
+          </div>
+        </div>
+        <div className="verdict-actions">
+          <button type="button" className="btn-primary" onClick={() => generateImageReport(result)}><Download size={16} /> Download report</button>
+          <button type="button" className="btn-secondary" onClick={onReset}><RefreshCw size={15} /> Check another</button>
+        </div>
+      </section>
 
-      {/* Random Forest — the thesis algorithm, running on THIS scan's evidence */}
-      {fa && (
-        <div className="card animate-fade-up" style={{ padding: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-            <Trees size={15} color="var(--accent-light)" />
-            <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Random Forest analysis</h3>
-            <span className={`badge ${fa.datasetSource === 'demo' ? 'badge-medium' : 'badge-accent'}`} style={{ marginLeft: 'auto' }}>
-              {fa.datasetSource === 'demo' ? 'Demonstration-trained' : 'Trained on uploaded data'}
-            </span>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-            The same evidence signals shown below — OCR confidence, ELA hotspot %, reference validity, metadata — were converted into a feature vector and passed through the trained forest. Its vote is blended 50/50 with the rule-based findings to produce the risk score above.
-          </div>
-          <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Stat big value={`${Math.round(fa.probability * 100)}%`} label="forest fraud probability" />
-            <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border-default)' }} />
-            <Stat value={`${fa.votesFraud} / ${fa.totalTrees}`} label="trees voted fraudulent" />
-            <Stat value={`${Math.round((result.heuristicScore ?? 0) * 100)}%`} label="rule-based findings score" />
-            <Stat value={`${pct}%`} label="blended risk (½ + ½)" />
-          </div>
-          {fa.datasetSource === 'demo' && (
-            <div style={{ marginTop: 14, padding: '9px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              This forest is currently trained on a seeded demonstration dataset (see the Detection Model page), not real collected evidence. Its vote here illustrates the mechanism end-to-end; once a real labelled evidence dataset is trained there, every future scan uses that model automatically.
-            </div>
-          )}
-        </div>
-      )}
+      {/* 2 · what we read */}
+      <div className="facts">
+        <Fact label="Amount" value={result.extracted.amount == null ? null : formatPHP(result.extracted.amount)} mono />
+        <Fact label="Reference" value={result.extracted.referenceNo} mono />
+        <Fact label="App" value={result.source === 'Unknown' ? null : result.source} />
+        <Fact label="Date" value={[result.extracted.date, result.extracted.time].filter(Boolean).join(' · ') || null} />
+      </div>
 
       {result.ocr.available && result.ocr.confidence < 65 && (
-        <div className="card animate-fade-up" style={{ padding: 16, borderColor: 'var(--accent-amber)' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <AlertTriangle size={16} color="var(--accent-amber)" style={{ flexShrink: 0, marginTop: 2 }} />
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>The text was hard to read ({Math.round(result.ocr.confidence)}% OCR confidence)</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.55 }}>
-                Some fields may be incomplete or wrong. This usually happens when the receipt is blurry, cropped, very small, or photographed at an angle. Try uploading the original full screenshot instead of a photo of a screen — or press <b>Correct text</b> to fix any misread field before trusting the results.
-              </div>
-            </div>
-          </div>
+        <div className="alert alert-warn">
+          <AlertTriangle size={18} aria-hidden="true" />
+          <span><b>The text was hard to read ({Math.round(result.ocr.confidence)}% OCR confidence).</b> Some details may be wrong. For a better read: use the original screenshot (not a photo of a screen), don't crop it, and avoid forwarded low-quality copies. Or tap <b>Correct text</b> below.</span>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 18 }}>
-        {/* Evidence preview + ELA (collapsed by default — it's for the technically curious) */}
-        <div className="card" style={{ padding: 18 }}>
-          <button onClick={() => setTechOpen(o => !o)} aria-expanded={techOpen}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textAlign: 'left' }}>
-            <SectionTitle icon={Eye} title="Technical details (forensic view)" />
-            <ChevronDown size={15} color="var(--text-muted)" style={{ marginLeft: 'auto', transition: 'transform 0.2s', transform: techOpen ? 'rotate(180deg)' : 'none' }} />
-          </button>
-          {!techOpen && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-              ELA heatmap, metadata and file diagnostics{result.ocr.available && result.ocr.pass ? ` · best OCR read: ${result.ocr.pass} pass` : ''} — tap to expand.
-            </div>
-          )}
-          {techOpen && (
-            <>
-              <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 120 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>Original</div>
-                  <img src={preview} alt="Uploaded receipt" style={{ width: '100%', borderRadius: 9, border: '1px solid var(--border-default)' }} />
+      {/* 3 · findings + receipt */}
+      <div className="result-grid">
+        <section className="card pad">
+          <h2 className="section-title"><ShieldAlert size={18} /> {!failures.length ? 'What we checked' : result.riskLevel === 'low' ? `Minor note${failures.length > 1 ? 's' : ''}` : `Top ${Math.min(3, failures.length)} reason${failures.length > 1 ? 's' : ''}`}</h2>
+          <ul className="findings">
+            {(failures.length ? failures.slice(0, 3) : result.findings.filter(f => f.passed).slice(0, 3)).map(f => (
+              <li key={f.id} className={`finding sev-${f.passed ? 'ok' : f.severity}`}>
+                <span className="finding-ico" aria-hidden="true">{f.passed ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}</span>
+                <div>
+                  <div className="finding-head"><span className="finding-label">{f.label}</span><span className={`sev-chip sev-${f.passed ? 'ok' : f.severity}`}>{f.passed ? 'Passed' : f.severity}</span></div>
+                  <p className="finding-detail">{f.detail}</p>
                 </div>
-                {result.forensics.elaThumbnail && (
-                  <div style={{ flex: 1, minWidth: 120 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>Error-Level Analysis</div>
-                    <img src={result.forensics.elaThumbnail} alt="Error-level analysis heatmap" style={{ width: '100%', borderRadius: 9, border: '1px solid var(--border-default)' }} />
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5, lineHeight: 1.45 }}>
-                      Brighter areas re-compress differently. Uniform = consistent; isolated bright patches can indicate edited regions.
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
-                <MetricChip label="Dimensions" value={`${result.forensics.width}×${result.forensics.height}`} />
-                <MetricChip label="File type" value={result.forensics.sniffType.toUpperCase()} />
-                <MetricChip label="Has metadata" value={result.forensics.hasExif ? 'Yes' : 'No'} />
-                <MetricChip label="ELA score" value={`${result.forensics.elaScore.toFixed(1)}`} />
-              </div>
+              </li>
+            ))}
+          </ul>
+          {failures.length > 3 && <p className="muted small">+{failures.length - 3} more in “How this was decided”.</p>}
+          {result.actionPlan && result.actionPlan.length > 0 && (
+            <>
+              <h2 className="section-title" style={{ marginTop: 20 }}><CheckCircle2 size={18} /> What to do next</h2>
+              <ol className="next-steps">{result.actionPlan.map((s, i) => <li key={i}>{s}</li>)}</ol>
             </>
           )}
-        </div>
+        </section>
 
-        {/* Authenticity breakdown */}
-        <div className="card" style={{ padding: 18 }}>
-          <SectionTitle icon={Layers} title="Authenticity breakdown" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 13, marginTop: 14 }}>
-            {sub.map(s => <ScoreRow key={s.label} label={s.label} value={s.value} hint={s.hint} />)}
+        <section className="card pad">
+          <div className="row-between">
+            <h2 className="section-title"><Eye size={18} /> Where we read it</h2>
+            {boxes.length > 0 && (
+              <label className="toggle"><input type="checkbox" checked={showBoxes} onChange={e => setShowBoxes(e.target.checked)} /> Highlights</label>
+            )}
           </div>
-        </div>
+          <div className="evidence-img">
+            {preview ? <img src={preview} alt="The receipt you checked" /> : <div className="skeleton" style={{ height: 320 }} />}
+            {showBoxes && size && boxes.map((b: FieldBox) => (
+              <span key={b.key} className={`field-box fb-${b.key}`} style={{
+                left: `${(b.x0 / size.w) * 100}%`, top: `${(b.y0 / size.h) * 100}%`,
+                width: `${((b.x1 - b.x0) / size.w) * 100}%`, height: `${((b.y1 - b.y0) / size.h) * 100}%`,
+              }}><span className="fb-tag">{b.label}</span></span>
+            ))}
+          </div>
+          <p className="muted small">{boxes.length ? 'Outlined: where each detail was read on your screenshot.' : 'Details were read, but their exact position on the image could not be pinned down.'}</p>
+        </section>
       </div>
 
-      {/* Confidence meter */}
-      <div className="card" style={{ padding: 18 }}>
-        <SectionTitle icon={Gauge} title="Evidence confidence meter" />
-        <div className="stagger-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 16, marginTop: 14 }}>
-          <ConfidenceItem label="OCR accuracy" value={result.ocr.available ? Math.round(result.ocr.confidence) : 0} note={result.ocr.available ? `${result.ocr.wordCount} words read` : 'OCR unavailable'} />
-          <ConfidenceItem label="Image quality" value={imageQualityScore(result)} note={`${result.forensics.width}×${result.forensics.height}px`} />
-          <ConfidenceItem label="Text extraction" value={extractionScore(result)} note={`${countExtracted(result)}/9 fields found`} />
-          <ConfidenceItem label="Overall assessment" value={Math.round(result.confidence)} note="Combined certainty" />
+      {/* 4 · all extracted details (editable) */}
+      <section className="card pad">
+        <div className="row-between">
+          <h2 className="section-title"><ScanText size={18} /> Details we read</h2>
+          {!editing
+            ? <button type="button" className="btn-ghost" onClick={() => setEditing(true)}><Pencil size={14} /> Correct text</button>
+            : <button type="button" className="btn-primary" onClick={onReanalyze}><RefreshCw size={15} /> Re-check with my corrections</button>}
         </div>
-      </div>
-
-      {/* Extracted data — editable (OCR) */}
-      <div className="card" style={{ padding: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 8, flexWrap: 'wrap' }}>
-          <SectionTitle icon={Fingerprint} title="Extracted details (OCR)" />
-          {!editing ? (
-            <button className="btn-ghost" onClick={() => setEditing(true)}><Pencil size={12} /> Correct text</button>
-          ) : (
-            <button className="btn-primary" style={{ padding: '7px 14px', fontSize: 13 }} onClick={onReanalyze}><RefreshCw size={13} /> Re-analyze with edits</button>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>OCR confidence:</span>
-          <div className="score-track" style={{ flex: 1, maxWidth: 180, minWidth: 80 }}>
-            <div className="score-fill" style={{ width: `${result.ocr.available ? result.ocr.confidence : 0}%`, background: result.ocr.confidence > 75 ? 'var(--accent-emerald)' : result.ocr.confidence > 50 ? 'var(--accent-amber)' : 'var(--accent-red)' }} />
+        {validation && !editing && (
+          <div className="field-legend">
+            {validation.verified > 0 && <span className="lg lg-ok">● {validation.verified} cross-checked</span>}
+            {validation.present > 0 && <span className="lg lg-present">● {validation.present} read</span>}
+            {validation.review > 0 && <span className="lg lg-review">● {validation.review} to review</span>}
+            {validation.missing > 0 && <span className="lg lg-missing">● {validation.missing} not found</span>}
           </div>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{result.ocr.available ? `${Math.round(result.ocr.confidence)}%` : 'N/A'}</span>
-          <span className="badge badge-neutral" style={{ marginLeft: 'auto' }}>{result.ocr.engine}</span>
-        </div>
-
+        )}
         {editing && editData ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
+          <div className="fields">
             {([
-              ['senderName', 'Sender'], ['receiverName', 'Receiver'], ['receiverContact', 'Receiver No.'], ['amount', 'Amount'],
-              ['date', 'Date'], ['time', 'Time'], ['referenceNo', 'Reference No.'],
-              ['transactionId', 'Transaction ID'], ['institution', 'Institution'],
+              ['senderName', 'Sender'], ['receiverName', 'Receiver'], ['receiverContact', 'Receiver number'], ['amount', 'Amount'],
+              ['date', 'Date'], ['time', 'Time'], ['referenceNo', 'Reference no.'], ['transactionId', 'Transaction ID'], ['institution', 'App / bank'],
             ] as [keyof ExtractedTransactionData, string][]).map(([k, lbl]) => (
-              <label key={k} style={{ display: 'block' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>{lbl}</span>
-                <input className="input-field" value={(editData[k] ?? '') as string}
-                  inputMode={k === 'amount' ? 'decimal' : undefined}
+              <label key={k} className="edit-field">
+                <span>{lbl}</span>
+                <input className="input-field" value={(editData[k] ?? '') as string} inputMode={k === 'amount' ? 'decimal' : undefined}
                   onChange={e => setEditData({ ...editData, [k]: k === 'amount' ? (parseFloat(e.target.value.replace(/,/g, '')) || null) : e.target.value })} />
               </label>
             ))}
           </div>
         ) : (
-          <div>
-            {validation && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12, fontSize: 12 }}>
-                <span style={{ color: 'var(--text-muted)' }}>Field check:</span>
-                {validation.verified > 0 && <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>● {validation.verified} cross-checked</span>}
-                {validation.present > 0 && <span style={{ color: 'var(--accent)', fontWeight: 600 }}>● {validation.present} detected</span>}
-                {validation.review > 0 && <span style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>● {validation.review} to review</span>}
-                {validation.missing > 0 && <span style={{ color: 'var(--text-disabled)', fontWeight: 600 }}>● {validation.missing} not found</span>}
-                {validation.review > 0 && <span style={{ color: 'var(--text-muted)' }}>— tap “Correct text” to fix flagged fields.</span>}
-              </div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
-              <DataField label="Sender" value={result.extracted.senderName} check={vmap.senderName} />
-              <DataField label="Receiver" value={result.extracted.receiverName} check={vmap.receiverName} />
-              <DataField label="Receiver No." value={result.extracted.receiverContact} mono check={vmap.receiverContact} />
-              <DataField label="Amount" value={result.extracted.amount == null ? null : formatPHP(result.extracted.amount)} mono check={vmap.amount} />
-              <DataField label="Date" value={result.extracted.date} check={vmap.date} />
-              <DataField label="Time" value={result.extracted.time} check={vmap.time} />
-              <DataField label="Reference No." value={result.extracted.referenceNo} mono check={vmap.referenceNo} />
-              <DataField label="Transaction ID" value={result.extracted.transactionId} mono check={vmap.transactionId} />
-              <DataField label="Institution" value={result.extracted.institution || result.source} check={vmap.institution} />
-            </div>
-            {result.extracted.referenceNo && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12, padding: '10px 12px', background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', borderRadius: 9 }}>
-                <Info size={15} color="var(--accent-light)" style={{ flexShrink: 0, marginTop: 1 }} />
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Reading a field correctly is not the same as proving a payment is real. The one certain check is to look up this reference number inside your own official app — FraudSentry is an awareness aid, not a substitute for that confirmation.
-                </div>
-              </div>
-            )}
+          <div className="fields">
+            <DataField label="Sender" value={result.extracted.senderName} check={vmap.senderName} />
+            <DataField label="Receiver" value={result.extracted.receiverName} check={vmap.receiverName} />
+            <DataField label="Receiver number" value={result.extracted.receiverContact} mono check={vmap.receiverContact} />
+            <DataField label="Amount" value={result.extracted.amount == null ? null : formatPHP(result.extracted.amount)} mono check={vmap.amount} />
+            <DataField label="Date" value={result.extracted.date} check={vmap.date} />
+            <DataField label="Time" value={result.extracted.time} check={vmap.time} />
+            <DataField label="Reference no." value={result.extracted.referenceNo} mono check={vmap.referenceNo} />
+            <DataField label="Transaction ID" value={result.extracted.transactionId} mono check={vmap.transactionId} />
+            <DataField label="App / bank" value={result.extracted.institution || result.source} check={vmap.institution} />
           </div>
         )}
         {!result.ocr.available && (
-          <div className="privacy-notice" style={{ marginTop: 14, borderColor: 'rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.07)' }}>
-            <AlertTriangle size={14} color="var(--accent-amber)" style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>The OCR engine couldn't be reached (you may be offline). Tap "Correct text" to enter the details manually, then re-analyze — or retry once you're back online.</span>
-          </div>
+          <p className="muted small" style={{ marginTop: 12 }}>The text reader couldn't run. Tap “Correct text” to type the details yourself, then re-check.</p>
+        )}
+      </section>
+
+      {/* 5 · how this was decided (technical, collapsed) */}
+      <section className="card pad">
+        <button type="button" className="expander" aria-expanded={howOpen} aria-controls="how-panel" onClick={() => setHowOpen(o => !o)}>
+          <span className="section-title"><Info size={18} /> How this was decided</span>
+          <span className="muted small hide-sm">Scores, Random Forest vote, image forensics</span>
+          <ChevronDown size={18} className="chev" style={{ transform: howOpen ? 'rotate(180deg)' : 'none' }} />
+        </button>
+        {howOpen && <HowDecided result={result} preview={preview} />}
+      </section>
+    </div>
+  );
+}
+
+function HowDecided({ result, preview }: { result: ImageScanResult; preview: string }) {
+  const fa = result.forestAnalysis;
+  const pct = (x: number | undefined) => `${Math.round((x ?? 0) * 100)}%`;
+  return (
+    <div id="how-panel" className="how fade-in">
+      <p className="how-intro">
+        Two scorers look at the same evidence and are averaged 50/50. The <b>rule-based score</b> adds up the weight of each check that failed.
+        The <b>Random Forest</b> turns the evidence into 10 numbers and lets {fa?.totalTrees ?? 'its'} decision trees vote.
+      </p>
+      <div className="score-trio">
+        <div className="trio"><div className="trio-v mono">{pct(result.heuristicScore)}</div><div className="trio-l">Rule-based score</div></div>
+        <div className="trio-op" aria-hidden="true">+</div>
+        <div className="trio"><div className="trio-v mono">{fa ? pct(fa.probability) : '—'}</div><div className="trio-l">Random Forest{fa ? ` (${fa.votesFraud}/${fa.totalTrees} trees)` : ''}</div></div>
+        <div className="trio-op" aria-hidden="true">=</div>
+        <div className="trio strong"><div className="trio-v mono">{pct(result.riskScore)}</div><div className="trio-l">Final risk (½ + ½)</div></div>
+      </div>
+      {fa?.datasetSource === 'demo' && (
+        <p className="note">The forest is currently trained on a seeded <b>demonstration</b> dataset, not on real collected evidence. It shows how the method works; its vote is not a measured accuracy.</p>
+      )}
+
+      <h3 className="how-h">Every check ({result.findings.length})</h3>
+      <ul className="findings compact">
+        {result.findings.slice().sort((a, b) => Number(a.passed) - Number(b.passed) || b.weight - a.weight).map(f => (
+          <li key={f.id} className={`finding sev-${f.passed ? 'ok' : f.severity}`}>
+            <span className="finding-ico" aria-hidden="true">{f.passed ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span>
+            <div>
+              <div className="finding-head">
+                <span className="finding-label">{f.label}</span>
+                {!f.passed && f.weight > 0 && <span className="mono weight" title="Weight in the rule-based score">+{Math.round(f.weight * 100)}%</span>}
+              </div>
+              <p className="finding-detail">{f.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <h3 className="how-h">Image forensics</h3>
+      <div className="forensic-row">
+        <figure><img src={preview} alt="Original" /><figcaption>Original</figcaption></figure>
+        {result.forensics.elaThumbnail && (
+          <figure><img src={result.forensics.elaThumbnail} alt="Error-level analysis heatmap" /><figcaption>Error-level analysis: bright patches re-compress differently. On screenshots this is a weak signal — treat it as a hint, not proof.</figcaption></figure>
         )}
       </div>
-
-      {/* Findings — explainable */}
-      <div className="card" style={{ padding: 18 }}>
-        <SectionTitle icon={ShieldAlert} title={`Why this score — ${result.findings.filter(f => !f.passed).length} contributing factor(s)`} />
-        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>
-          Percentages are each finding's weight in the <b>rule-based score</b> ({Math.round((result.heuristicScore ?? result.riskScore) * 100)}% here), which makes up half of the final risk; the Random Forest vote is the other half.
-        </div>
-        <div className="stagger-in" style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 12 }}>
-          {result.findings.slice().sort((a, b) => Number(a.passed) - Number(b.passed) || b.weight - a.weight).map(f => (
-            <FindingRow key={f.id} passed={f.passed} label={f.label} detail={f.detail} weight={f.weight} severity={f.severity} />
-          ))}
-        </div>
+      <div className="metrics">
+        <Metric label="Size" value={`${result.forensics.width}×${result.forensics.height}`} />
+        <Metric label="File type" value={result.forensics.sniffType.replace('image/', '').toUpperCase()} />
+        <Metric label="Metadata" value={result.forensics.hasExif ? 'Present' : 'None'} />
+        <Metric label="ELA hotspots" value={`${result.forensics.elaHotspotPct}%`} />
+        <Metric label="OCR engine" value={result.ocr.engine} />
+        <Metric label="OCR time" value={`${(result.ocr.durationMs / 1000).toFixed(1)} s`} />
+        {result.ocr.passConfidences?.map((c, i) => <Metric key={i} label={`Pass ${i + 1} confidence`} value={`${c}%`} />)}
       </div>
     </div>
   );
 }
 
-/* ── small presentational helpers ── */
-function SectionTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+function Fact({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <Icon size={15} color="var(--accent-light)" />
-      <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{title}</h3>
+    <div className="fact">
+      <div className="fact-l">{label}</div>
+      <div className={`fact-v${mono ? ' mono' : ''}${value ? '' : ' empty'}`}>{value || 'Not found'}</div>
     </div>
   );
 }
-function Stat({ value, label, big }: { value: string; label: string; big?: boolean }) {
-  return (
-    <div style={{ flex: '0 0 auto' }}>
-      <div className="mono" style={{ fontSize: big ? 26 : 16, fontWeight: big ? 800 : 700, color: 'var(--text-primary)' }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-    </div>
-  );
+function Metric({ label, value }: { label: string; value: string }) {
+  return <div className="metric"><div className="metric-l">{label}</div><div className="metric-v mono">{value}</div></div>;
 }
-function MetricChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', borderRadius: 8, padding: '8px 10px' }}>
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-      <div className="mono" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, marginTop: 2 }}>{value}</div>
-    </div>
-  );
-}
-const STATUS_COLOR: Record<FieldStatus, string> = {
-  verified: 'var(--accent-emerald)',
-  present: 'var(--accent)',
-  review: 'var(--accent-amber)',
-  missing: 'var(--text-disabled)',
-};
-const CONFIDENCE_CHIP: Record<FieldConfidence, { label: string; color: string } | null> = {
-  high: { label: 'High', color: 'var(--accent-emerald)' },
-  medium: { label: 'Medium', color: 'var(--accent)' },
-  low: { label: 'Check', color: 'var(--accent-amber)' },
-  na: null,
-};
+const STATUS_CLASS: Record<FieldStatus, string> = { verified: 'ok', present: 'present', review: 'review', missing: 'missing' };
+const CONFIDENCE_CHIP: Record<FieldConfidence, string | null> = { high: 'High', medium: 'Medium', low: 'Check', na: null };
 function DataField({ label, value, mono, check }: { label: string; value: string | null; mono?: boolean; check?: FieldCheck }) {
   const empty = value == null || value === '';
-  const dot = check ? STATUS_COLOR[check.status] : 'transparent';
-  const border = check && check.status === 'review' ? 'var(--accent-amber)' : 'var(--border-default)';
   const chip = check && !empty ? CONFIDENCE_CHIP[check.confidence] : null;
   return (
-    <div title={check?.note || ''} style={{ background: 'var(--bg-subtle)', border: `1px solid ${border}`, borderRadius: 8, padding: '9px 11px', minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-        {check && <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0 }} />}
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-        {chip && (
-          <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: chip.color, background: 'var(--bg-card-solid)', border: `1px solid ${chip.color}44`, borderRadius: 5, padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}
-            title={check && check.agreement != null ? `Read identically in ${Math.round(check.agreement * 100)}% of image passes` : 'Confidence of this read'}>
-            {chip.label}
-          </span>
-        )}
+    <div className={`data-field st-${check ? STATUS_CLASS[check.status] : 'none'}`} title={check?.note || ''}>
+      <div className="df-head">
+        {check && <span className="df-dot" aria-hidden="true" />}
+        <span className="df-label">{label}</span>
+        {chip && <span className={`df-chip conf-${check!.confidence}`} title={check && check.agreement != null ? `Read identically in ${Math.round(check.agreement * 100)}% of image passes` : 'Confidence of this read'}>{chip}</span>}
       </div>
-      <div className={mono ? 'mono' : ''} style={{ fontSize: 13, color: empty ? 'var(--text-disabled)' : 'var(--text-primary)', fontWeight: empty ? 400 : 600, fontStyle: empty ? 'italic' : 'normal', overflowWrap: 'anywhere' }}>
-        {empty ? 'not detected' : value}
-      </div>
-      {check && check.status === 'review' && (
-        <div style={{ fontSize: 10.5, color: 'var(--accent-amber)', marginTop: 4, lineHeight: 1.4 }}>{check.note}</div>
-      )}
+      <div className={`df-value${mono ? ' mono' : ''}${empty ? ' empty' : ''}`}>{empty ? 'not detected' : value}</div>
+      {check && check.status === 'review' && <div className="df-note">{check.note}</div>}
     </div>
   );
-}
-function ScoreRow({ label, value, hint }: { label: string; value: number; hint: string }) {
-  const color = value >= 70 ? 'var(--accent-emerald)' : value >= 40 ? 'var(--accent-amber)' : 'var(--accent-red)';
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-        <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
-        <span className="mono" style={{ fontSize: 12.5, color, fontWeight: 700 }}>{value}%</span>
-      </div>
-      <div className="score-track"><div className="score-fill" style={{ width: `${value}%`, background: color }} /></div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>{hint}</div>
-    </div>
-  );
-}
-function ConfidenceItem({ label, value, note }: { label: string; value: number; note: string }) {
-  const color = value >= 70 ? 'var(--accent-emerald)' : value >= 40 ? 'var(--accent-amber)' : 'var(--accent-red)';
-  const r = 26, c = 2 * Math.PI * r, off = c - (value / 100) * c;
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ position: 'relative', width: 70, height: 70, margin: '0 auto 8px' }}>
-        <svg width="70" height="70" style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
-          <circle cx="35" cy="35" r={r} fill="none" stroke="var(--border-default)" strokeWidth="5" />
-          <circle cx="35" cy="35" r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} style={{ transition: 'stroke-dashoffset 1s ease' }} />
-        </svg>
-        <div className="mono" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color }}>{value}%</div>
-      </div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>{note}</div>
-    </div>
-  );
-}
-function FindingRow({ passed, label, detail, weight, severity }: { passed: boolean; label: string; detail: string; weight: number; severity: string }) {
-  const color = passed ? 'var(--accent-emerald)' : severity === 'critical' ? 'var(--accent-red)' : severity === 'high' ? 'var(--accent-orange)' : severity === 'medium' ? 'var(--accent-amber)' : 'var(--text-muted)';
-  return (
-    <div style={{ display: 'flex', gap: 11, padding: '11px 13px', background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', borderRadius: 9 }}>
-      <div style={{ flexShrink: 0, marginTop: 1 }}>
-        {passed ? <CheckCircle2 size={16} color={color} /> : <AlertTriangle size={16} color={color} />}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
-          {!passed && weight > 0 && <span className="mono" title="Weight in the rule-based score" style={{ fontSize: 12, fontWeight: 700, color, whiteSpace: 'nowrap' }}>+{Math.round(weight * 100)}% rule</span>}
-        </div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.5 }}>{detail}</div>
-      </div>
-    </div>
-  );
-}
-
-/* ── derived sub-scores (all from real findings, no fabrication) ── */
-function breakdownScores(r: ImageScanResult) {
-  const byCat = (cats: string[]) => {
-    const fs = r.findings.filter(f => cats.includes(f.category));
-    if (!fs.length) return 100;
-    const failedWeight = fs.filter(f => !f.passed).reduce((s, f) => s + f.weight, 0);
-    return Math.max(0, Math.round(100 - failedWeight * 100));
-  };
-  return [
-    { label: 'Layout & template', value: byCat(['layout']), hint: 'Receipt structure — e.g. a pre-send confirmation screen is not a receipt' },
-    { label: 'Image integrity', value: byCat(['forensic', 'integrity']), hint: 'Compression, error-level & editing signals' },
-    { label: 'Metadata consistency', value: byCat(['metadata']), hint: 'Embedded file metadata & editor traces' },
-    { label: 'Reference & timestamp', value: byCat(['reference', 'timestamp']), hint: 'Format of reference numbers & dates' },
-  ];
-}
-function imageQualityScore(r: ImageScanResult): number {
-  const px = r.forensics.width * r.forensics.height;
-  if (px >= 1_000_000) return 92;
-  if (px >= 500_000) return 78;
-  if (px >= 200_000) return 60;
-  if (px >= 80_000) return 42;
-  return 28;
-}
-function countExtracted(r: ImageScanResult): number {
-  const e = r.extracted;
-  return [e.senderName, e.receiverName, e.receiverContact, e.amount, e.date, e.time, e.referenceNo, e.transactionId, e.institution].filter(v => v != null && v !== '').length;
-}
-function extractionScore(r: ImageScanResult): number {
-  return Math.round((countExtracted(r) / 9) * 100);
 }

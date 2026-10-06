@@ -27,13 +27,22 @@ interface AppState {
   addMessageScan: (r: MessageScanResult) => void;
   addCrossCheck: (r: CrossEvidenceResult) => void;
   clearHistory: () => void;
+  removeImageScan: (id: string) => void;
+  removeMessageScan: (id: string) => void;
+  removeCrossCheck: (id: string) => void;
 }
+
+// First visit follows the device's light/dark setting; after that the saved choice wins.
+const systemTheme = (): ThemeMode => {
+  try { return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch { return 'dark'; }
+};
 
 // Drop the heavy base64 fields so persisted history stays tiny.
 function stripHeavy(scan: ImageScanResult): ImageScanResult {
   return {
     ...scan,
     previewDataUrl: undefined,
+    ocr: { ...scan.ocr, words: undefined },
     forensics: { ...scan.forensics, elaThumbnail: '' },
   };
 }
@@ -66,7 +75,7 @@ const safeStorage = {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      theme: 'dark',
+      theme: systemTheme(),
       toggleTheme: () => set(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
       hasConsented: false,
       giveConsent: () => set({ hasConsented: true }),
@@ -79,6 +88,9 @@ export const useAppStore = create<AppState>()(
       addMessageScan: (r) => set(s => ({ messageScans: [r, ...s.messageScans].slice(0, 40) })),
       addCrossCheck: (r) => set(s => ({ crossChecks: [r, ...s.crossChecks].slice(0, 20) })),
       clearHistory: () => set({ imageScans: [], messageScans: [], crossChecks: [] }),
+      removeImageScan: (id) => set(s => ({ imageScans: s.imageScans.filter(x => x.id !== id) })),
+      removeMessageScan: (id) => set(s => ({ messageScans: s.messageScans.filter(x => x.id !== id) })),
+      removeCrossCheck: (id) => set(s => ({ crossChecks: s.crossChecks.filter(x => x.id !== id) })),
     }),
     {
       name: 'fraudsentry-v5-store',

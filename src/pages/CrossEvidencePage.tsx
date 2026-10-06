@@ -111,14 +111,14 @@ export default function CrossEvidencePage() {
           <div className="card" style={{ padding: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <ScanLine size={15} color="var(--accent-light)" />
-              <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>1 · Transaction screenshot</h3>
+              <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>1 · Transaction screenshot</h2>
             </div>
             {!txPreview ? (
               <div onClick={() => txRef.current?.click()} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) pickTx(f); }}
                 style={{ borderRadius: 12, padding: '34px 18px', textAlign: 'center', border: '2px dashed var(--border-strong)', background: 'var(--bg-subtle)', cursor: 'pointer' }}>
                 <UploadCloud size={24} color="var(--accent-light)" style={{ marginBottom: 8 }} />
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Add the receipt / transfer</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>GCash, Maya, bank screenshot…</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>GCash, Maya, bank screenshot…</div>
               </div>
             ) : (
               <div style={{ position: 'relative' }}>
@@ -134,11 +134,11 @@ export default function CrossEvidencePage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MessageSquareText size={15} color="var(--accent-light)" />
-                <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>2 · Conversation</h3>
+                <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>2 · Conversation</h2>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className={`filter-btn ${convMode === 'text' ? 'active' : ''}`} style={{ padding: '4px 9px', fontSize: 11 }} onClick={() => setConvMode('text')}><Type size={11} /></button>
-                <button className={`filter-btn ${convMode === 'image' ? 'active' : ''}`} style={{ padding: '4px 9px', fontSize: 11 }} onClick={() => setConvMode('image')}><UploadCloud size={11} /></button>
+                <button type="button" title="Paste conversation text" aria-pressed={convMode === 'text'} className={`filter-btn ${convMode === 'text' ? 'active' : ''}`} onClick={() => setConvMode('text')}><Type size={15} /> Text</button>
+                <button type="button" title="Upload conversation screenshot" aria-pressed={convMode === 'image'} className={`filter-btn ${convMode === 'image' ? 'active' : ''}`} onClick={() => setConvMode('image')}><UploadCloud size={15} /> Image</button>
               </div>
             </div>
             {convMode === 'text' ? (
@@ -148,7 +148,7 @@ export default function CrossEvidencePage() {
                 style={{ borderRadius: 12, padding: '34px 18px', textAlign: 'center', border: '2px dashed var(--border-strong)', background: 'var(--bg-subtle)', cursor: 'pointer' }}>
                 <UploadCloud size={24} color="var(--accent-light)" style={{ marginBottom: 8 }} />
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Add the chat screenshot</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>We'll OCR it for you</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>We'll OCR it for you</div>
               </div>
             ) : (
               <div style={{ position: 'relative' }}>
@@ -205,7 +205,7 @@ function CrossResult({ data, onReset }: { data: { cross: CrossEvidenceResult; tx
       <div className="card" style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <GitCompareArrows size={15} color="var(--accent-light)" />
-          <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>How the two sources combine</h3>
+          <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>How the two sources combine</h2>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {cross.rationale.map((r, i) => (
@@ -221,7 +221,7 @@ function CrossResult({ data, onReset }: { data: { cross: CrossEvidenceResult; tx
         <div className="card" style={{ padding: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <Table2 size={15} color="var(--accent-light)" />
-            <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Detail comparison</h3>
+            <h2 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Detail comparison</h2>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
             What the receipt says versus what the conversation claims — a matching reference or recipient number links them; a conflict on the same transaction means one of them was altered. Names are shown for reference only (OCR and nicknames make them unreliable), so they never decide the verdict.
@@ -237,7 +237,7 @@ function CrossResult({ data, onReset }: { data: { cross: CrossEvidenceResult; tx
                       <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.label}</td>
                       <td className="mono" style={{ fontSize: 12.5 }}>{c.receiptValue ?? <span style={{ color: 'var(--text-disabled)', fontStyle: 'italic' }}>not found</span>}</td>
                       <td className="mono" style={{ fontSize: 12.5 }}>{c.messageValue ?? <span style={{ color: 'var(--text-disabled)', fontStyle: 'italic' }}>not found</span>}</td>
-                      <td style={{ textAlign: 'right' }}><span style={{ fontSize: 11, fontWeight: 800, color: st.color, letterSpacing: '0.03em' }}>{st.label}</span></td>
+                      <td style={{ textAlign: 'right' }}><span style={{ fontSize: 12, fontWeight: 800, color: st.color, letterSpacing: '0.03em' }}>{st.label}</span></td>
                     </tr>
                   );
                 })}
@@ -270,7 +270,7 @@ function SourceCard({ title, risk, label, detail }: { title: string; risk: RiskL
   const badgeClass = risk;
   return (
     <div className="card" style={{ padding: 16 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{title}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{label}</span>
         <span className={`badge badge-${badgeClass}`}>{meta.label}</span>

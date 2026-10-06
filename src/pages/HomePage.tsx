@@ -1,223 +1,166 @@
 import { useMemo } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  ScanLine, MessageSquareWarning, GitCompareArrows, ShieldCheck, ShieldAlert,
-  Activity, FileSearch, ArrowRight, Inbox, TrendingUp, Lock, Eye, Cpu, Trees, Sparkles,
+  ScanLine, MessageSquareWarning, GitCompareArrows, ShieldCheck, ShieldAlert, ArrowRight, Lock, Eye, Cpu, Trees,
+  Flame, CalendarDays, Lightbulb, Award, Smartphone, History,
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
-import { RISK_META, formatRelativeTime } from '../utils/helpers';
+import { formatRelativeTime } from '../utils/helpers';
 import { useCountUp } from '../utils/useCountUp';
+import { computeActivity, MILESTONES } from '../services/activity';
+import { ENTRIES } from '../data/scamKnowledge';
 import { RiskLevel } from '../types';
+
+const LEVEL_LABEL: Record<RiskLevel, string> = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' };
 
 export default function HomePage({ onNavigate }: { onNavigate: (p: string) => void }) {
   const imageScans = useAppStore(s => s.imageScans);
   const messageScans = useAppStore(s => s.messageScans);
-  const crossChecks = useAppStore(s => s.crossChecks);
 
-  const stats = useMemo(() => {
-    const all: { level: RiskLevel }[] = [
-      ...imageScans.map(s => ({ level: s.riskLevel })),
-      ...messageScans.map(s => ({ level: s.threatLevel })),
-    ];
-    const highRisk = all.filter(a => a.level === 'high' || a.level === 'critical').length;
-    const clean = all.filter(a => a.level === 'low').length;
-    const ocrVals = imageScans.filter(s => s.ocr.available).map(s => s.ocr.confidence);
-    const avgOcr = ocrVals.length ? Math.round(ocrVals.reduce((a, b) => a + b, 0) / ocrVals.length) : 0;
-    return {
-      total: imageScans.length + messageScans.length,
-      images: imageScans.length,
-      messages: messageScans.length,
-      crosses: crossChecks.length,
-      highRisk, clean, avgOcr,
-    };
-  }, [imageScans, messageScans, crossChecks]);
-
-  const recent = useMemo(() => {
-    type Row = { id: string; kind: string; title: string; level: RiskLevel; when: string };
-    const rows: Row[] = [
-      ...imageScans.map(s => ({ id: s.id, kind: 'Transaction', title: s.legitimacyLabel, level: s.riskLevel, when: s.scannedAt })),
-      ...messageScans.map(s => ({ id: s.id, kind: 'Message', title: s.scamType, level: s.threatLevel, when: s.scannedAt })),
-    ];
-    return rows.sort((a, b) => +new Date(b.when) - +new Date(a.when)).slice(0, 6);
-  }, [imageScans, messageScans]);
-
-  const hasData = stats.total > 0;
+  const events = useMemo(() => [
+    ...imageScans.map(s => ({ id: s.id, kind: 'receipt' as const, level: s.riskLevel, when: s.scannedAt, title: s.source !== 'Unknown' ? `${s.source} receipt` : 'Receipt' })),
+    ...messageScans.map(s => ({ id: s.id, kind: 'message' as const, level: s.threatLevel, when: s.scannedAt, title: s.scamType })),
+  ], [imageScans, messageScans]);
+  const act = useMemo(() => computeActivity(events, new Date()), [events]);
+  const recent = useMemo(() => [...events].sort((a, b) => b.when.localeCompare(a.when)).slice(0, 5), [events]);
+  // Same tip all day, a different one tomorrow — chosen by date, no randomness.
+  const tip = ENTRIES[Math.floor(Date.now() / 86_400_000) % ENTRIES.length];
 
   return (
-    <div className="page" style={{ maxWidth: 1200 }}>
+    <div className="page" style={{ maxWidth: 1180 }}>
       {/* Hero */}
-      <section className="card flow-border reveal" style={{ padding: 0, marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
-        <div className="hero-aurora" />
-        <div className="hero-scanline" />
-        <div className="hero-inner" style={{ position: 'relative', zIndex: 2, display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 420px', minWidth: 0 }}>
-            <span className="badge badge-accent reveal d1" style={{ marginBottom: 14 }}><Lock size={10} /> No account · processed entirely in your browser</span>
-            <h1 className="reveal d2" style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 10px', color: 'var(--text-primary)', lineHeight: 1.15 }}>
-              Verify payment proof and catch scam messages with <span className="gradient-text">evidence you can see</span>
-            </h1>
-            <p className="reveal d3" style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 560, lineHeight: 1.6, margin: '0 0 22px' }}>
-              FraudSentry reads your screenshots with real OCR, inspects images for signs of editing, cross-checks receipts against the conversation behind them, and explains every risk score — instead of just guessing whether something is “fraud.”
-            </p>
-            <div className="reveal d4" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button className="btn-primary" onClick={() => onNavigate('scanner')}><ScanLine size={16} /> Check a transaction</button>
-              <button className="btn-secondary" onClick={() => onNavigate('analyzer')}><MessageSquareWarning size={15} /> Analyze a message</button>
-            </div>
+      <section className="home-hero">
+        <div className="hh-text">
+          <span className="hh-eyebrow"><Lock size={14} aria-hidden="true" /> No account · nothing uploaded</span>
+          <h1 className="hh-title">Got a payment screenshot?<br /><span className="grad">Check it before you hand anything over.</span></h1>
+          <p className="hh-sub">FraudSentry reads the receipt, looks for signs of editing, and tells you in plain words what it found — and what to do next.</p>
+          <div className="hh-cta">
+            <button type="button" className="btn-primary btn-lg" onClick={() => onNavigate('scanner')}><ScanLine size={19} /> Check a receipt</button>
+            <button type="button" className="btn-secondary btn-lg" onClick={() => onNavigate('analyzer')}><MessageSquareWarning size={18} /> Check a message</button>
           </div>
-          <div className="reveal d3 hero-orb" style={{ flex: '0 0 auto', display: 'grid', placeItems: 'center', minWidth: 150 }} aria-hidden="true">
-            <div className="shield-orb float-slow" style={{ width: 116, height: 116, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, rgba(96,165,250,0.30), rgba(37,99,235,0.10) 60%, transparent)', border: '1px solid var(--border-accent)' }}>
-              <ShieldCheck size={52} color="var(--accent-light)" strokeWidth={1.6} />
-            </div>
+        </div>
+        <div className="hh-art" aria-hidden="true">
+          <div className="mock-phone">
+            <div className="mp-notch" />
+            <div className="mp-head" />
+            <div className="mp-amount"><span /></div>
+            <div className="mp-row"><span className="hl hl-a" /></div>
+            <div className="mp-row short" />
+            <div className="mp-row"><span className="hl hl-r" /></div>
+            <div className="mp-row short" />
+            <div className="mp-beam" />
           </div>
+          <div className="mp-badge"><ShieldCheck size={16} /> Checked on-device</div>
         </div>
       </section>
 
-      {/* Trust strip */}
-      <div className="reveal d2" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 22 }}>
-        {[
-          { icon: Cpu, t: 'On-device analysis' },
-          { icon: Lock, t: 'No data leaves your browser' },
-          { icon: ShieldCheck, t: 'RA 10173 compliant' },
-          { icon: Eye, t: 'Every score explained' },
-        ].map(c => (
-          <div key={c.t} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', borderRadius: 99 }}>
-            <c.icon size={13} color="var(--accent-light)" />
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 550 }}>{c.t}</span>
+      {/* Activity — every number is computed from this device's own history */}
+      <section aria-labelledby="act-h" className="home-section">
+        <div className="row-between">
+          <h2 id="act-h" className="section-title"><CalendarDays size={18} /> Your activity <span className="muted small" style={{ fontWeight: 500 }}>· from checks on this device</span></h2>
+          {act.total > 0 && <button type="button" className="btn-ghost" onClick={() => onNavigate('reports')}><History size={15} /> History</button>}
+        </div>
+        {act.total === 0 ? (
+          <div className="card empty-state">
+            <span className="empty-ico"><Smartphone size={28} /></span>
+            <h2>Nothing checked yet</h2>
+            <p>Your numbers start at zero and grow only from checks you actually run here. Nothing is estimated or made up.</p>
+            <button type="button" className="btn-primary" onClick={() => onNavigate('scanner')}><ScanLine size={17} /> Run your first check</button>
           </div>
-        ))}
+        ) : (
+          <>
+            <div className="stat-grid">
+              <Stat icon={Eye} label="Total checks" value={act.total} sub={`${act.receipts} receipt${act.receipts === 1 ? '' : 's'} · ${act.messages} message${act.messages === 1 ? '' : 's'}`} />
+              <Stat icon={CalendarDays} label="Last 7 days" value={act.last7} sub="checks this week" />
+              <Stat icon={ShieldAlert} label="Risky results" value={act.risky} sub="high or critical" tone="risk" />
+              <Stat icon={Flame} label="Day streak" value={act.streak} sub={act.streak === 1 ? 'day in a row' : 'days in a row'} tone="streak" />
+            </div>
+            <div className="badges" aria-label="Milestones">
+              {MILESTONES.map(m => {
+                const got = m.earned(act);
+                return (
+                  <span key={m.id} className={`badge-pill${got ? ' got' : ''}`} title={m.hint}>
+                    <Award size={15} aria-hidden="true" /> {m.label}<span className="sr-only">{got ? ' (earned)' : ' (not yet)'}</span>
+                  </span>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+
+      <div className="home-split">
+        {/* Recent */}
+        {recent.length > 0 && (
+          <section className="card pad" aria-labelledby="recent-h">
+            <h2 id="recent-h" className="section-title"><History size={18} /> Recent checks</h2>
+            <ul className="recent-list">
+              {recent.map(r => (
+                <li key={r.id} className={`sev-${r.level === 'low' ? 'ok' : r.level}`}>
+                  <span className="rl-ico" aria-hidden="true">{r.kind === 'receipt' ? <ScanLine size={16} /> : <MessageSquareWarning size={16} />}</span>
+                  <span className="rl-title">{r.title}</span>
+                  <span className={`sev-chip sev-${r.level === 'low' ? 'ok' : r.level}`}>{LEVEL_LABEL[r.level]}</span>
+                  <time className="rl-when" dateTime={r.when}>{formatRelativeTime(r.when)}</time>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {/* Tip of the day */}
+        <section className="card pad tip-card" aria-labelledby="tip-h">
+          <h2 id="tip-h" className="section-title"><Lightbulb size={18} /> Scam to know today</h2>
+          <div className="tip-name"><tip.icon size={18} color={tip.color} aria-hidden="true" /> {tip.name}</div>
+          <p className="tip-sum">{tip.summary}</p>
+          <ul className="tip-flags">{tip.redFlags.slice(0, 3).map(f => <li key={f}>{f}</li>)}</ul>
+          <button type="button" className="btn-ghost" onClick={() => onNavigate('knowledge')}>More scams to know <ArrowRight size={15} /></button>
+        </section>
       </div>
 
       {/* Tools */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(232px,1fr))', gap: 14, marginBottom: 26 }}>
-        <ToolCard d="d1" icon={ScanLine} color="#2563eb" title="Transaction Check" desc="Upload a receipt to verify authenticity and read every field." onClick={() => onNavigate('scanner')} />
-        <ToolCard d="d2" icon={MessageSquareWarning} color="#f59e0b" title="Message Analyzer" desc="Detect phishing and scam scripts in any pasted text." onClick={() => onNavigate('analyzer')} />
-        <ToolCard d="d3" icon={GitCompareArrows} color="#6366f1" title="Cross-Evidence" desc="Pair a payment with its conversation and catch contradictions." onClick={() => onNavigate('cross')} />
-        <ToolCard d="d4" icon={Trees} color="#10b981" title="Detection Model" desc="Train the Random Forest live and see its real metrics." onClick={() => onNavigate('model')} />
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 14px' }}>
-        <Activity size={15} color="var(--accent-light)" />
-        <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Your activity</h2>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· computed only from your real scans</span>
-      </div>
-
-      {hasData ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 14, marginBottom: 22 }}>
-          <Kpi accent="blue" icon={FileSearch} label="Total scans" value={stats.total} sub={`${stats.images} image · ${stats.messages} message`} />
-          <Kpi accent="red" icon={ShieldAlert} label="High-risk found" value={stats.highRisk} sub="critical + high results" />
-          <Kpi accent="emerald" icon={ShieldCheck} label="Low-risk" value={stats.clean} sub="passed checks" />
-          <Kpi accent="indigo" icon={Cpu} label="Avg OCR confidence" value={stats.avgOcr} suffix="%" sub="across image scans" />
+      <section className="home-section" aria-labelledby="tools-h">
+        <h2 id="tools-h" className="section-title"><ShieldCheck size={18} /> Tools</h2>
+        <div className="tool-grid">
+          <Tool icon={ScanLine} title="Check Receipt" desc="Is this payment screenshot real? Read it, check it, get next steps." onClick={() => onNavigate('scanner')} tone="violet" />
+          <Tool icon={MessageSquareWarning} title="Check Message" desc="Paste a text or upload a chat screenshot to spot scam wording and links." onClick={() => onNavigate('analyzer')} tone="amber" />
+          <Tool icon={GitCompareArrows} title="Cross-Evidence" desc="Research tool: does this receipt really belong to this conversation?" onClick={() => onNavigate('cross')} tone="blue" research />
+          <Tool icon={Trees} title="Detection Model" desc="Research tool: train the Random Forest and see its metrics." onClick={() => onNavigate('model')} tone="green" research />
         </div>
-      ) : (
-        <EmptyState onNavigate={onNavigate} />
-      )}
+      </section>
 
-      {/* Recent activity */}
-      {hasData && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 22 }}>
-          <div style={{ padding: '15px 18px', borderBottom: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <TrendingUp size={15} color="var(--accent-light)" />
-              <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Recent scans</h3>
-            </div>
-            <button className="btn-ghost" onClick={() => onNavigate('reports')}>View all <ArrowRight size={12} /></button>
-          </div>
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Type</th><th>Result</th><th>Risk</th><th style={{ textAlign: 'right' }}>When</th></tr></thead>
-              <tbody>
-                {recent.map(r => {
-                  const meta = RISK_META[r.level];
-                  return (
-                    <tr key={r.id}>
-                      <td><span className="badge badge-neutral">{r.kind}</span></td>
-                      <td style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{r.title}</td>
-                      <td><span className={`badge badge-${r.level}`} style={{ color: meta.hex }}>{meta.label}</span></td>
-                      <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>{formatRelativeTime(r.when)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* How it works */}
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-          <Sparkles size={15} color="var(--accent-light)" />
-          <h3 style={{ fontSize: 13.5, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>How FraudSentry decides</h3>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, flexWrap: 'wrap' }}>
-          {[
-            { n: '01', t: 'Read the evidence', d: 'OCR extracts the text; forensic checks measure compression and error levels.' },
-            { n: '02', t: 'Weigh each signal', d: 'Every rule-based finding has a named weight — nothing is a black box.' },
-            { n: '03', t: 'Two scorers, one score', d: 'The risk % blends those weighted findings (50%) with a Random Forest vote on the same evidence (50%). Both are shown to you.' },
-            { n: '04', t: 'You decide', d: 'Results support your judgment; always verify through official channels.' },
-          ].map((s, i, arr) => (
-            <div key={s.n} style={{ display: 'flex', alignItems: 'flex-start', flex: '1 1 200px', minWidth: 180 }}>
-              <div className="reveal" style={{ flex: 1, animationDelay: `${0.08 * i}s` }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', display: 'grid', placeItems: 'center', marginBottom: 10 }}>
-                  <span className="mono" style={{ fontSize: 12, color: 'var(--accent-light)', fontWeight: 800 }}>{s.n}</span>
-                </div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{s.t}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, paddingRight: 16 }}>{s.d}</div>
-              </div>
-              {i < arr.length - 1 && <div className="step-connector" style={{ marginTop: 16, minWidth: 24 }} aria-hidden="true" />}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* How it decides */}
+      <section className="card pad" aria-labelledby="how-h">
+        <h2 id="how-h" className="section-title"><Cpu size={18} /> How FraudSentry decides</h2>
+        <ol className="how-steps">
+          <li><b>Read the evidence.</b> OCR reads the text three times; image checks look at compression and editing traces.</li>
+          <li><b>Check each signal.</b> Every rule has a name and a weight, so you can see exactly why.</li>
+          <li><b>Two scorers, one result.</b> Rule-based findings (50%) and a Random Forest vote on the same evidence (50%).</li>
+          <li><b>You confirm.</b> Only your own bank or e-wallet app can prove the money arrived.</li>
+        </ol>
+      </section>
     </div>
   );
 }
 
-function ToolCard({ icon: Icon, color, title, desc, onClick, d }: {
-  icon: LucideIcon; color: string; title: string; desc: string; onClick: () => void; d: string;
-}) {
-  return (
-    <button onClick={onClick} className={`card tool-card reveal ${d}`} style={{ padding: 18, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
-      <div className="tool-ico" style={{ width: 42, height: 42, borderRadius: 12, background: `${color}1a`, border: `1px solid ${color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={20} color={color} />
-      </div>
-      <div style={{ width: '100%' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          {title} <ArrowRight className="tool-arrow" size={15} color={color} />
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.45 }}>{desc}</div>
-      </div>
-    </button>
-  );
-}
-
-function Kpi({ accent, icon: Icon, label, value, sub, suffix }: {
-  accent: string; icon: LucideIcon; label: string; value: number; sub: string; suffix?: string;
-}) {
+function Stat({ icon: Icon, label, value, sub, tone }: { icon: LucideIcon; label: string; value: number; sub: string; tone?: 'risk' | 'streak' }) {
   const shown = useCountUp(value);
   return (
-    <div className={`kpi-card accent-${accent} pop-in`}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{label}</span>
-        <Icon size={16} color="var(--text-muted)" />
-      </div>
-      <div className="mono" style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }} aria-label={`${value}${suffix || ''}`}>{shown}{suffix || ''}</div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{sub}</div>
+    <div className={`stat pop-in${tone ? ` stat-${tone}` : ''}`}>
+      <div className="stat-top"><span className="stat-l">{label}</span><Icon size={18} aria-hidden="true" /></div>
+      <div className="stat-v mono" aria-label={String(value)}>{shown}</div>
+      <div className="stat-s">{sub}</div>
     </div>
   );
 }
 
-function EmptyState({ onNavigate }: { onNavigate: (p: string) => void }) {
+function Tool({ icon: Icon, title, desc, onClick, tone, research }: { icon: LucideIcon; title: string; desc: string; onClick: () => void; tone: string; research?: boolean }) {
   return (
-    <div className="card reveal d2" style={{ padding: '44px 24px', textAlign: 'center', marginBottom: 22 }}>
-      <div className="float-slow" style={{ width: 56, height: 56, margin: '0 auto 16px', borderRadius: 15, background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Inbox size={26} color="var(--text-muted)" />
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>No analyses have been performed yet</div>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 400, margin: '0 auto 18px', lineHeight: 1.55 }}>
-        Your activity stays empty until you run a real scan. Every number here will be computed from your own results — nothing is simulated.
-      </div>
-      <button className="btn-primary" onClick={() => onNavigate('scanner')}><ScanLine size={15} /> Run your first check</button>
-    </div>
+    <button type="button" className={`tool tool-${tone}`} onClick={onClick}>
+      <span className="tool-ico" aria-hidden="true"><Icon size={22} /></span>
+      <span className="tool-body">
+        <span className="tool-title">{title}{research && <span className="tool-tag">Research</span>}</span>
+        <span className="tool-desc">{desc}</span>
+      </span>
+      <ArrowRight size={18} className="tool-arrow" aria-hidden="true" />
+    </button>
   );
 }

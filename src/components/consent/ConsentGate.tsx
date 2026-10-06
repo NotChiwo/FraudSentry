@@ -114,7 +114,7 @@ export default function ConsentGate() {
             Continue to FraudSentry <ArrowRight size={16} />
           </button>
 
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
             A BSCS thesis research project · University of Perpetual Help System DALTA · For educational and evidence-support use only.
           </p>
         </div>

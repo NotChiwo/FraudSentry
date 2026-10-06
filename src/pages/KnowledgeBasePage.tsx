@@ -52,7 +52,7 @@ export default function KnowledgeBasePage() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
                         <AlertTriangle size={13} color="var(--accent-amber)" />
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Red flags</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Red flags</span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {e.redFlags.map((r, i) => (
@@ -66,7 +66,7 @@ export default function KnowledgeBasePage() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
                         <ShieldCheck size={13} color="var(--accent-emerald)" />
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>How to protect yourself</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>How to protect yourself</span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {e.protect.map((r, i) => (
@@ -79,7 +79,7 @@ export default function KnowledgeBasePage() {
                     </div>
                   </div>
                   <div style={{ marginTop: 14, padding: '11px 14px', background: 'var(--bg-subtle)', border: `1px solid ${e.color}33`, borderLeft: `3px solid ${e.color}`, borderRadius: 8 }}>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Typical message</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Typical message</div>
                     <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.55 }}>{e.example}</div>
                   </div>
                 </div>

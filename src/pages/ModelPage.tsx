@@ -158,7 +158,7 @@ export default function ModelPage() {
       {/* Config + dataset */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16, marginBottom: 18 }}>
         {/* Dataset card */}
-        <div className="card fade-up">
+        <div className="card fade-up" style={{ padding: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <Database size={16} color="var(--accent-light)" />
             <span style={{ fontSize: 14, fontWeight: 700 }}>Dataset</span>
@@ -175,7 +175,7 @@ export default function ModelPage() {
           </div>
 
           {/* class balance bar */}
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>Class balance ({100 - fraudPct}% legit / {fraudPct}% fraud)</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 5 }}>Class balance ({100 - fraudPct}% legit / {fraudPct}% fraud)</div>
           <div style={{ display: 'flex', height: 9, borderRadius: 99, overflow: 'hidden', border: '1px solid var(--border-default)' }}>
             <div style={{ width: `${100 - fraudPct}%`, background: 'var(--accent-emerald)', transition: 'width 0.6s ease' }} />
             <div style={{ width: `${fraudPct}%`, background: 'var(--accent-red)', transition: 'width 0.6s ease' }} />
@@ -187,20 +187,20 @@ export default function ModelPage() {
             <input ref={csvRef} type="file" accept=".csv,text/csv" hidden onChange={e => { const f = e.target.files?.[0]; if (f) onCsv(f); e.target.value = ''; }} />
           </div>
           {error && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--accent-red)', display: 'flex', gap: 6, alignItems: 'center' }}><AlertTriangle size={13} /> {error}</div>}
-          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             To make live scans use your model, the CSV header must list the 10 evidence features in this order, then the label: <span className="mono" style={{ overflowWrap: 'anywhere' }}>{FEATURE_SPECS.map(f => f.key).join(',')},label</span>. Other datasets (e.g. PaySim) can still be trained and evaluated here.
           </div>
         </div>
 
         {/* Hyperparameters */}
-        <div className="card fade-up">
+        <div className="card fade-up" style={{ padding: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Cpu size={16} color="var(--accent-light)" />
             <span style={{ fontSize: 14, fontWeight: 700 }}>Model configuration</span>
           </div>
           <Slider label="Number of trees" value={nTrees} min={10} max={80} step={5} onChange={setNTrees} disabled={phase === 'training'} />
           <Slider label="Max tree depth" value={maxDepth} min={4} max={12} step={1} onChange={setMaxDepth} disabled={phase === 'training'} />
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
             Each tree trains on a bootstrap sample and considers √{featNames.length} ≈ {Math.ceil(Math.sqrt(featNames.length))} random features per split. Seed is fixed (42) for reproducible results.
           </div>
           <button className="btn-primary" style={{ width: '100%', marginTop: 16, justifyContent: 'center' }} onClick={train} disabled={phase === 'training'}>
@@ -258,7 +258,7 @@ export default function ModelPage() {
                 <span style={{ fontSize: 14, fontWeight: 700 }}>Confusion matrix</span>
                 <span className="badge badge-neutral" style={{ marginLeft: 'auto' }}>{testSize} test rows</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>Trained on {trainSize} rows · evaluated on {testSize} unseen rows</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Trained on {trainSize} rows · evaluated on {testSize} unseen rows</div>
               <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr', gap: 6, alignItems: 'center' }}>
                 <div />
                 <ColHead>Predicted Legit</ColHead>
@@ -270,7 +270,7 @@ export default function ModelPage() {
                 <Cell n={metrics.fn} good={false} delay={160} />
                 <Cell n={metrics.tp} good delay={240} />
               </div>
-              <div style={{ display: 'flex', gap: 14, marginTop: 14, fontSize: 11, color: 'var(--text-muted)' }}>
+              <div style={{ display: 'flex', gap: 14, marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'rgba(16,185,129,0.5)' }} /> Correct</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'rgba(239,68,68,0.5)' }} /> Error</span>
               </div>
@@ -279,7 +279,7 @@ export default function ModelPage() {
             {/* Feature importance */}
             <div className="card">
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Feature importance</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>Which evidence features the forest relied on most (Gini decrease). This answers “what features matter” directly from the data.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>Which evidence features the forest relied on most (Gini decrease). This answers “what features matter” directly from the data.</div>
               {importances
                 .map((imp, i) => ({ imp, name: featNames[i] ?? `Feature ${i + 1}` }))
                 .sort((a, b) => b.imp - a.imp)
@@ -287,7 +287,7 @@ export default function ModelPage() {
                   const pct = arr[0].imp > 0 ? (row.imp / arr[0].imp) * 100 : 0;
                   return (
                     <div key={row.name} style={{ marginBottom: 9 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 3 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
                         <span style={{ color: 'var(--text-secondary)' }}>{row.name}</span>
                         <span className="mono" style={{ color: 'var(--text-muted)' }}>{(row.imp * 100).toFixed(1)}%</span>
                       </div>
@@ -334,7 +334,7 @@ export default function ModelPage() {
                     <span className={`badge ${probeProba >= 0.5 ? 'badge-high' : 'badge-low'}`}>
                       {probeProba >= 0.5 ? CLASS_NAMES[1] : CLASS_NAMES[0]}
                     </span>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, maxWidth: 180, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, maxWidth: 180, lineHeight: 1.5 }}>
                       Forest vote across {model?.treeCount} trees. ≥ 50% ⇒ classified fraudulent.
                     </div>
                   </div>
@@ -354,7 +354,7 @@ function Stat({ label, value, color }: { label: string; value: number; color?: s
   return (
     <div>
       <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: color ?? 'var(--text-primary)' }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 1 }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 1 }}>{label}</div>
     </div>
   );
 }
@@ -366,7 +366,7 @@ function Slider({ label, value, min, max, step, onChange, disabled }: { label: s
         <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
         <span className="mono" style={{ color: 'var(--accent-light)', fontWeight: 700 }}>{value}</span>
       </div>
-      <input type="range" min={min} max={max} step={step} value={value} disabled={disabled}
+      <input type="range" aria-label={label} min={min} max={max} step={step} value={value} disabled={disabled}
         onChange={e => onChange(Number(e.target.value))}
         style={{ width: '100%', accentColor: '#2563eb', cursor: disabled ? 'not-allowed' : 'pointer' }} />
     </div>
@@ -383,16 +383,16 @@ function MetricCard({ icon: Icon, label, value, hint, color }: { icon: LucideIco
       <div className="mono" style={{ fontSize: 30, fontWeight: 800, color, lineHeight: 1 }}>
         <CountUp value={value} suffix="%" decimals={2} />
       </div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.45 }}>{hint}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.45 }}>{hint}</div>
     </div>
   );
 }
 
 function ColHead({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</div>;
+  return <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</div>;
 }
 function RowHead({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</div>;
+  return <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{children}</div>;
 }
 function Cell({ n, good, delay }: { n: number; good: boolean; delay: number }) {
   const bg = good ? 'rgba(16,185,129,0.14)' : 'rgba(239,68,68,0.13)';
@@ -409,7 +409,7 @@ function ProbeSlider({ spec, value, onChange }: { spec: typeof FEATURE_SPECS[num
   if (spec.kind === 'binary') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }} title={spec.description}>{spec.label}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }} title={spec.description}>{spec.label}</span>
         <button onClick={() => onChange(value >= 0.5 ? 0 : 1)} className={`badge ${value >= 0.5 ? 'badge-accent' : 'badge-neutral'}`} style={{ cursor: 'pointer', minWidth: 44, justifyContent: 'center' }}>
           {value >= 0.5 ? 'Yes' : 'No'}
         </button>
@@ -418,11 +418,11 @@ function ProbeSlider({ spec, value, onChange }: { spec: typeof FEATURE_SPECS[num
   }
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 3 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
         <span style={{ color: 'var(--text-secondary)' }} title={spec.description}>{spec.label}</span>
         <span className="mono" style={{ color: 'var(--text-muted)' }}>{Math.round(value)}</span>
       </div>
-      <input type="range" min={spec.min} max={spec.max} step={1} value={value}
+      <input type="range" aria-label={spec.label} min={spec.min} max={spec.max} step={1} value={value}
         onChange={e => onChange(Number(e.target.value))} style={{ width: '100%', accentColor: '#2563eb' }} />
     </div>
   );
