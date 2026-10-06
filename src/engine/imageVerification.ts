@@ -20,13 +20,15 @@
 
 import { EvidenceSource, ImageScanResult, OcrResult, ForensicReport, VerificationFinding, RiskLevel, ExtractedTransactionData } from '../types';
 import { generateId, scoreToRiskLevel, clamp } from '../utils/helpers';
-import { runOcr } from '../services/ocr';
+import { runOcr, OcrCancelled } from '../services/ocr';
+import type { OcrProgress } from '../services/ocr';
 import { analyzeForensics } from '../services/imageForensics';
 import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction } from '../services/receiptParser';
 import { reconcileAmounts, checkReceiptDate } from '../services/consistencyChecks';
 import { matchAgainstHistory, PriorScan } from '../services/historyMatch';
 import { buildFeatureVector } from '../services/sampleDataset';
-import { scoreWithSharedModel } from './sharedModel';
+import { REF_FORMATS } from '../services/fieldValidation';
+import { scoreWithSharedModel, warmUpSharedModel } from './sharedModel';
 
 function finding(category: VerificationFinding['category'], label: string, detail: string, severity: RiskLevel, passed: boolean, weight: number): VerificationFinding {
   return { id: generateId('f'), category, label, detail, severity, passed, weight };
@@ -36,8 +38,10 @@ function finding(category: VerificationFinding['category'], label: string, detai
 function validateReference(source: EvidenceSource, ref: string | null): VerificationFinding | null {
   if (!ref) return null;
   const clean = ref.replace(/\s/g, '');
-  // Most PH e-wallet/bank refs are 10–16 alphanumeric chars
-  const looksValid = /^[A-Z0-9]{8,20}$/i.test(clean);
+  // Per-app shape where we know it (e.g. MariBank refs can be 6 digits);
+  // otherwise a generic 6–24 character alphanumeric shape.
+  const fmt = REF_FORMATS[source];
+  const looksValid = fmt ? fmt.test(clean) : /^[A-Z0-9]{6,24}$/i.test(clean);
   return finding('reference', 'Reference Number Format',
     looksValid ? `Reference "${clean}" matches the length/character pattern used by ${source !== 'Unknown' ? source : 'major institutions'}. Cross-check it inside your own app's history.`
                : `Reference "${clean}" has an unusual structure for a genuine transaction record. Verify it manually.`,
@@ -55,12 +59,17 @@ export async function analyzeTransactionImage(
     history?: PriorScan[];
     /** clock used for the future-date check (tests) */
     now?: Date;
+    /** cancel the scan (the OCR worker is stopped) */
+    signal?: AbortSignal;
+    /** real OCR progress events (pass number, Tesseract's own 0-1 progress, words found) */
+    onOcrProgress?: (p: OcrProgress) => void;
   },
 ): Promise<ImageScanResult> {
   const onStage = opts?.onStage;
 
   onStage?.('Running forensic analysis');
   const forensics: ForensicReport = await analyzeForensics(file);
+  if (opts?.signal?.aborted) throw new OcrCancelled();
 
   let ocr: OcrResult;
   let extracted: ExtractedTransactionData;
@@ -73,13 +82,14 @@ export async function analyzeTransactionImage(
     source = (extracted.institution as EvidenceSource) || 'Unknown';
   } else {
     onStage?.('Extracting text (OCR)');
-    ocr = await runOcr(file, onStage);
+    ocr = await runOcr(file, onStage, { signal: opts?.signal, onProgress: opts?.onOcrProgress });
     const parsed = parseReceiptMulti(ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text], file.name);
     extracted = parsed.data;
     source = parsed.source;
   }
 
   onStage?.('Scoring evidence');
+  await warmUpSharedModel();   // usually already trained in the background
   const findings: VerificationFinding[] = [];
 
   // ── Forensic signals feed directly in as findings ──
@@ -122,17 +132,25 @@ export async function analyzeTransactionImage(
                              : 'No clearly formatted amount was detected. Confirm the figure manually before trusting the receipt.',
     extracted.amount != null ? 'low' : 'medium', extracted.amount != null, 0.06));
 
+  // Unsent "Confirm transaction" screen? (needed before the recipient check)
+  const ocrTexts = ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text || ''];
+  const unconfirmed = ocrTexts.some(t => isUnconfirmedTransaction(t));
+
   // ── Recipient identity completeness ──
   // A genuine money transfer ALWAYS shows who was paid. If the receipt reads
   // clearly everywhere else (good OCR, amount/reference/date all found) but
   // names NO recipient at all, the field is genuinely blank — a severe
   // structural anomaly, not an OCR miss. Weighted heavily in that case.
-  if (source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
+  // (Skipped on an unsent screen: nothing was sent, so there is no recipient —
+  // the Unconfirmed Transaction finding below already explains it.)
+  if (!unconfirmed && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
     const ocrReadable = (ocr?.confidence ?? 0) >= 65;
-    const txnFieldsRead = (extracted.amount != null) || !!extracted.referenceNo || !!extracted.date;
+    const readFields = [extracted.amount != null ? 'amount' : null, extracted.referenceNo ? 'reference number' : null, extracted.date ? 'date' : null].filter(Boolean) as string[];
+    const txnFieldsRead = readFields.length > 0;
+    const readList = readFields.length > 1 ? `${readFields.slice(0, -1).join(', ')} and ${readFields[readFields.length - 1]}` : readFields[0];
     if (ocrReadable && txnFieldsRead) {
       findings.push(finding('text', 'No Recipient Identified',
-        `The amount, reference number, and date on this receipt all read clearly — yet it names NO recipient at all (no name and no number). A genuine transfer always shows who was paid, so a blank recipient on an otherwise-readable receipt is a strong sign the image was fabricated or altered. Do not accept this as proof of payment.`,
+        `The ${readList} on this receipt read clearly — yet it names NO recipient at all (no name and no number). A genuine transfer always shows who was paid, so a blank recipient on an otherwise-readable receipt is a strong sign the image was fabricated or altered. Do not accept this as proof of payment.`,
         'critical', false, 0.50));
     } else {
       findings.push(finding('text', 'Recipient Details Missing',
@@ -143,8 +161,6 @@ export async function analyzeTransactionImage(
 
   // ── Unsent transaction passed off as proof (Maya "Confirm transaction") ──
   // Judged from the raw OCR text, so a manual field correction can't hide it.
-  const ocrTexts = ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text || ''];
-  const unconfirmed = ocrTexts.some(t => isUnconfirmedTransaction(t));
   if (unconfirmed) {
     findings.push(finding('layout', 'Unconfirmed Transaction',
       'This screenshot is a confirmation/review screen shown BEFORE money is sent ("Confirm transaction" with Source and Destination). No transfer has happened yet — which is why there is no reference number. It cannot be proof of payment, and sending this instead of a completed receipt is a known scam move.',
@@ -171,7 +187,7 @@ export async function analyzeTransactionImage(
   if (dateCheck.status === 'ok') {
     findings.push(finding('timestamp', 'Receipt Date Plausibility', `The receipt date (${[extracted.date, extracted.time].filter(Boolean).join(' ')}) is a valid date that is not in the future.`, 'low', true, 0.50));
   } else if (dateCheck.status === 'future') {
-    findings.push(finding('timestamp', 'Receipt Date Plausibility', dateCheck.detail, 'critical', false, 0.50));
+    findings.push(finding('timestamp', 'Receipt Date Plausibility', dateCheck.detail, 'high', false, 0.40));
   } else if (dateCheck.status === 'invalid') {
     findings.push(finding('timestamp', 'Receipt Date Plausibility', dateCheck.detail, 'medium', false, 0.15));
   }
@@ -266,7 +282,7 @@ function buildActionPlan(
     if (reused) plan.push('This exact receipt was submitted before — ask why the same proof is being used twice before going any further.');
     if (failed.some(f => f.label === 'Earlier Scan Comparison')) plan.push('You scanned a receipt with the same details before, but the figures differ. Put both screenshots side by side, and trust only the amount that actually arrived in your own account.');
     if (failed.some(f => f.label === 'Amount Reconciliation')) plan.push('The amount, fee and total on this receipt do not add up. Compare the amount that actually arrived in your account with BOTH figures — an edited amount is the most common fake.');
-    if (failed.some(f => f.label === 'Receipt Date Plausibility' && f.severity === 'critical')) plan.push('The receipt is dated in the future. Ask the sender to show the transaction live inside their app, and check the date and time in your own history.');
+    if (failed.some(f => f.label === 'Receipt Date Plausibility' && f.weight >= 0.4)) plan.push('The receipt is dated in the future. Ask the sender to show the transaction live inside their app, and check the date and time in your own history.');
     if (failedLabel('No Recipient Identified')) plan.push('A genuine transfer receipt always names its recipient. Ask the sender to show the transaction inside their app on a live video call.');
     plan.push('If money was already lost, keep the screenshot and chat as evidence and report to your platform and local authorities (PNP-ACG hotline or nearest station).');
   } else if (riskLevel === 'medium') {

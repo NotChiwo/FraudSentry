@@ -35,7 +35,7 @@ export interface ValidationSummary {
 }
 
 // Reference-number shape per platform (helps confirm a real reference vs noise).
-const REF_FORMATS: Partial<Record<EvidenceSource, RegExp>> = {
+export const REF_FORMATS: Partial<Record<EvidenceSource, RegExp>> = {
   GCash: /^\d{13}$/,
   MariBank: /^\d{6,16}$/,
   SeaBank: /^\d{6,18}$/,

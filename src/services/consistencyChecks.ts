@@ -160,7 +160,7 @@ export function checkReceiptDate(date: string | null, time: string | null, now: 
   const graceMs = (time ? 12 : 36) * 3600_000;
   if (parsed.getTime() - now.getTime() > graceMs) {
     return { status: 'future',
-      detail: `This receipt is dated ${[date, time].filter(Boolean).join(' ')} — after the moment it was checked. A real transaction cannot happen in the future; the date was most likely edited, or the receipt was prepared in advance. Do not accept it as proof of payment.` };
+      detail: `This receipt is dated ${[date, time].filter(Boolean).join(' ')} — later than your device's current date and time. A real transaction cannot happen in the future, so the date may have been edited. First make sure your phone's own date and time are correct; if they are, do not accept this as proof of payment.` };
   }
   return { status: 'ok', detail: '' };
 }

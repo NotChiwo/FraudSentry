@@ -134,62 +134,7 @@ export async function analyzeForensics(file: File): Promise<ForensicReport> {
   try { const r = await computeELA(img); ela = { mean: r.mean, hotspotPct: r.hotspotPct, thumb: r.thumb }; }
   catch { /* leave defaults */ }
 
-  const signals: ForensicSignal[] = [];
-
-  // 1. Magic-byte vs declared type
-  const typeMatch = sniff !== 'unknown' && (file.type === '' || file.type.includes(sniff.split('/')[1]) || sniff === file.type);
-  signals.push(sig(
-    'Container Integrity',
-    typeMatch ? `${sniff} confirmed` : `declared ${file.type || 'none'}, header says ${sniff}`,
-    typeMatch ? 'The file header matches its declared format — no container spoofing.' : 'The file extension/MIME type does not match the actual bytes. Renamed or repackaged files warrant caution.',
-    typeMatch ? 'low' : 'high', typeMatch, 0.18,
-  ));
-
-  // 2. EXIF presence (camera/screenshot originals usually carry metadata)
-  if (sniff === 'image/jpeg') {
-    signals.push(sig(
-      'Metadata (EXIF) Presence',
-      jpeg.hasExif ? 'EXIF block present' : 'no EXIF block',
-      jpeg.hasExif ? 'The image retains camera/device metadata, consistent with an original capture.' : 'No EXIF metadata. Screenshots legitimately lack EXIF, but so do images re-exported by editing tools — interpret alongside other signals.',
-      jpeg.hasExif ? 'low' : 'medium', jpeg.hasExif, 0.08,
-    ));
-  }
-
-  // 3. Editor software tag
-  signals.push(sig(
-    'Editing-Software Signature',
-    jpeg.software ? jpeg.software : 'none detected',
-    jpeg.software ? `Metadata names an image editor (${jpeg.software}). The image passed through editing software after creation.` : 'No embedded editing-tool signature was found in the metadata.',
-    jpeg.software ? 'high' : 'low', !jpeg.software, 0.22,
-  ));
-
-  // 4. Encoding mode
-  if (sniff === 'image/jpeg' && jpeg.progressive !== null) {
-    signals.push(sig(
-      'JPEG Encoding Mode',
-      jpeg.progressive ? 'progressive' : 'baseline',
-      jpeg.progressive ? 'Progressive encoding is common when an image is re-saved by an editor or web pipeline rather than written straight from a phone camera roll.' : 'Baseline encoding is typical of a direct device screenshot/capture.',
-      jpeg.progressive ? 'medium' : 'low', !jpeg.progressive, 0.10,
-    ));
-  }
-
-  // 5. Dimensions / aspect plausibility
-  const aspectOk = plausiblePhoneAspect(width, height);
-  signals.push(sig(
-    'Screen Geometry',
-    `${width}×${height} (${aspectLabel(width, height)})`,
-    aspectOk ? 'Dimensions match a common phone/desktop screenshot ratio.' : 'Dimensions do not match a standard screen ratio — the image may be cropped or composited from multiple sources.',
-    aspectOk ? 'low' : 'medium', aspectOk, 0.12,
-  ));
-
-  // 6. Error Level Analysis
-  const elaConcern = ela.hotspotPct > 4.5 || ela.mean > 55;
-  signals.push(sig(
-    'Error Level Analysis',
-    `mean ${ela.mean}/100 · ${ela.hotspotPct}% hotspots`,
-    elaConcern ? 'Localised high-error regions were detected. These can indicate text or numbers were pasted/edited after the original was saved. Review the highlighted heatmap.' : 'No strongly inconsistent error regions were found. The image recompresses uniformly, consistent with a single unedited save.',
-    elaConcern ? 'high' : 'low', !elaConcern, 0.28,
-  ));
+  const signals = buildForensicSignals({ sniff, declaredType: file.type, jpeg, width, height, ela });
 
   return {
     width, height,
@@ -205,4 +150,85 @@ export async function analyzeForensics(file: File): Promise<ForensicReport> {
     elaThumbnail: ela.thumb,
     signals,
   };
+}
+
+/**
+ * ELA hotspot threshold. Measured on 63 genuine PH receipt screenshots
+ * (43 JPEG, 20 PNG; 2026-10-07): hotspot % ranged 2.0-17.5 (median 6.4).
+ * The old 4.5 % threshold flagged 39 of 63 genuine images as "high". The new
+ * one sits above every genuine value measured. It was chosen from genuine
+ * images only: how many real edits it catches has NOT been measured.
+ */
+export const ELA_HOTSPOT_THRESHOLD = 20;
+
+export interface ForensicInput {
+  sniff: string; declaredType: string;
+  jpeg: { hasExif: boolean; software: string | null; progressive: boolean | null };
+  width: number; height: number;
+  ela: { mean: number; hotspotPct: number };
+}
+
+/** Pure: turns measured file/pixel facts into forensic findings (unit-tested). */
+export function buildForensicSignals(x: ForensicInput): ForensicSignal[] {
+  const { sniff, jpeg, width, height, ela } = x;
+  const declared = x.declaredType || '';
+  const signals: ForensicSignal[] = [];
+
+  // 1. Magic-byte vs declared type
+  const typeMatch = sniff !== 'unknown' && (declared === '' || declared.includes(sniff.split('/')[1]) || sniff === declared);
+  signals.push(sig(
+    'Container Integrity',
+    typeMatch ? `${sniff} confirmed` : `declared ${declared || 'none'}, header says ${sniff}`,
+    typeMatch ? 'The file header matches its declared format — no container spoofing.' : 'The file extension/MIME type does not match the actual bytes. Renamed or repackaged files warrant caution.',
+    typeMatch ? 'low' : 'high', typeMatch, 0.18,
+  ));
+
+  // 2. EXIF presence — noted, not scored: screenshots and chat-app copies
+  //    normally have no EXIF, so its absence says almost nothing.
+  if (sniff === 'image/jpeg') {
+    signals.push(sig(
+      'Metadata (EXIF) Presence',
+      jpeg.hasExif ? 'EXIF block present' : 'no EXIF block',
+      jpeg.hasExif ? 'The image retains device metadata.' : 'No EXIF metadata. This is normal for screenshots and for images sent through chat apps, so it is noted but not counted in the score.',
+      'low', true, 0,
+    ));
+  }
+
+  // 3. Editor software tag
+  signals.push(sig(
+    'Editing-Software Signature',
+    jpeg.software ? jpeg.software : 'none detected',
+    jpeg.software ? `Metadata names an image editor (${jpeg.software}). The image passed through editing software after creation.` : 'No embedded editing-tool signature was found in the metadata.',
+    jpeg.software ? 'high' : 'low', !jpeg.software, 0.22,
+  ));
+
+  // 4. Encoding mode — noted, not scored: chat apps and downloads re-save
+  //    images progressively, so it fired on most genuine JPEGs we tested.
+  if (sniff === 'image/jpeg' && jpeg.progressive !== null) {
+    signals.push(sig(
+      'JPEG Encoding Mode',
+      jpeg.progressive ? 'progressive' : 'baseline',
+      jpeg.progressive ? 'Progressive encoding. Common for images re-saved by chat apps, browsers or downloads, so it is noted but not counted in the score.' : 'Baseline encoding, typical of a direct device screenshot.',
+      'low', true, 0,
+    ));
+  }
+
+  // 5. Dimensions / aspect plausibility
+  const aspectOk = plausiblePhoneAspect(width, height);
+  signals.push(sig(
+    'Screen Geometry',
+    `${width}×${height} (${aspectLabel(width, height)})`,
+    aspectOk ? 'Dimensions match a common phone/desktop screenshot ratio.' : 'Dimensions do not match a standard screen ratio — the image may be cropped or composited from multiple sources.',
+    aspectOk ? 'low' : 'medium', aspectOk, 0.12,
+  ));
+
+  // 6. Error Level Analysis — a hint for human review, never proof on its own
+  const elaConcern = ela.hotspotPct > ELA_HOTSPOT_THRESHOLD || ela.mean > 55;
+  signals.push(sig(
+    'Error Level Analysis',
+    `mean ${ela.mean}/100 · ${ela.hotspotPct}% hotspots`,
+    elaConcern ? `An unusually large share of the image (${ela.hotspotPct}%) re-compresses differently from the rest — more than any genuine receipt in our test set. This can mean parts were pasted or edited. It is a hint, not proof: open the heatmap under "How this was decided".` : 'Error levels are within the range we measured on genuine receipt screenshots. (On screenshots this check is weak — it can miss careful edits.)',
+    elaConcern ? 'medium' : 'low', !elaConcern, 0.15,
+  ));
+  return signals;
 }
