@@ -2,6 +2,10 @@
 // Every example here is also run through the Message Analyzer by
 // src/__tests__/knowledgeBase.test.ts, so the page never documents a scam
 // the engine cannot recognise.
+//
+// quickRule / basis: each quick rule is worded to match a public advisory
+// that was actually read (listed in `basis`) and the rule the Message
+// Analyzer applies. Do not add claims or statistics without a source.
 import type { LucideIcon } from 'lucide-react';
 import {
   KeyRound, TrendingUp, Gift, ShoppingBag, Landmark, Briefcase,
@@ -13,81 +17,132 @@ export interface ScamEntry {
   name: string;
   icon: LucideIcon;
   color: string;
+  /** one short line under the name in the list */
+  hint: string;
+  /** the one sentence to remember */
+  quickRule: string;
   summary: string;
+  /** at most 4 short phrases */
   redFlags: string[];
   example: string;
+  /** at most 4 short phrases */
   protect: string[];
+  /** public advisories the quick rule is based on */
+  basis: string;
+  /** where "try it" should go: the Message Analyzer, or Check Receipt for screenshot-based scams */
+  tryIn: 'message' | 'receipt';
 }
 
+// Order: everyday payment situations first, then the rest.
 export const ENTRIES: ScamEntry[] = [
   {
     id: 'otp', name: 'OTP / Verification Scam', icon: KeyRound, color: '#ef4444',
-    summary: 'Scammers trick you into revealing a one-time PIN (OTP) sent to your phone, then use it to take over your account or approve a transfer.',
-    redFlags: ['Someone asks you to read out a code "to verify" you', 'Urgency: "do it now or your account will be locked"', 'The code\u2019s own SMS literally says never to share it', 'Caller claims to be from your bank / e-wallet support'],
+    hint: 'Someone asks for your code',
+    quickRule: 'If anyone asks for your OTP or PIN, it is a scam.',
+    summary: 'Scammers pretend to be bank or e-wallet staff and ask for the one-time PIN (OTP) sent to your phone, then use it to take over your account.',
+    redFlags: ['Asks you to read out or send a code', '"Your account will be locked" urgency', 'Claims to be bank or e-wallet support', 'The code’s own SMS says never share it'],
     example: '"This is GCash Support. We detected suspicious activity. Please confirm the 6-digit code we just sent to secure your account."',
-    protect: ['Never share an OTP — no legitimate staff will ever ask for it', 'Banks and e-wallets do not call to ask for codes', 'If unsure, hang up and call the official hotline yourself'],
-  },
-  {
-    id: 'investment', name: 'Investment Scam', icon: TrendingUp, color: '#f59e0b',
-    summary: 'You\u2019re promised unusually high, "guaranteed" returns from crypto, forex, or a "double your money" scheme. Early small payouts build trust before the larger deposit disappears.',
-    redFlags: ['"Guaranteed" or fixed daily/weekly returns', 'Pressure to recruit friends for bonuses', 'Withdrawals suddenly require more "fees" or "taxes"', 'Unregistered platform, no verifiable company details'],
-    example: '"Invest \u20b15,000 today and earn \u20b11,500 daily. 100% guaranteed, withdraw anytime!"',
-    protect: ['No legitimate investment guarantees high fixed returns', 'Check if the entity is registered with the SEC', 'Be suspicious when you must pay fees to withdraw your own money'],
-  },
-  {
-    id: 'prize', name: 'Prize / Raffle Scam', icon: Gift, color: '#6366f1',
-    summary: 'You\u2019re told you won a prize, but must first pay a "processing", "delivery", or "tax" fee to claim it. The prize never exists.',
-    redFlags: ['You won a contest you never joined', 'A fee is required before you can receive a "free" prize', 'Claims tied to a famous brand but from a personal number', 'Deadline pressure to pay quickly'],
-    example: '"Congratulations! You won \u20b150,000 in our raffle. Send \u20b1500 processing fee to claim your prize now."',
-    protect: ['Real prizes never require an upfront payment', 'Verify directly with the official brand or promo', 'Paying a small fee to unlock a big reward is the classic trap'],
+    protect: ['Never share an OTP, PIN or MPIN', 'Hang up; call the official hotline yourself', 'Use only the official app'],
+    basis: 'GCash, Maya and BSP advisories: they never ask for your OTP, PIN or MPIN.',
+    tryIn: 'message',
   },
   {
     id: 'marketplace', name: 'Marketplace / Buy-Sell Scam', icon: ShoppingBag, color: '#10b981',
-    summary: 'In online buying and selling, a fake buyer "overpays" and asks for a refund, or a fake seller takes payment and never ships. Forged payment screenshots are common.',
-    redFlags: ['Buyer sends a "proof of payment" screenshot you can\u2019t see in your own account', 'Seller insists on full payment before meet-up with no track record', 'Pressure to ship before funds clear', 'Deal is too cheap to be true'],
-    example: '"I already paid, here\u2019s the GCash screenshot. Please ship now, I need it today!"',
-    protect: ['Always confirm money landed in your own account — not from a screenshot', 'Prefer meet-up or cash-on-delivery for high-value items', 'A screenshot is not proof of received funds'],
-  },
-  {
-    id: 'phishing', name: 'Bank Phishing', icon: Landmark, color: '#3b82f6',
-    summary: 'A message imitates your bank and links to a fake login page that steals your username, password, and OTP. A common 2025\u20132026 hook claims your reward points are "expiring today" so you rush to a fake "redeem" page.',
-    redFlags: ['Link domain is not the bank\\u2019s real one (e.g. bdoa.help instead of bpi.com.ph)', 'Claims your points / rewards will "expire today" \u2014 redeem now', 'Odd domain extension such as .help, .xyz, .top, .cfd, .vip', 'Threats that your account will be suspended or a generic greeting'],
-    example: '"BPI: 6,553 points in your account will expire today. Redeem now! Visit https://bdoa.help/rewards"',
-    protect: ['Banks send NO clickable login/reward links by SMS or chat \u2014 open the official app instead', 'Know the real domains: BPI bpi.com.ph \u00b7 BDO bdo.com.ph \u00b7 GCash gcash.com \u00b7 Maya maya.ph', 'If the URL is not the exact official domain, it is a scam \u2014 reward points are never "converted" via a link'],
-  },
-  {
-    id: 'job', name: 'Job Offer Scam', icon: Briefcase, color: '#f97316',
-    summary: 'A "too-good" remote job (often "liking videos" or "completing tasks") pays small amounts first, then asks you to deposit your own money for "bigger" tasks.',
-    redFlags: ['Pay to start, or deposit to "unlock" higher earnings', 'Recruitment over chat apps with no real interview', 'Vague company, salary far above the work', 'Earnings shown but withdrawals blocked'],
-    example: '"Earn \u20b12,000/day completing simple tasks. Just deposit \u20b11,000 to activate your premium account."',
-    protect: ['Legitimate jobs never ask you to pay to work', 'Research the company independently', 'Walk away when "earnings" require your own deposit'],
-  },
-  {
-    id: 'loan', name: 'Loan / Advance-Fee Scam', icon: CircleDollarSign, color: '#a855f7',
-    summary: 'An "instant approval" loan requires an upfront "processing fee" or "insurance" before release. After you pay, the loan never arrives.',
-    redFlags: ['Guaranteed approval with no credit check', 'Upfront fee required before release', 'Unregistered lender, pressure to pay fast', 'Contact only through chat apps'],
-    example: '"Your \u20b150,000 loan is approved! Pay \u20b12,000 processing fee to release the funds to your account."',
-    protect: ['Legitimate lenders deduct fees from the loan, not before', 'Verify the lender is registered/licensed', 'Never pay to receive a loan'],
+    hint: 'Pay-first or ship-now pressure',
+    quickRule: 'Ship only after the money shows in your own account.',
+    summary: 'A fake buyer pushes you to ship before the money arrives, or a fake seller takes payment and never ships.',
+    redFlags: ['"Paid na, ship now" pressure', 'Proof is only a screenshot', 'Full payment demanded before meet-up', 'Price too good to be true'],
+    example: '"I already paid, here’s the GCash screenshot. Please ship now, I need it today!"',
+    protect: ['Check your own app before shipping', 'Prefer meet-up or cash on delivery', 'Walk away from pressure'],
+    basis: 'GCash advisory on fake receipts: verify payments in your app’s Transactions tab before releasing items.',
+    tryIn: 'message',
   },
   {
     id: 'proof', name: 'Fake Proof of Payment', icon: ReceiptText, color: '#ef4444',
-    summary: 'A "buyer" sends a screenshot instead of real money: an edited receipt, someone else’s old receipt, or a payment that was never actually sent (a "Confirm transaction" review screen captured before pressing Send).',
-    redFlags: ['Pressure to ship or release goods immediately "because I already paid"', 'The screenshot shows a confirm/review screen with no reference number', 'The amount or recipient on the receipt does not match your conversation', 'The same receipt (same reference number) shows up more than once'],
+    hint: 'A screenshot instead of money',
+    quickRule: 'A screenshot is not money — check your own app.',
+    summary: 'A buyer sends a screenshot instead of real money: an edited receipt, someone else’s receipt, or a payment that was never actually sent.',
+    redFlags: ['"I already paid" with a push to ship', 'A confirm/review screen, no reference number', 'Amount or name doesn’t match your chat', 'Same reference used more than once'],
     example: '"Paid na po, here’s my screenshot! Please ship now, I need it today."',
-    protect: ['A screenshot is never proof — open YOUR OWN app and check that the money arrived', 'Search the reference number in your received transactions', 'Use Cross-Evidence to compare the receipt with the chat before releasing anything'],
+    protect: ['Check that the money arrived in your own app', 'Search the reference in your received transactions', 'Run the screenshot through Check Receipt'],
+    basis: 'GCash advisory on fake and AI-generated receipts: a transaction not in your app’s history is not valid.',
+    tryIn: 'receipt',
   },
   {
     id: 'parcel', name: 'Parcel / Customs-Fee Scam', icon: Package, color: '#0ea5e9',
-    summary: 'A text or chat claims a package is "on hold" and asks for a small customs, clearance, or storage fee through a link. The courier name is real; the message and link are not.',
-    redFlags: ['You were not expecting a package', 'A fee is needed to "release" the parcel', 'The link is not the courier’s official website', 'Short deadline: "pay today or the parcel will be returned"'],
+    hint: '"Pay a fee to release your parcel"',
+    quickRule: 'Pay delivery or customs fees only through the courier’s official channel.',
+    summary: 'A text or chat says a package is on hold and asks for a small customs, clearance or storage fee through a link or a personal account.',
+    redFlags: ['A parcel you weren’t expecting', 'A fee to "release" the parcel', 'Link isn’t the courier’s official site', 'Pay to a personal account or e-wallet'],
     example: '"Your parcel is on hold at customs. Pay the ₱150 clearance fee to release it: lbc-ph.top/pay"',
-    protect: ['Track parcels only through the courier’s official app or website', 'Couriers do not ask for fees through random links', 'Never enter card or e-wallet details on a messaged link'],
+    protect: ['Track only in the courier’s official app or site', 'Never pay through a messaged link', 'Never pay to a personal account'],
+    basis: 'Bureau of Customs advisories: its staff don’t text or call asking for payment, and never collect through personal accounts or e-wallets.',
+    tryIn: 'message',
   },
   {
     id: 'wrongsend', name: 'Wrong-Send / Refund Scam', icon: Undo2, color: '#f59e0b',
-    summary: 'Money from a stolen or scam-funded account is sent to you "by mistake", then the sender asks you to "refund" it to a DIFFERENT number. Returning it that way can make you the money mule — and the original payment may later be reversed.',
-    redFlags: ['An unexpected incoming transfer followed quickly by a message', 'The refund must go to a different number or account', 'Emotional pressure or urgency ("pang-tuition ko po yan")', 'Refusal to go through the e-wallet’s own support'],
+    hint: '"I sent it by mistake, please return"',
+    quickRule: 'Don’t send money back on a stranger’s word. Report it to your bank or e-wallet first and follow their process.',
+    summary: 'Money arrives "by mistake", then the sender asks you to return it — often to a different number. The money may come from a stolen account.',
+    redFlags: ['Unexpected money, then a message right away', 'Return it to a different number', 'Emotional pressure or urgency', 'Avoids the e-wallet’s own support'],
     example: '"Hi po, na-send ko po sa inyo yung ₱2,000 by mistake. Paki-balik na lang po sa 0917 123 4567, salamat!"',
-    protect: ['Do not send money back yourself — report it to your e-wallet or bank support', 'Let the provider reverse a genuine mistake through official channels', 'Never "refund" to a number other than the one that sent it'],
+    protect: ['Report it to your bank or e-wallet first', 'Follow their process for any return', 'Never send to a different number'],
+    basis: 'BSP guidance: report wrong transfers to your bank or e-wallet, which must investigate. (GCash and Maya say a receiver may be asked to return a genuine mistake — do it through their process.)',
+    tryIn: 'message',
+  },
+  {
+    id: 'prize', name: 'Prize / Raffle Scam', icon: Gift, color: '#6366f1',
+    hint: '"You won — pay a fee to claim"',
+    quickRule: 'If you have to pay to claim a prize, it is a scam.',
+    summary: 'You are told you won a raffle you never joined, but must first pay a processing, delivery or tax fee. The prize does not exist.',
+    redFlags: ['You won something you never joined', 'A fee before you can claim', 'Sent from an ordinary mobile number', 'Pressure to claim quickly'],
+    example: '"Congratulations! You won ₱50,000 in our raffle. Send ₱500 processing fee to claim your prize now."',
+    protect: ['Never pay to claim a prize', 'Check with the brand’s official page', 'Ignore fake permit numbers'],
+    basis: 'DTI text-scam advisories: fake raffles ask winners to pay before claiming.',
+    tryIn: 'message',
+  },
+  {
+    id: 'investment', name: 'Investment Scam', icon: TrendingUp, color: '#f59e0b',
+    hint: '"Guaranteed" daily returns',
+    quickRule: 'No real investment can guarantee a profit — check that it is registered with the SEC.',
+    summary: 'You are promised high, "guaranteed" returns. Small early payouts build trust before a bigger deposit disappears.',
+    redFlags: ['"Guaranteed" or fixed daily returns', 'Recruit friends for bonuses', 'Fees to withdraw your own money', 'Not registered with the SEC'],
+    example: '"Invest ₱5,000 today and earn ₱1,500 daily. 100% guaranteed, withdraw anytime!"',
+    protect: ['Check SEC registration first', 'Treat "guaranteed" as a warning', 'Never pay to withdraw'],
+    basis: 'SEC advisories on unregistered investment schemes promising guaranteed returns.',
+    tryIn: 'message',
+  },
+  {
+    id: 'job', name: 'Job Offer / Task Scam', icon: Briefcase, color: '#f97316',
+    hint: 'Pay or deposit to "earn"',
+    quickRule: 'A real job never asks you to pay or deposit to earn.',
+    summary: 'An easy online job ("like videos", "complete tasks") pays small amounts first, then asks you to deposit your own money for bigger tasks.',
+    redFlags: ['Deposit to "activate" or unlock tasks', 'Hired over chat with no interview', 'Pay far above the work', 'Earnings you can’t withdraw'],
+    example: '"Earn ₱2,000/day completing simple tasks. Just deposit ₱1,000 to activate your premium account."',
+    protect: ['Never pay to work', 'Research the company independently', 'Stop when earnings need a deposit'],
+    basis: 'SEC and PNP Anti-Cybercrime Group advisories on "tasking" job scams.',
+    tryIn: 'message',
+  },
+  {
+    id: 'loan', name: 'Loan / Advance-Fee Scam', icon: CircleDollarSign, color: '#a855f7',
+    hint: 'Fee before the loan is released',
+    quickRule: 'Legitimate lenders don’t ask for fees before releasing your loan.',
+    summary: 'An "instant approval" loan needs an upfront processing or insurance fee. After you pay, the loan never arrives.',
+    redFlags: ['Approved with no credit check', 'Fee before release', 'Lender with no SEC authority', 'Contact only through chat apps'],
+    example: '"Your ₱50,000 loan is approved! Pay ₱2,000 processing fee to release the funds to your account."',
+    protect: ['Never pay to receive a loan', 'Ask for the SEC Certificate of Authority', 'Fees come out of the loan, not before'],
+    basis: 'SEC advisories on advance-fee loan scams.',
+    tryIn: 'message',
+  },
+  {
+    id: 'phishing', name: 'Bank Phishing', icon: Landmark, color: '#3b82f6',
+    hint: 'Fake bank link or "expiring points"',
+    quickRule: 'Banks and e-wallets don’t send login or reward links by text — open the official app instead.',
+    summary: 'A message imitates your bank and links to a fake page that steals your login and OTP. A common hook says your reward points "expire today".',
+    redFlags: ['Link isn’t the bank’s real domain', 'Points "expire today — redeem now"', 'Odd domain like .help, .xyz, .top', 'Threat that your account is suspended'],
+    example: '"BPI: 6,553 points in your account will expire today. Redeem now! Visit https://bdoa.help/rewards"',
+    protect: ['Don’t tap links in texts', 'Open the official app yourself', 'Know the real domains (bpi.com.ph, gcash.com, maya.ph)'],
+    basis: 'GCash and Maya advisories: they never send links by SMS, e-mail or chat.',
+    tryIn: 'message',
   },
 ];
