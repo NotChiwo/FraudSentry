@@ -1,5 +1,25 @@
 # Changelog
 
+## V8.2 — 2026-10-07
+
+### Scam Knowledge Base: master–detail redesign
+- **Two panes from 720 px** (list 300 px, 240 px below 1024 px), each scrolling inside itself. Below 720 px it becomes list → detail, with an "All scams" Back button. The phone/browser back button and swipe-back also return to the list (history state + popstate), and focus goes back to the item that was opened. On phones the page intro is hidden while a detail is open, so the scam fills the screen.
+- **Faster to scan:**
+  - a one-sentence **quick rule** for every scam;
+  - at most 4 short red flags and tips, with icons;
+  - trigger words highlighted in the typical message, using the Message Analyzer's **own** matches (flag start/end), not a hand-made list;
+  - a filter box with a "no results" state.
+- **"Try this example in Check Message"** prefills the example, labelled "Example message". It is **not** run automatically, and analyzing the unchanged example is **not** saved to History, so it doesn't count toward Home activity. Once the text is edited it becomes a normal check. **Fake Proof of Payment** offers "Check a receipt instead".
+- **Quick rules checked against public advisories** (each entry shows a "Based on" line): GCash, Maya and BSP (OTP and links), the GCash fake-receipt advisory, the Bureau of Customs (parcel fees), BSP, GCash and Maya on wrong transfers, DTI (raffle texts), SEC (investment, task jobs, advance-fee loans), and PNP-ACG (task scams).
+  - **Wrong-send** uses "Don't send money back on a stranger's word. Report it to your bank or e-wallet first and follow their process." The proposed "Don't refund it yourself" was **not** used, because GCash and Maya (as summarised by GMA News) tell receivers to return a genuine mistake when asked.
+- **Accessibility:**
+  - vertical tabs with roving tabindex, Arrow/Home/End keys, `aria-selected` / `aria-controls`, a labelled tabpanel, and a live region announcing the selected scam;
+  - on phones a plain list of buttons, since no panel is on screen there;
+  - 44 px targets, nothing under 12 px, 15 px detail text (16 px on phones), and reduced motion respected.
+- **(fix)** The info banner showed a literal `you\u2019ll`, and the phishing entry showed a literal `\u2019` (double-escaped). Both now use real apostrophes, and a test guards against it.
+- **Data:** `ScamEntry` gains `hint`, `quickRule`, `basis` and `tryIn` for all 10 entries, now in everyday-first order. The `example` texts are unchanged.
+- **Tests:** 155 → **168** (`knowledgeBasePage.test.ts`, 13 tests).
+
 ## V8.1 — 2026-10-07
 
 ### Live camera scanning (Check Receipt and Check Message)

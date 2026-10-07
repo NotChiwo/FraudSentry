@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**155 / 155 passing** (V8.1).
+**168 / 168 passing** (V8.2).
 
 | Suite | Tests | What it covers |
 |---|---|---|
@@ -19,6 +19,12 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 | `activity.test.ts` | 7 | Home-page numbers: all zero without history, last-7-days, risky count, day streak (incl. ending yesterday, reset after a gap), milestones earned only from real history |
 | `receiptParserWallets.test.ts` | 8 | V8.1, **real OCR** (redacted): Maya merchant purchases (identified without the logo, merchant as payee, "Purchase date" preferred), Maya Meralco bill, older GCash Express Send ("Rel Mo" reference), GoTyme paying a Maya wallet. Uses a neutral filename so the issuer is not given away by the fixture name. **5 of 8 fail on the V8.0 parser.** |
 | `frameQuality.test.ts` | 8 | Live-camera frame measures on synthetic frames: crisp vs blurred, brightness, motion, hints; a white receipt with text is "ready", not "glare" |
+| `knowledgeBasePage.test.ts` | 13 | V8.2 Knowledge Base:
+- data contract: 10 entries, quick rule, hint and basis on each, 3–4 flags/tips, no literal escape codes, agreed quick-rule wording;
+- server-rendered page: 10 tabs, exactly one selected, detail never empty, selecting another entry, roving tabindex, Check Receipt for fake proof, disclaimer kept;
+- filter and arrow-key logic;
+- highlights equal the analyzer's own matches;
+- prefilled examples are still detected. |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
 **Do the tests actually catch bugs?** The 29 parser tests were also run against the **real V6 parser** (extracted from `FraudSentry-V6.html`): **12 fail** there (GoTyme misclassification, `000006ReferenceNo`, Maya references, unsent-screen detection, consensus reference, …) and all pass on V7.
@@ -120,6 +126,37 @@ Tested with Chromium's **fake camera** fed a real receipt as an MJPEG stream. Th
 - the flashlight and camera switching (no such hardware in the test browser).
 
 The sharpness threshold (120 on a 160 px frame) was calibrated on synthetic frames and the fake feed only. If auto-capture never fires on a particular camera, the manual shutter always works.
+
+### V8.2: Scam Knowledge Base (Chromium, built app)
+**Page scroll height**: the full scrollable content including the footer, measured as `.app-content.scrollHeight` with the first scam open.
+
+| Viewport | Before (V8.1 accordion) | After (V8.2) |
+|---|---|---|
+| 390 × 844 | 2,590 px | list **1,349 px**; one scam's detail **1,445 px** (the intro is hidden in detail) |
+| 768 × 1024 | 1,878 px | **1,293 px**; both panes end at 1,010 px of the 1,024 px viewport |
+| 1280 × 800 | 1,658 px | **943 px**; both panes end at 795 px of the 800 px viewport. The rest is the footer, kept below the panes as agreed. |
+
+**axe-core:**
+- 0 violations at 390 px (list view) and 1280 px, in both themes;
+- 0 on all 10 phone detail views in both themes, after fixing a missing `<h1>` that the first run found;
+- 0 app-wide (42 views).
+
+**Also measured:** no interactive element under 44 px and no text under 12 px on the page, at any of the three widths.
+
+**Interaction checks — 22 / 22 passed:**
+- **Keyboard:** Arrow ×2 moves focus and selection together, and the panel follows; End and Home work.
+- **Filter:** a nonsense filter shows the "no results" state, and Clear filter (keyboard) restores all 10; "customs" leaves only Parcel.
+- **Try-it:** it prefills without quotes and is labelled "Example message"; it does **not** auto-run; analyzing it shows a result but **History stays at 0**; an edited message **is** saved (0 → 1).
+- **Fake proof:** "Check a receipt instead" opens Check Receipt.
+- **768 px:** two panes.
+- **Phone:** tap opens the detail and focus moves to its heading; `page.goBack()` (browser/Android back) returns to the list and **focus returns to the opened item**; the on-screen Back does the same.
+- **No page errors.**
+
+**Not verified:**
+- a real Android back button or iOS swipe-back gesture (only `history.back()` / Playwright `goBack`);
+- screen-reader announcements (only the ARIA structure was checked);
+- WebKit/Firefox for this page specifically (the app-wide WebKit e2e run passed but doesn't open the Knowledge Base);
+- whether the quick rules actually help users (that needs your usability testing).
 
 ## 3. End-to-end tests of the built file (Playwright)
 

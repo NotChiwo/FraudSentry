@@ -5,6 +5,7 @@ import "./theme.css";
 import "./scanner.css";
 import "./pages.css";
 import "./camera.css";
+import "./kb.css";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(

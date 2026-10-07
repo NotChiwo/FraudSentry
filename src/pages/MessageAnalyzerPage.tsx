@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import {
   MessageSquareWarning, Type, ImagePlus, Loader2, Download, RefreshCw,
   AlertTriangle, CheckCircle2, ShieldAlert, Link2, ListChecks, Highlighter, X, Info,
@@ -29,12 +29,24 @@ export default function MessageAnalyzerPage() {
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // A Knowledge Base example is only PREFILLED (never auto-run). While the text
+  // is still exactly that example, analyzing it is not saved to History and so
+  // doesn't count toward the Home activity numbers.
+  const [exampleText, setExampleText] = useState<string | null>(null);
+  const isExample = exampleText !== null && text === exampleText;
+  useEffect(() => {
+    const pending = useAppStore.getState().pendingExample;
+    if (pending) {
+      useAppStore.getState().setPendingExample(null);
+      setMode('text'); setText(pending); setExampleText(pending); setResult(null);
+    }
+  }, []);
 
   const analyze = (raw: string, ocrConf: number | null) => {
     if (!raw.trim()) { setError('There is no text to analyze yet.'); return; }
     const res = analyzeMessageText(raw, platform, ocrConf);
     setResult(res);
-    addMessageScan(res);
+    if (!(exampleText !== null && raw === exampleText)) addMessageScan(res);
   };
 
   const handleImage = async (f: File) => {
@@ -61,7 +73,7 @@ export default function MessageAnalyzerPage() {
     }
   };
 
-  const reset = () => { setText(''); setResult(null); setPreview(''); setOcrConfidence(null); setError(''); };
+  const reset = () => { setText(''); setResult(null); setPreview(''); setOcrConfidence(null); setError(''); setExampleText(null); };
 
   return (
     <div className="page" style={{ maxWidth: 1100 }}>
@@ -103,8 +115,13 @@ export default function MessageAnalyzerPage() {
           {ocrConfidence != null && <span className="badge badge-accent" style={{ marginLeft: 'auto' }}>OCR {Math.round(ocrConfidence)}%</span>}
         </div>
 
+        {mode === 'text' && isExample && (
+          <div className="alert alert-info example-note" role="note">
+            <span><b>Example message</b> from the Scam Knowledge Base. Press “Analyze message” to see what gets flagged. Analyzing this example is <b>not saved</b> to your History. Edit it or paste your own message to run a normal check.</span>
+          </div>
+        )}
         {mode === 'text' ? (
-          <textarea className="input-field" rows={6} placeholder="Paste the SMS, chat, or email text here…"
+          <textarea aria-label="Message text" className="input-field" rows={6} placeholder="Paste the SMS, chat, or email text here…"
             value={text} onChange={e => setText(e.target.value)} style={{ resize: 'vertical', lineHeight: 1.6 }} />
         ) : (
           <div>

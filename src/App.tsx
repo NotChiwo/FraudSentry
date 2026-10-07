@@ -84,7 +84,7 @@ export default function App() {
             {page === 'analyzer'  && <MessageAnalyzerPage />}
             {page === 'cross'     && <CrossEvidencePage />}
             {page === 'model'     && <ModelPage />}
-            {page === 'knowledge' && <KnowledgeBasePage />}
+            {page === 'knowledge' && <KnowledgeBasePage onNavigate={navigate} />}
             {page === 'reports'   && <ReportsPage onNavigate={navigate} />}
             {page === 'privacy'   && <PrivacyPage />}
             {page === 'about'     && <AboutPage />}

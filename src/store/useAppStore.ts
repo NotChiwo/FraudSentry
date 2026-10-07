@@ -30,6 +30,9 @@ interface AppState {
   removeImageScan: (id: string) => void;
   removeMessageScan: (id: string) => void;
   removeCrossCheck: (id: string) => void;
+  /** Knowledge Base "try this" example waiting to be prefilled in Check Message (never persisted) */
+  pendingExample: string | null;
+  setPendingExample: (t: string | null) => void;
 }
 
 // First visit follows the device's light/dark setting; after that the saved choice wins.
@@ -91,6 +94,8 @@ export const useAppStore = create<AppState>()(
       removeImageScan: (id) => set(s => ({ imageScans: s.imageScans.filter(x => x.id !== id) })),
       removeMessageScan: (id) => set(s => ({ messageScans: s.messageScans.filter(x => x.id !== id) })),
       removeCrossCheck: (id) => set(s => ({ crossChecks: s.crossChecks.filter(x => x.id !== id) })),
+      pendingExample: null,
+      setPendingExample: (t) => set({ pendingExample: t }),
     }),
     {
       name: 'fraudsentry-v5-store',
