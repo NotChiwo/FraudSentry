@@ -1,0 +1,50 @@
+/* ============================================================
+   FraudSentry V8.1 — live camera scanner
+   Full-screen on phones; a centred viewfinder on laptops/desktops.
+   ============================================================ */
+.cam-overlay { position: fixed; inset: 0; z-index: 400; background: #000; display: flex; align-items: center; justify-content: center; animation: fade-in .15s ease; }
+.cam-stage { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
+@media (min-width: 860px) {
+  .cam-overlay { background: rgba(2,6,16,0.82); padding: 24px; }
+  .cam-stage { width: min(560px, 100%); height: min(860px, 100%); border-radius: 24px; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+}
+.cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+
+/* guide frame: receipt-shaped, centred */
+.cam-guide { position: absolute; left: 50%; top: 47%; transform: translate(-50%, -50%); width: min(78%, 420px); aspect-ratio: 9 / 16; max-height: 70%;
+  border-radius: 18px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); outline: 2px dashed rgba(255,255,255,0.55); outline-offset: -2px; overflow: hidden;
+  transition: outline-color .2s; }
+.cam-guide.ok { outline: 3px solid #34d399; }
+.cam-guide .scan-corner { width: 26px; height: 26px; border-width: 4px; border-color: #c4b8ff; }
+.cam-guide.ok .scan-corner { border-color: #34d399; }
+.cam-sweep { position: absolute; left: 0; right: 0; top: -30%; height: 30%; background: linear-gradient(180deg, transparent, rgba(139,124,255,0.28) 85%, rgba(196,184,255,0.95)); animation: cam-sweep 2.4s linear infinite; }
+.cam-guide.ok .cam-sweep { background: linear-gradient(180deg, transparent, rgba(52,211,153,0.25) 85%, rgba(52,211,153,0.95)); }
+@keyframes cam-sweep { from { top: -30% } to { top: 100% } }
+.cam-hold { position: absolute; left: 0; bottom: 0; height: 6px; background: #34d399; transition: width .2s linear; }
+.cam-flash { position: absolute; inset: 0; background: #fff; animation: cam-flash .35s ease-out forwards; pointer-events: none; }
+@keyframes cam-flash { from { opacity: .9 } to { opacity: 0 } }
+
+.cam-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: max(12px, env(safe-area-inset-top)) 14px 12px; background: linear-gradient(180deg, rgba(0,0,0,0.65), transparent); }
+.cam-title { flex: 1; text-align: center; color: #fff; font-size: 15px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.cam-btn { width: 48px; height: 48px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer;
+  color: #fff; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.22); }
+.cam-btn:hover { background: rgba(255,255,255,0.24); }
+.cam-btn.on { background: #6d5df5; border-color: #a99bff; }
+.cam-btn.ghost { visibility: hidden; }
+.cam-bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 18px 16px max(18px, env(safe-area-inset-bottom)); background: linear-gradient(0deg, rgba(0,0,0,0.75), transparent); }
+.cam-hint { max-width: 92%; padding: 9px 16px; border-radius: 99px; font-size: 15px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18); text-align: center; }
+.cam-hint.hint-ready { background: rgba(4,120,87,0.85); border-color: #34d399; }
+.cam-hint.hint-dark, .cam-hint.hint-bright { background: rgba(180,83,9,0.85); }
+.cam-controls { width: 100%; max-width: 360px; display: flex; align-items: center; justify-content: space-between; }
+.cam-shutter { width: 78px; height: 78px; border-radius: 50%; border: 4px solid #fff; background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.cam-shutter span { width: 62px; height: 62px; border-radius: 50%; background: #fff; transition: transform .1s; }
+.cam-shutter:active span { transform: scale(.88); }
+.cam-shutter:focus-visible { outline: 3px solid #a99bff; outline-offset: 4px; }
+.cam-link { min-height: 44px; background: none; border: none; color: #e2e8f0; font: 600 14px inherit; font-family: inherit; text-decoration: underline; cursor: pointer; }
+.cam-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(90%, 420px); display: flex; flex-direction: column; align-items: center; gap: 12px;
+  text-align: center; color: #fff; font-size: 15px; }
+.cam-error { padding: 24px; border-radius: 20px; background: rgba(15,20,38,0.95); border: 1px solid rgba(255,255,255,0.14); }
+.cam-error p { margin: 0; line-height: 1.55; }
+.cam-err-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; }

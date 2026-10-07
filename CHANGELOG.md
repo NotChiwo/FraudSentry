@@ -1,5 +1,31 @@
 # Changelog
 
+## V8.1 — 2026-10-07
+
+### Live camera scanning (Check Receipt and Check Message)
+- **"Scan with camera" opens a live viewfinder inside the app** (`getUserMedia`). It was previously a file picker labelled "Take photo". It works with phone cameras (rear camera preferred), laptop webcams and USB cameras.
+- **Real-time picture quality** is measured on every sampled frame (`frameQuality.ts`): sharpness (Laplacian variance), light (mean luma) and steadiness (frame difference). It drives the hints ("Hold steady…", "Too dark…") and **auto-capture**, which fires once the picture has stayed sharp and steady for 1.2 s. There's also a manual shutter, an auto-capture toggle, camera switching (when there are 2+ cameras), the flashlight (when the device supports it) and keyboard control (Space/Enter to capture, Esc to close).
+- **Full-resolution capture** via `ImageCapture.takePhoto()` where supported, otherwise the current video frame. The scan starts automatically after capture, and the camera is released.
+- **Honest fallbacks:** camera blocked, no camera, an insecure page, or a browser without a live camera each get a specific message and a "Use camera app instead" button (the device's own camera / file picker).
+- **(fix)** `public/_headers` had `Permissions-Policy: camera=()`, which **blocked the camera entirely on the hosted site**. It is now `camera=(self)`.
+- **(fix)** The camera screen is rendered in a portal, so it covers the whole screen and doesn't sit under the top bar / tab bar.
+- **(fix)** The Check Message screenshot drop area was a click-only `<div>` with no keyboard access. It now has real buttons.
+
+### Receipt reading: more wallets (from 18 real screenshots)
+- **Maya merchant purchase and bills receipts** are recognised from their wording ("The final amount has been sent to the merchant", "Amount has been sent to the biller", "Amount – Approved", "Purchased (Updated) on"). The green "maya" logo usually isn't read by OCR at all.
+- **The merchant / biller under "Purchased on" / "Bills Payment for"** (STARBUCKS…, MERALCO) is taken as the payee. The parser now looks only at the left column, skips Maya's amount line above the merchant, and accepts an OCR'd "*" as a quote mark.
+- **Maya's labelled "Purchase date"** (and the time under it) is preferred over the "updated on" header date.
+- **Older GCash Express Send layout:** "Total Amount Paid/Sent" plus a 4-3-6 digit reference means GCash, and "Rel Mo" is read as an OCR'd "Ref No.".
+- **Measured** (labels and fixes made while looking at these images, so **in-sample**):
+  - 18 screenshots: app 14→**18**/18, reference 17→**18**/18, date 12→15/17, time 13→16/17, recipient 9→14/15, amount 17/18 (unchanged), Trace ID 6/6.
+  - Older 62-receipt set (no regressions): app 57→**59**/61, reference 55→**56**/60, amount 59/59.
+- **Full engine on all 18 genuine screenshots:** every one is Low risk. The only findings are "no reference read" on the two images whose reference is pixelated or covered.
+
+### Tests
+- **139 → 155**, adding:
+  - real-OCR wallet tests (Maya purchase/bills, old GCash, GoTyme→Maya), which fail 5/8 on the previous parser;
+  - camera frame-quality tests.
+
 ## V8 — 2026-10-07
 
 A redesigned, faster app built on the 2026-10-06 audit (`docs/AUDIT-2026-10-06.md`). Every number below was measured; see TESTING.md.

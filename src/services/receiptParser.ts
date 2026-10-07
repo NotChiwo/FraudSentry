@@ -59,6 +59,9 @@ export function detectSourceFromText(text: string, filename = ''): EvidenceSourc
     if (tag) return ({ bpi: 'BPI', bdo: 'BDO', unionbank: 'UnionBank', metrobank: 'Metrobank', landbank: 'Landbank', rcbc: 'RCBC', pnb: 'PNB', 'security bank': 'Security Bank' } as Record<string, EvidenceSource>)[tag[2]]; }
   if (INSTAPAY_RE.test(hay) && /trace\s*id/.test(hay) && /go\s?tyme/.test(hay)) return 'GoTyme';
   if (isUnconfirmedTransaction(hay)) return 'Maya';
+  // Maya merchant purchase / bills receipts. The green "maya" logo is often not
+  // read at all, but this wording only appears on Maya receipts.
+  if (/final\s+amount\s+has\s+been\s+sent\s+to\s+the\s+merchant|amount\s+has\s+been\s+sent\s+to\s+the\s+biller|amount\s*[-–]\s*approved|purchased\s*\(updated\)\s*on/.test(hay)) return 'Maya';
   if (/express\s+send/.test(hay) && !/maya|maribank|seabank/.test(hay)) return 'GCash';
   if (/\b(gloan|gcash\s+send\s+money|gcash\s+pay\s+bills)\b/.test(hay)) return 'GCash';
   if (/maribank|mari\s?bank|m[a@]ri\s?b[a@4][rn]k/.test(hay)) return 'MariBank';
@@ -72,6 +75,9 @@ export function detectSourceFromText(text: string, filename = ''): EvidenceSourc
   // (the green carbon-footprint footer + "Total Amount Sent" only appear on GCash).
   if (/\bg[\s.]?cash\b/.test(hay) || /\b(6cash|gcosh|gcoash|gcash)\b/.test(hay)) return 'GCash';
   if (/(carbon footprint|going digital|gco2e|gco₂e)/.test(hay) && /(total amount sent|sent via|ref\.?\s*no)/.test(hay)) return 'GCash';
+  // Older GCash Express Send receipts show only "Total Amount Paid/Sent" and a
+  // 13-digit reference printed as 4-3-6 digits ("1009 429 419747").
+  if (/total\s+am[aeo]unt\s+(sent|paid|p[a-z]{1,3})\b/.test(hay) && /\b\d{4} \d{3} \d{6}\b/.test(hay)) return 'GCash';
   return 'Unknown';
 }
 
@@ -246,18 +252,22 @@ function nameAbovePhone(lines: string[]): string | null {
 // payee on the line(s) right under a headline like "Successfully sent to" or
 // "Paid bill", with no "Account Name" label.
 function payeeAfterHeadline(lines: string[]): string | null {
-  const headline = /^(successfully\s+(sent\s+to|paid\s+for?)|payment\s+received|purchased|paid\s+bill)\b/i;
+  const headline = /^(successfully\s+(sent\s+to|paid\s+for?)|payment\s+received|purchased|paid\s+bill|bills\s+payment\s+for)\b/i;
   for (let i = 0; i < lines.length; i++) {
     if (!headline.test(lines[i])) continue;
     for (let j = i + 1; j <= Math.min(i + 4, lines.length - 1); j++) {
-      const v = lines[j].trim();
+      // keep only the left column: a wide gap separates it from logos/dates
+      // ("STARBUCKS 262 ORTIGAS          [A]")
+      const v = lines[j].split(/\s{3,}/)[0].trim();
+      if (/^[-–]?\s*[p₱£]?\s*[\d,]+\.\d{2}\b/i.test(v)) continue;   // Maya prints the amount ("- P20,000.00") above the merchant
       if (!v || v.length <= 2) continue;
       if (/(php|₱)\s*-?\s*[\d,]/i.test(v)) break;              // reached the amount line
       if (/^(gcash|maya|paymaya)$/i.test(v)) continue;          // the wallet's own logo text
       // on-screen buttons/status under the headline (an icon often OCRs as a stray letter: "P Share")
       if (/^(\S\s+)?(share|repeat|add to favorites|get help|done|close|completed|processing|download|save|back|ok)\b/i.test(v)) continue;
       if (/^(amount|total|fee|ref(erence)?|date|payment|purchase|transaction|account)\b/i.test(v)) break;
-      if (/^[A-Za-z][A-Za-z0-9 .,'&()\-]{2,40}$/.test(v)) return v;
+      // (OCR reads a merchant's "*" as a curly quote: 'WL “Steam Purchase')
+      if (/^[A-Za-z][A-Za-z0-9 .,'&()*“”"\-]{2,40}$/.test(v)) return v;
     }
   }
   return null;
@@ -309,6 +319,8 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
     // spaces only (not newlines) inside the digit run, so a reference can't
     // swallow digits from the following line
     /ref(?:erence)?\.?\s*(?:[nm]o\.?|number|#|id)?\s*[:.\-]?\s*(\d[\d ]{8,22}\d)/i,
+    // "Rel Mo 1009 429 419747": "Ref No." with f→l and N→M OCR misreads
+    /\brel\.?\s*[nm]o\.?\s*[:.\-]?\s*(\d[\d ]{8,22}\d)/i,
     // an alphanumeric reference must contain at least one digit — stops plain
     // words (e.g. the label "REFERENCE NUMBER" itself) being captured
     /ref(?:erence)?\.?\s*(?:no\.?|number|#|id|code)?\s*[:.\-]?\s*((?=[A-Z]*\d)[A-Z0-9]{6,24})/i,
@@ -323,13 +335,16 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
   ]);
   const transactionId = txnRaw ? txnRaw.replace(/\s+/g, '') : null;
 
-  const date = firstMatch(text, [
+  // Maya purchases show the update time in the header ("Jul 28, 2026, 08:31 PM")
+  // and the actual transaction under a "Purchase date" label — prefer the label.
+  const purchased = text.match(/purchase\s+date\s+((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4})\s*,?\s*(?:\n\s*)?(\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm))?/i);
+  const date = purchased ? purchased[1] : firstMatch(text, [
     /\b((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4})/i,
     /\b(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*,?\s*\d{4})/i,
     /\b(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})\b/,
     /\b(\d{4}-\d{2}-\d{2})\b/,
   ]);
-  const time = firstMatch(text, [
+  const time = purchased && purchased[2] ? purchased[2] : firstMatch(text, [
     /\b(\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm))\b/i,
     /(?:time|at)\s*[:.\-]?\s*(\d{1,2}:\d{2}(?::\d{2})?)\b/i,
   ]);

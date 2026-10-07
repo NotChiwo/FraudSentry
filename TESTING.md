@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**139 / 139 passing** (V8).
+**155 / 155 passing** (V8.1).
 
 | Suite | Tests | What it covers |
 |---|---|---|
@@ -17,6 +17,8 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 | `forensicSignals.test.ts` | 8 | V8 thresholds: a typical genuine chat-forwarded JPEG raises nothing; the highest genuine ELA value measured (17.5 %) is not flagged; progressive/EXIF noted but unscored; editor signature, renamed file and odd crop still fire; future-date wording mentions the device clock |
 | `fieldLocator.test.ts` | 4 | Field highlights: amount (not total), multi-group reference, date and recipient mapped to word boxes; values not on the image are not outlined |
 | `activity.test.ts` | 7 | Home-page numbers: all zero without history, last-7-days, risky count, day streak (incl. ending yesterday, reset after a gap), milestones earned only from real history |
+| `receiptParserWallets.test.ts` | 8 | V8.1, **real OCR** (redacted): Maya merchant purchases (identified without the logo, merchant as payee, "Purchase date" preferred), Maya Meralco bill, older GCash Express Send ("Rel Mo" reference), GoTyme paying a Maya wallet. Uses a neutral filename so the issuer is not given away by the fixture name. **5 of 8 fail on the V8.0 parser.** |
+| `frameQuality.test.ts` | 8 | Live-camera frame measures on synthetic frames: crisp vs blurred, brightness, motion, hints; a white receipt with text is "ready", not "glare" |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
 **Do the tests actually catch bugs?** The 29 parser tests were also run against the **real V6 parser** (extracted from `FraudSentry-V6.html`): **12 fail** there (GoTyme misclassification, `000006ReferenceNo`, Maya references, unsent-screen detection, consensus reference, …) and all pass on V7.
@@ -76,14 +78,57 @@ Real scans of clean GCash, GoTyme and MariBank receipts now score **0.00** on th
 ### V8: field highlights on real OCR
 On those 12 receipts, `locateFields` outlined the amount on 10 of 11 receipts where an amount was extracted, the reference on 8 / 9, the date on 7 / 10 and the recipient on 5 / 6.
 
+### V8.1: 18 more real screenshots (GCash, GoTyme, Maya purchases/bills, MariBank, GCash Pay Bills)
+18 screenshots supplied on 2026-10-07 were run through the app's real 3-pass OCR and hand-labelled from the images. The parser was then fixed **while looking at them**, so these are **in-sample** figures.
+
+| Field | Before (V8.0) | After (V8.1) |
+|---|---|---|
+| Issuer app | 14 / 18 | **18 / 18** |
+| Amount | 17 / 18 | 17 / 18 |
+| Reference | 17 / 18 | **18 / 18** |
+| Date | 12 / 17 | 15 / 17 |
+| Time | 13 / 17 | 16 / 17 |
+| Trace ID | 6 / 6 | 6 / 6 |
+| Recipient / merchant (letters only) | 9 / 15 | 14 / 15 |
+
+What's left is OCR-level:
+- GCash Pay Bills (Pag-IBIG): the "Amount Paid / Fee" rows and the date are never read from that small, highlighter-marked image, so the parser reports the ₱7,505 headline total, not the ₱7,500 principal.
+- One old GCash receipt's year is read as "2003".
+
+Re-scored afterwards, the older 62-receipt set improved with no regressions: issuer **59/61**, amount **59/59**, reference **56/60**.
+
+**Full engine on the 18 genuine screenshots (built app, Chromium):** all 18 are **Low**. The only findings are "no reference read" on #1 and #16, whose references are pixelated or covered in the image. No false "edited copy" alarm fired while all 18 were scanned into the same history.
+
+### V8.1: live camera
+Tested with Chromium's **fake camera** fed a real receipt as an MJPEG stream. This is a stand-in, **not a real camera**.
+
+| Check | Result |
+|---|---|
+| Live stream starts | ✓ (390 px and 1280 px) |
+| Hints from real frame measurements | ✓ ("Looks sharp — hold still", sharpness 867, brightness 243) |
+| Auto-capture when sharp and steady | ✓ after ≈ 2.0–2.2 s |
+| Capture scanned end-to-end | ✓ GoTyme · ₱100.00 · ITO260924081816006 · 24 Sep 2026 4:18 PM (full-resolution `takePhoto` capture) |
+| Manual shutter with auto-capture off | ✓ |
+| Camera released after capture | ✓ |
+| axe-core on the camera screen | 0 violations |
+| No camera / blocked (headless Chromium: `NotSupportedError`; headless WebKit: no camera API) | friendly message + "Use camera app instead", which opens the device camera/file picker (`capture="environment"`) in both |
+| Check Message → camera → OCR text in the editor | ✓ |
+
+**Not tested:**
+- real phones (Android Chrome, iPhone Safari) and real laptop webcams;
+- the permission prompt itself;
+- the flashlight and camera switching (no such hardware in the test browser).
+
+The sharpness threshold (120 on a 160 px frame) was calibrated on synthetic frames and the fake feed only. If auto-capture never fires on a particular camera, the manual shutter always works.
+
 ## 3. End-to-end tests of the built file (Playwright)
 
 `dist/index.html` driven through every module with **real receipts**: consent → BUG-008 / renamed-file rejection → GoTyme receipt scan (issuer, Trace ID, Random Forest card, action plan, PDF download) → Maya unsent screen (Critical) → Message Analyzer → Cross-Evidence linkage → Model page (demo model connects; PaySim model evaluated but **not** connected) → overflow check on 9 pages × 4 widths (375, 414, 768, 1280) → network audit → console errors.
 
 | Engine | Result | First scan (OCR + forensics) |
 |---|---|---|
-| Chromium | **19 / 19** (V8; adds the verify-in-your-own-app banner check) | ≈ 7.6 s |
-| WebKit (Safari's engine) | **19 / 19** (V8) | ≈ 10.9 s |
+| Chromium | **19 / 19** (V8.1 re-run; adds the verify-in-your-own-app banner check in V8) | ≈ 6.7 s |
+| WebKit (Safari's engine) | **19 / 19** (V8.1 re-run) | ≈ 10.7 s |
 | Firefox | **not tested** — Playwright's Firefox could not be launched on the test machine (`spawn UNKNOWN`) | — |
 
 Network audit: the only external hosts contacted were `cdn.jsdelivr.net` (Tesseract) and Google Fonts. No receipt or text is uploaded anywhere.
@@ -120,7 +165,7 @@ Profiling showed where the V7.1 time went:
 ## 5. Pending — requires real respondents (NOT done)
 - **Usability testing** with target users.
 - **ISO/IEC 25010 evaluation** by the 10 IT experts specified in the methodology.
-- Real-device testing on iPhone Safari and Android Chrome; Firefox.
+- Real-device testing on iPhone Safari and Android Chrome (including the live camera, permission prompt, flashlight and camera switching); Firefox.
 - A **held-out** receipt set for an unbiased parser-accuracy figure (see §2), and a set of real/simulated edited receipts to measure how often the forensic and consistency checks catch fakes.
 - A Filipino-language review of the UI copy.
 

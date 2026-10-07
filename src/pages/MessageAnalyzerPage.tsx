@@ -10,6 +10,8 @@ import { useAppStore } from '../store/useAppStore';
 import { MessageScanResult, MessagePlatform, MessageFlag } from '../types';
 import { RISK_META } from '../utils/helpers';
 import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../services/uploadValidation';
+import CameraScanner from '../components/CameraScanner';
+import { Camera, FileImage } from 'lucide-react';
 
 const PLATFORMS: MessagePlatform[] = ['Unknown', 'SMS', 'Messenger', 'Facebook', 'WhatsApp', 'Telegram', 'Viber', 'Discord', 'Email'];
 
@@ -19,6 +21,8 @@ export default function MessageAnalyzerPage() {
   const [text, setText] = useState('');
   const [platform, setPlatform] = useState<MessagePlatform>('Unknown');
   const [busy, setBusy] = useState(false);
+  const [camOpen, setCamOpen] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState('');
   const [result, setResult] = useState<MessageScanResult | null>(null);
   const [preview, setPreview] = useState('');
@@ -105,11 +109,15 @@ export default function MessageAnalyzerPage() {
         ) : (
           <div>
             {!preview ? (
-              <div onClick={() => inputRef.current?.click()} style={{ borderRadius: 12, padding: '36px 20px', textAlign: 'center', border: '2px dashed var(--border-strong)', background: 'var(--bg-subtle)', cursor: 'pointer' }}
+              <div style={{ borderRadius: 12, padding: '30px 20px', textAlign: 'center', border: '2px dashed var(--border-strong)', background: 'var(--bg-subtle)' }}
                 onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleImage(f); }}>
                 <ImagePlus size={26} color="var(--accent-light)" style={{ marginBottom: 10 }} />
-                <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--text-primary)' }}>Drop a chat / SMS screenshot</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>We'll read the text automatically with OCR</div>
+                <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--text-primary)' }}>Drop a chat / SMS screenshot</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 14px' }}>We'll read the text automatically with OCR</div>
+                <div className="dz-actions">
+                  <button type="button" className="btn-primary" onClick={() => inputRef.current?.click()}><FileImage size={17} /> Choose screenshot</button>
+                  <button type="button" className="btn-secondary" onClick={() => setCamOpen(true)}><Camera size={17} /> Scan with camera</button>
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -120,7 +128,15 @@ export default function MessageAnalyzerPage() {
                 </div>
               </div>
             )}
-            <input ref={inputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} hidden onChange={e => { const f = e.target.files?.[0]; if (f) handleImage(f); e.target.value = ''; }} />
+            <input ref={inputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} hidden aria-label="Choose a message screenshot" onChange={e => { const f = e.target.files?.[0]; if (f) handleImage(f); e.target.value = ''; }} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden aria-label="Take a photo of a message" onChange={e => { const f = e.target.files?.[0]; if (f) handleImage(f); e.target.value = ''; }} />
+            {camOpen && (
+              <CameraScanner
+                onCapture={f => { setCamOpen(false); void handleImage(f); }}
+                onClose={() => setCamOpen(false)}
+                onFallback={() => { setCamOpen(false); setTimeout(() => cameraRef.current?.click(), 50); }}
+              />
+            )}
           </div>
         )}
 

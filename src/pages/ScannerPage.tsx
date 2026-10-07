@@ -12,6 +12,7 @@ import { validateExtraction, FieldCheck, FieldStatus, FieldConfidence } from '..
 import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../services/uploadValidation';
 import { locateFields, FieldBox } from '../services/fieldLocator';
 import { useAppStore } from '../store/useAppStore';
+import CameraScanner from '../components/CameraScanner';
 import { ImageScanResult, ExtractedTransactionData, OcrResult, OcrWord, RiskLevel, VerificationFinding } from '../types';
 import { formatBytes, formatPHP, formatRelativeTime } from '../utils/helpers';
 
@@ -44,6 +45,8 @@ export default function ScannerPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const autoScanRef = useRef(false);   // start scanning as soon as a camera capture is ready
+  const [camOpen, setCamOpen] = useState(false);
 
   const reset = () => {
     abortRef.current?.abort();
@@ -51,9 +54,10 @@ export default function ScannerPage() {
     setError(''); setNotice(''); setEditing(false); setEditData(null); setLive(null);
   };
 
-  const handleFile = useCallback(async (f: File) => {
+  const handleFile = useCallback(async (f: File, autoScan = false) => {
     const err = await validateImageFile(f);
     if (err) { setError(err); return; }
+    autoScanRef.current = autoScan;
     setError(''); setNotice(''); setResult(null); setEditing(false);
     setFile(f);
     setPhase('selected');
@@ -138,6 +142,15 @@ export default function ScannerPage() {
     }
   };
 
+  // a live-camera capture goes straight into the scan once its preview is ready
+  useEffect(() => {
+    if (phase === 'selected' && file && preview && autoScanRef.current) {
+      autoScanRef.current = false;
+      void runScan(file);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, file, preview]);
+
   const cancelScan = () => abortRef.current?.abort();
   const reanalyzeWithEdits = async () => {
     if (!file || !result || !editData) return;
@@ -189,15 +202,23 @@ export default function ScannerPage() {
           <p className="dz-sub">GCash · Maya · GoTyme · MariBank · BPI · BDO · other PH banks</p>
           <div className="dz-actions">
             <button type="button" className="btn-primary" onClick={() => inputRef.current?.click()}><FileImage size={18} /> Choose screenshot</button>
-            <button type="button" className="btn-secondary" onClick={() => cameraRef.current?.click()}><Camera size={17} /> Take photo</button>
+            <button type="button" className="btn-secondary" onClick={() => setCamOpen(true)}><Camera size={17} /> Scan with camera</button>
             <button type="button" className="btn-secondary" onClick={pasteFromClipboard}><ClipboardPaste size={17} /> Paste</button>
           </div>
           <p className="dz-foot">PNG, JPG or WEBP · up to 10 MB · read entirely in this browser — nothing is uploaded</p>
           <input ref={inputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} hidden aria-label="Choose a receipt screenshot"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden aria-label="Take a photo of a receipt"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f, true); e.target.value = ''; }} />
         </div>
+      )}
+
+      {camOpen && (
+        <CameraScanner
+          onCapture={f => { setCamOpen(false); void handleFile(f, true); }}
+          onClose={() => setCamOpen(false)}
+          onFallback={() => { setCamOpen(false); setTimeout(() => cameraRef.current?.click(), 50); }}
+        />
       )}
 
       {phase === 'selected' && file && (
