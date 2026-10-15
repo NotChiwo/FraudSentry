@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
-  ScanLine, UploadCloud, FileImage, X, RefreshCw, Download, AlertTriangle, CheckCircle2, ShieldAlert,
-  Pencil, Camera, ClipboardPaste, ChevronDown, Info, WifiOff, Copy, ShieldCheck, Smartphone, Clock,
+  ScanLine, FileImage, X, RefreshCw, Download, AlertTriangle, CheckCircle2, ShieldAlert,
+  Pencil, Camera, ClipboardPaste, ChevronDown, Info, WifiOff, Copy, Smartphone, Clock,
   Eye, ScanText, Sparkles, Square,
 } from 'lucide-react';
 import { analyzeTransactionImage } from '../engine/imageVerification';

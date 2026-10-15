@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Sidebar, { PageId, useIsMobile, NAV_GROUPS } from './components/layout/Sidebar';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import ConsentGate from './components/consent/ConsentGate';
 import HomePage from './pages/HomePage';
 import ScannerPage from './pages/ScannerPage';
@@ -78,7 +79,8 @@ export default function App() {
         </header>
 
         <main id="main" ref={mainRef} tabIndex={-1} className="app-main" aria-label={PAGE_TITLE[page]}>
-          <div key={page} className="page-enter">
+          <ErrorBoundary key={page} onHome={() => navigate('home')}>
+          <div className="page-enter">
             {page === 'home'      && <HomePage onNavigate={navigate} />}
             {page === 'scanner'   && <ScannerPage />}
             {page === 'analyzer'  && <MessageAnalyzerPage />}
@@ -89,6 +91,7 @@ export default function App() {
             {page === 'privacy'   && <PrivacyPage />}
             {page === 'about'     && <AboutPage />}
           </div>
+          </ErrorBoundary>
         </main>
 
         <footer className="site-footer">

@@ -34,10 +34,29 @@ function sniffType(bytes: Uint8Array): string {
   return 'unknown';
 }
 
-interface JpegMeta { hasExif: boolean; software: string | null; progressive: boolean | null; }
+// Does the declared MIME type agree with the real (magic-byte) format?
+// "image/jpg" and "image/pjpeg" are common non-standard spellings of JPEG
+// that some apps/OSes report — they are not a spoofed container.
+const MIME_ALIASES: Record<string, string> = { 'image/jpg': 'image/jpeg', 'image/pjpeg': 'image/jpeg', 'image/x-png': 'image/png' };
+export function declaredTypeMatches(declared: string, sniff: string): boolean {
+  if (sniff === 'unknown') return false;
+  if (!declared) return true;
+  const d = declared.toLowerCase().trim();
+  return (MIME_ALIASES[d] ?? d) === sniff;
+}
 
-function scanJpeg(bytes: Uint8Array): JpegMeta {
-  const meta: JpegMeta = { hasExif: false, software: null, progressive: null };
+// Image-editor names as they appear in metadata (EXIF "Software", XMP
+// "CreatorTool", PNG text chunks). Device/OS screenshot tags never match.
+const EDITOR_RE = /(Adobe Photoshop[^\x00<"\n]*|GIMP[^\x00<"\n]*|Snapseed|Pics[Aa]rt|Canva|Pixlr|Lightroom[^\x00<"\n]*|Paint\.NET|Photopea|Affinity Photo|Fotor|Meitu|PhotoRoom|Adobe Express)/i;
+export function findEditor(text: string): string | null {
+  const m = text.match(EDITOR_RE);
+  return m ? m[1].replace(/[^\x20-\x7e].*$/, '').trim() : null;
+}
+
+interface FileMeta { hasExif: boolean; software: string | null; progressive: boolean | null; }
+
+function scanJpeg(bytes: Uint8Array): FileMeta {
+  const meta: FileMeta = { hasExif: false, software: null, progressive: null };
   if (!(bytes[0] === 0xff && bytes[1] === 0xd8)) return meta;
   let i = 2;
   const td = new TextDecoder('latin1');
@@ -51,13 +70,74 @@ function scanJpeg(bytes: Uint8Array): JpegMeta {
     if (marker === 0xe1) { // APP1 — EXIF / XMP
       const head = td.decode(bytes.slice(segStart, Math.min(segStart + 6, segEnd)));
       if (head.startsWith('Exif')) meta.hasExif = true;
-      const blob = td.decode(bytes.slice(segStart, segEnd));
-      const m = blob.match(/(Adobe Photoshop[^\x00]*|GIMP[^\x00]*|Snapseed|PicsArt|Canva|Pixlr|Lightroom[^\x00]*|Paint\.NET)/i);
-      if (m) meta.software = m[1].replace(/[^\x20-\x7e].*$/, '').trim();
+      const editor = findEditor(td.decode(bytes.slice(segStart, segEnd)));
+      if (editor) meta.software = editor;
     }
     if (marker === 0xc0 || marker === 0xc1) meta.progressive = false; // baseline
     if (marker === 0xc2) meta.progressive = true;                     // progressive
     i = segEnd;
+  }
+  return meta;
+}
+
+async function inflate(data: Uint8Array): Promise<string> {
+  try {
+    const stream = new Blob([data.slice()]).stream().pipeThrough(new DecompressionStream('deflate'));
+    return new TextDecoder().decode(await new Response(stream).arrayBuffer());
+  } catch { return ''; }
+}
+
+// PNG: walk the chunks for text metadata (tEXt / zTXt / iTXt — where editors
+// write "Software" and XMP "CreatorTool") and an eXIf block. Most PH receipt
+// screenshots are PNG, so checking only JPEG metadata missed nearly all of them.
+export async function scanPng(bytes: Uint8Array): Promise<FileMeta> {
+  const meta: FileMeta = { hasExif: false, software: null, progressive: null };
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const latin1 = new TextDecoder('latin1'), utf8 = new TextDecoder();
+  const texts: string[] = [];
+  let i = 8;
+  while (i + 8 <= bytes.length) {
+    const len = dv.getUint32(i);
+    const type = latin1.decode(bytes.subarray(i + 4, i + 8));
+    const data = bytes.subarray(i + 8, Math.min(bytes.length, i + 8 + len));
+    if (type === 'IEND') break;
+    if (type === 'eXIf') meta.hasExif = true;
+    if (type === 'tEXt') texts.push(latin1.decode(data));
+    if (type === 'zTXt' || type === 'iTXt') {
+      const nul = data.indexOf(0);
+      if (nul > 0) {
+        const key = latin1.decode(data.subarray(0, nul));
+        if (type === 'zTXt') texts.push(key + ' ' + await inflate(data.subarray(nul + 2)));
+        else {
+          const compressed = data[nul + 1] === 1;
+          let j = data.indexOf(0, nul + 3);           // end of language tag
+          j = j === -1 ? -1 : data.indexOf(0, j + 1); // end of translated keyword
+          if (j !== -1) {
+            const body = data.subarray(j + 1);
+            texts.push(key + ' ' + (compressed ? await inflate(body) : utf8.decode(body)));
+          }
+        }
+      }
+    }
+    i += 12 + len;
+  }
+  meta.software = findEditor(texts.join('\n'));
+  return meta;
+}
+
+// WebP: RIFF chunks — "EXIF" and "XMP " carry the metadata.
+export function scanWebp(bytes: Uint8Array): FileMeta {
+  const meta: FileMeta = { hasExif: false, software: null, progressive: null };
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const latin1 = new TextDecoder('latin1');
+  let i = 12;
+  while (i + 8 <= bytes.length) {
+    const type = latin1.decode(bytes.subarray(i, i + 4));
+    const len = dv.getUint32(i + 4, true);
+    const data = bytes.subarray(i + 8, Math.min(bytes.length, i + 8 + len));
+    if (type === 'EXIF') meta.hasExif = true;
+    if (type === 'EXIF' || type === 'XMP ') meta.software = meta.software ?? findEditor(latin1.decode(data));
+    i += 8 + len + (len % 2);
   }
   return meta;
 }
@@ -117,7 +197,7 @@ function aspectLabel(w: number, h: number): string {
   return `${r.toFixed(2)}:1`;
 }
 const PHONE_ASPECTS = [19.5 / 9, 20 / 9, 16 / 9, 18 / 9, 4 / 3, 3 / 2, 1];
-function plausiblePhoneAspect(w: number, h: number): boolean {
+export function plausiblePhoneAspect(w: number, h: number): boolean {
   const r = Math.max(w, h) / Math.min(w, h);
   return PHONE_ASPECTS.some(a => Math.abs(r - a) <= 0.18);
 }
@@ -125,7 +205,11 @@ function plausiblePhoneAspect(w: number, h: number): boolean {
 export async function analyzeForensics(file: File): Promise<ForensicReport> {
   const buf = new Uint8Array(await file.arrayBuffer());
   const sniff = sniffType(buf);
-  const jpeg = sniff === 'image/jpeg' ? scanJpeg(buf) : { hasExif: false, software: null, progressive: null };
+  // (named "jpeg" for history; holds PNG/WebP metadata too)
+  const jpeg: FileMeta = sniff === 'image/jpeg' ? scanJpeg(buf)
+    : sniff === 'image/png' ? await scanPng(buf)
+    : sniff === 'image/webp' ? scanWebp(buf)
+    : { hasExif: false, software: null, progressive: null };
 
   const img = await fileToImage(file);
   const width = img.naturalWidth, height = img.naturalHeight;
@@ -175,7 +259,7 @@ export function buildForensicSignals(x: ForensicInput): ForensicSignal[] {
   const signals: ForensicSignal[] = [];
 
   // 1. Magic-byte vs declared type
-  const typeMatch = sniff !== 'unknown' && (declared === '' || declared.includes(sniff.split('/')[1]) || sniff === declared);
+  const typeMatch = declaredTypeMatches(declared, sniff);
   signals.push(sig(
     'Container Integrity',
     typeMatch ? `${sniff} confirmed` : `declared ${declared || 'none'}, header says ${sniff}`,

@@ -69,6 +69,7 @@ See **[TESTING.md](TESTING.md)** for what is verified, how, and what is still pe
 Developer tools in `tools/` (never part of the build):
 - `tools/ocr-corpus.html` + `tools/ocr-corpus.mjs` — run the app's real OCR pipeline in headless Chromium over a folder of screenshots to collect genuine, noisy OCR output for parser work.
 - `tools/redact-corpus.cjs` — turn that output into privacy-safe test fixtures (names/e-mails replaced, digits scrambled, OCR noise kept). Keep the raw corpus and the name list **out of the repository**.
+- `tools/compare-versions.mjs` — run two built versions (e.g. V6 vs V8.3) over the same receipts and messages and score them against your own labels: fakes caught, false alarms on genuine receipts, field accuracy, message accuracy. How to use it: TESTING.md §3a.
 
 ---
 

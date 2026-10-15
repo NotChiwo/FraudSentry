@@ -18,15 +18,51 @@
 import { EvidenceSource, ExtractedTransactionData } from '../types';
 import { correctPrincipal } from './consistencyChecks';
 
-const SOURCE_KEYWORDS: Record<Exclude<EvidenceSource, 'Unknown'>, string[]> = {
-  GCash: ['gcash', 'g-cash'], Maya: ['maya', 'paymaya'],
+// Generic issuer keywords, matched on word boundaries. Order does not matter:
+// the EARLIEST mention outside a destination context wins (see issuerText).
+// SeaBank Philippines rebranded as MariBank in 2025 (BSP-approved); older
+// screenshots still say SeaBank, so both names identify MariBank.
+const SOURCE_KEYWORDS: Partial<Record<Exclude<EvidenceSource, 'Unknown'>, string[]>> = {
+  GCash: ['gcash', 'g-cash', 'g-xchange'], Maya: ['maya', 'paymaya'],
   BPI: ['bpi', 'bank of the philippine islands'], BDO: ['bdo', 'banco de oro'],
   UnionBank: ['unionbank', 'union bank', 'ub online'], Metrobank: ['metrobank', 'metro bank'],
   Landbank: ['landbank', 'land bank'], 'Security Bank': ['security bank', 'securitybank'],
   GoTyme: ['gotyme', 'go tyme'], RCBC: ['rcbc', 'rizal commercial'], PNB: ['pnb', 'philippine national bank'],
-  MariBank: ['maribank', 'mari bank'], SeaBank: ['seabank', 'sea bank'], CIMB: ['cimb'],
+  MariBank: ['maribank', 'mari bank', 'seabank', 'sea bank'], CIMB: ['cimb'],
+  Chinabank: ['chinabank', 'china bank', 'china banking corporation', 'my cbc'],
+  EastWest: ['eastwest', 'east west bank', 'easyway app'],
+  PSBank: ['psbank', 'philippine savings bank'],
+  AUB: ['aub', 'asia united bank', 'hellomoney'],
+  Tonik: ['tonik', 'tonikbank'],
+  'UNO Digital Bank': ['uno digital bank', 'unobank', 'uno bank'],
+  UnionDigital: ['uniondigital', 'union digital'],
+  OFBank: ['ofbank', 'overseas filipino bank'],
+  ShopeePay: ['shopeepay', 'shopee pay'],
+  GrabPay: ['grabpay', 'grab pay'],
+  'Coins.ph': ['coins.ph', 'coins ph'],
+  PalawanPay: ['palawanpay', 'palawan pay'],
   'Online Banking': ['online banking', 'ibanking', 'internet banking'],
 };
+const KEYWORD_RES: [EvidenceSource, RegExp][] = Object.entries(SOURCE_KEYWORDS).flatMap(([src, kws]) =>
+  (kws ?? []).map(k => [src as EvidenceSource, new RegExp(`(?<![a-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*')}(?![a-z0-9])`, 'i')] as [EvidenceSource, RegExp]));
+
+// The DESTINATION of a transfer is named on receipts too ("Transfer to: GCash",
+// "Destination  BDO", "Recipient bank: Maya"). Those mentions say where the money
+// went, not which app made the receipt — the cause of the GoTyme→GCash
+// misclassification. Strip them before looking for the issuer by keyword.
+const DEST_LABEL = /(?:^\s*to\b|\bto\s*:|\b(?:destination|recipient(?:'?s)?(?:\s+bank)?|receiving\s+(?:bank|institution)|beneficiary(?:\s+bank)?|bank\s*name|send\s+to|transfer(?:red)?\s+to|sent\s+to|credited\s+to|receiver(?:\s+bank)?|via\s+(?:instapay|pesonet))\b)\s*[:.\-]?/i;
+function issuerText(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // a bare label row ("Destination", "Bank") — the value is on the next row
+    if (/^\s*(to|destination|recipient(?:\s+bank)?|receiving\s+bank|beneficiary(?:\s+bank)?|bank(?:\s+name)?|send\s+to|transfer\s+to)\s*:?\s*$/i.test(line)) { i++; continue; }
+    const m = line.match(DEST_LABEL);
+    out.push(m ? line.slice(0, m.index) : line);
+  }
+  return out.join('\n');
+}
 
 // Tesseract misreads the "InstaPay" logo text: real receipts have come back as
 // "instaray" (p→r) and, consistently in this app's own multi-pass pipeline,
@@ -55,8 +91,8 @@ export function detectSourceFromText(text: string, filename = ''): EvidenceSourc
   // Bank SMS confirmations start with the bank's tag ("[BPI] You have
   // transferred PHP 490.00 to GCash/G-Xchange…") — the issuer is the tag, not
   // the destination named later in the message.
-  { const tag = hay.match(/(^|\n)\s*\[(bpi|bdo|unionbank|metrobank|landbank|rcbc|pnb|security bank)\]/);
-    if (tag) return ({ bpi: 'BPI', bdo: 'BDO', unionbank: 'UnionBank', metrobank: 'Metrobank', landbank: 'Landbank', rcbc: 'RCBC', pnb: 'PNB', 'security bank': 'Security Bank' } as Record<string, EvidenceSource>)[tag[2]]; }
+  { const tag = hay.match(/(^|\n)\s*\[(bpi|bdo|unionbank|metrobank|landbank|rcbc|pnb|security bank|chinabank|eastwest|psbank|aub)\]/);
+    if (tag) return ({ bpi: 'BPI', bdo: 'BDO', unionbank: 'UnionBank', metrobank: 'Metrobank', landbank: 'Landbank', rcbc: 'RCBC', pnb: 'PNB', 'security bank': 'Security Bank', chinabank: 'Chinabank', eastwest: 'EastWest', psbank: 'PSBank', aub: 'AUB' } as Record<string, EvidenceSource>)[tag[2]]; }
   if (INSTAPAY_RE.test(hay) && /trace\s*id/.test(hay) && /go\s?tyme/.test(hay)) return 'GoTyme';
   if (isUnconfirmedTransaction(hay)) return 'Maya';
   // Maya merchant purchase / bills receipts. The green "maya" logo is often not
@@ -66,14 +102,19 @@ export function detectSourceFromText(text: string, filename = ''): EvidenceSourc
   if (/\b(gloan|gcash\s+send\s+money|gcash\s+pay\s+bills)\b/.test(hay)) return 'GCash';
   if (/maribank|mari\s?bank|m[a@]ri\s?b[a@4][rn]k/.test(hay)) return 'MariBank';
   if (/transfer\s+result/.test(hay) && /transfer\s+(method|fee)/.test(hay)) return 'MariBank';
-  if (/seabank|sea\s?bank/.test(hay)) return 'SeaBank';
-  for (const [source, kws] of Object.entries(SOURCE_KEYWORDS)) {
-    if (kws.some(k => hay.includes(k))) return source as EvidenceSource;
+  if (/seabank|sea\s?bank/.test(hay)) return 'MariBank';   // pre-2025 name of MariBank
+  // Generic keywords: earliest mention that is NOT the transfer's destination.
+  const own = issuerText(hay);
+  let best: { src: EvidenceSource; at: number } | null = null;
+  for (const [src, re] of KEYWORD_RES) {
+    const m = own.match(re);
+    if (m && m.index !== undefined && (!best || m.index < best.at)) best = { src, at: m.index };
   }
+  if (best) return best.src;
   // GCash fallback — the small grey "Sent via GCash" line is often misread by
   // OCR, so also accept fuzzy spellings and GCash-specific receipt wording
   // (the green carbon-footprint footer + "Total Amount Sent" only appear on GCash).
-  if (/\bg[\s.]?cash\b/.test(hay) || /\b(6cash|gcosh|gcoash|gcash)\b/.test(hay)) return 'GCash';
+  if (/\bg[\s.]?cash\b/.test(own) || /\b(6cash|gcosh|gcoash|gcash)\b/.test(own)) return 'GCash';
   if (/(carbon footprint|going digital|gco2e|gco₂e)/.test(hay) && /(total amount sent|sent via|ref\.?\s*no)/.test(hay)) return 'GCash';
   // Older GCash Express Send receipts show only "Total Amount Paid/Sent" and a
   // 13-digit reference printed as 4-3-6 digits ("1009 429 419747").

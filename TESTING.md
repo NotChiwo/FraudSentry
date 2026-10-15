@@ -4,15 +4,17 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**168 / 168 passing** (V8.2).
+**207 / 207 passing** (V8.3).
+
+The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
 | Suite | Tests | What it covers |
 |---|---|---|
-| `receiptParser.test.ts` | 29 | Issuer detection, field extraction and the Maya unsent-screen rule on **real OCR output** (redacted, see below); multi-pass merge (consensus reference, all-pass issuer detection, UI-label payees); synthetic edge cases |
-| `messageAnalysis.test.ts` | 22 | PH scam rules, negated OTP warnings, bare-domain links, critical-flag floor, receipt ↔ conversation linkage incl. masked numbers / one-digit OCR errors / "to you" false-contradiction |
-| `knowledgeBase.test.ts` | 22 | Every Knowledge Base example is detected with the right scam type; 11 ordinary messages stay Low |
-| `model.test.ts` | 15 | Random Forest reproducibility, held-out metrics computed from real predictions, importances, the evidence-schema gate (PaySim / headerless / reordered rejected), shared-model wiring, feature vector; V8: background training (`fitAsync`) builds the identical forest, and warm-up gives identical live-scan scores |
-| `consistencyChecks.test.ts` | 17 | Amount + fee = total on real receipts (incl. waived fee, "tFee" misread); edited-amount and edited-total copies of a real receipt flagged; a misread in one pass ignored; principal vs total; date parsing; future, impossible and skewed dates |
+| `receiptParser.test.ts` | 36 | Issuer detection, field extraction and the Maya unsent-screen rule on **real OCR output** (redacted, see below); multi-pass merge (consensus reference, all-pass issuer detection, UI-label payees); synthetic edge cases. V8.3: the transfer's destination is never the issuer (any bank), the 12 added institutions, SeaBank → MariBank, whole-word keywords |
+| `messageAnalysis.test.ts` | 28 | PH scam rules, negated OTP warnings, bare-domain links, critical-flag floor, receipt ↔ conversation linkage incl. masked numbers / one-digit OCR errors / "to you" false-contradiction. V8.3: agency named + non-`.gov.ph` link, money-mule account rental, "scan QR to receive", re-registration phishing, official domains of the added banks |
+| `knowledgeBase.test.ts` | 30 | Every Knowledge Base example (13) is detected with the right scam type; 16 ordinary messages stay Low |
+| `model.test.ts` | 16 | Random Forest reproducibility, held-out metrics computed from real predictions, importances, the evidence-schema gate (PaySim / headerless / reordered rejected), shared-model wiring, feature vector; V8: background training (`fitAsync`) builds the identical forest, and warm-up gives identical live-scan scores; V8.3: soft voting agrees with `predict()` and the exact vote count |
+| `consistencyChecks.test.ts` | 22 | Amount + fee = total on real receipts (incl. waived fee, "tFee" misread); edited-amount and edited-total copies of a real receipt flagged; a misread in one pass ignored; principal vs total; date parsing; future, impossible and skewed dates. V8.3: receipts with **no fee line** (edited total, total below amount, ≤ ₱50 gap not flagged, real OCR spacing) |
 | `historyMatch.test.ts` | 8 | Same receipt rescanned → reused note only; a real receipt with its amount edited → edited copy; the 8 distinct real receipts never match each other; same recipient at the same minute; one-digit OCR tolerance on long references |
 | `forensicSignals.test.ts` | 8 | V8 thresholds: a typical genuine chat-forwarded JPEG raises nothing; the highest genuine ELA value measured (17.5 %) is not flagged; progressive/EXIF noted but unscored; editor signature, renamed file and odd crop still fire; future-date wording mentions the device clock |
 | `fieldLocator.test.ts` | 4 | Field highlights: amount (not total), multi-group reference, date and recipient mapped to word boxes; values not on the image are not outlined |
@@ -20,11 +22,13 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 | `receiptParserWallets.test.ts` | 8 | V8.1, **real OCR** (redacted): Maya merchant purchases (identified without the logo, merchant as payee, "Purchase date" preferred), Maya Meralco bill, older GCash Express Send ("Rel Mo" reference), GoTyme paying a Maya wallet. Uses a neutral filename so the issuer is not given away by the fixture name. **5 of 8 fail on the V8.0 parser.** |
 | `frameQuality.test.ts` | 8 | Live-camera frame measures on synthetic frames: crisp vs blurred, brightness, motion, hints; a white receipt with text is "ready", not "glare" |
 | `knowledgeBasePage.test.ts` | 13 | V8.2 Knowledge Base:
-- data contract: 10 entries, quick rule, hint and basis on each, 3–4 flags/tips, no literal escape codes, agreed quick-rule wording;
-- server-rendered page: 10 tabs, exactly one selected, detail never empty, selecting another entry, roving tabindex, Check Receipt for fake proof, disclaimer kept;
+- data contract: 13 entries (V8.3), quick rule, hint and basis on each, 3–4 flags/tips, no literal escape codes, agreed quick-rule wording;
+- server-rendered page: 13 tabs, exactly one selected, detail never empty, selecting another entry, roving tabindex, Check Receipt for fake proof, disclaimer kept;
 - filter and arrow-key logic;
 - highlights equal the analyzer's own matches;
 - prefilled examples are still detected. |
+| `forensics.test.ts` | 10 | V8.3: editor signatures in PNG `tEXt`/`zTXt`/`iTXt` and WebP XMP, PNG `eXIf`, screenshot tags not mistaken for editors, `image/jpg`/`image/pjpeg` aliases, the shared metadata-consistency feature |
+| `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
 **Do the tests actually catch bugs?** The 29 parser tests were also run against the **real V6 parser** (extracted from `FraudSentry-V6.html`): **12 fail** there (GoTyme misclassification, `000006ReferenceNo`, Maya references, unsent-screen detection, consensus reference, …) and all pass on V7.
@@ -192,6 +196,28 @@ Profiling showed where the V7.1 time went:
 - The OCR enhance/binarise filters: about 1.9 s.
 - Training the demo Random Forest on the first scan: about 1.2 s.
 - React rendering the long results page.
+
+## 3a. Comparing builds — `tools/compare-versions.mjs` (V8.3)
+
+Answers "is the new build better than the old one?" on evidence **you** collect.
+
+1. **Collect a fresh test set** not used while developing: genuine receipts (classmates, family — not the sets above) and fakes made by editing copies of them (change the amount or total, erase the recipient, paste a different reference; Canva / PicsArt / phone editors), plus scam and ordinary messages. Aim for 20–30 per group.
+2. **Write `labels.csv` before running anything** (`file,truth,issuer,amount,reference`, truth = `genuine`/`fake`) and `messages.csv` (`id,truth,text`, truth = `scam`/`normal`).
+3. Run:
+   ```bash
+   npm i -g playwright && npx playwright install chromium   # once
+   npm run build
+   node tools/compare-versions.mjs \
+     --build V6=path/to/FraudSentry-V6.html --build V8.3=dist/index.html \
+     --receipts my-receipts/ --labels labels.csv --messages messages.csv
+   ```
+   Run it once as-is (what users actually get: V6's OCR hangs) and once with `--bypass-csp` (every build gets working OCR, so you compare parsing and scoring). Pages are found by both their V6/V7 and V8 names.
+4. Read `compare-out/summary.md`. A build is better only if it catches more fakes **without** more false alarms on genuine receipts. `compare-out/` is git-ignored: it holds the text read from your receipts.
+
+**Verified 2026-10-15 — a smoke test of the harness, not an accuracy result** (3 synthetic screenshots, 6 messages, V8.2 vs V8.3, Tesseract served from a local mirror):
+- Both builds read the issuer, amount and reference of the two genuine screenshots correctly, and both rate them Low.
+- A screenshot whose total was changed to ₱15000.00 while the amount stayed ₱1,500.00 (GCash "Send Money" layout, no fee line): V8.2 **Low**, V8.3 **High** (no-fee reconciliation).
+- Messages: scams flagged Medium+ 1/4 → 4/4 (fake LTO fine, account rental, "scan QR to receive"); both ordinary messages stay Low in both builds.
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

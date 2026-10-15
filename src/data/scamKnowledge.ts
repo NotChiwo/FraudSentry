@@ -9,7 +9,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   KeyRound, TrendingUp, Gift, ShoppingBag, Landmark, Briefcase,
-  CircleDollarSign, ReceiptText, Package, Undo2,
+  CircleDollarSign, ReceiptText, Package, Undo2, Car, UserRoundX, QrCode,
 } from 'lucide-react';
 
 export interface ScamEntry {
@@ -143,6 +143,39 @@ export const ENTRIES: ScamEntry[] = [
     example: '"BPI: 6,553 points in your account will expire today. Redeem now! Visit https://bdoa.help/rewards"',
     protect: ['Don’t tap links in texts', 'Open the official app yourself', 'Know the real domains (bpi.com.ph, gcash.com, maya.ph)'],
     basis: 'GCash and Maya advisories: they never send links by SMS, e-mail or chat.',
+    tryIn: 'message',
+  },
+  {
+    id: 'government', name: 'Fake Government Notice (LTO / Ayuda)', icon: Car, color: '#dc2626',
+    hint: 'Unpaid fine or ayuda by text',
+    quickRule: 'Government sites end in .gov.ph — never pay a fine from a text link.',
+    summary: 'A text “from” the LTO, MMDA or DSWD says you have an unpaid traffic violation or toll, or that you qualify for ayuda, and links to a fake page that takes your money or card details.',
+    redFlags: ['Violation or aid notice by SMS or chat', 'Link doesn’t end in .gov.ph', 'Licence suspension or “alarm block” threat', 'A fee to claim aid'],
+    example: '"LTO NOTICE: You have an unpaid traffic violation. Settle ₱1,000 today at lto-ph-portal.top to avoid license suspension."',
+    protect: ['Check violations yourself on the official LTMS portal', 'Real government sites end in .gov.ph', 'Real aid never asks for a fee or OTP'],
+    basis: 'LTO advisory (Nov 2025, as reported by Interaksyon): it does not send violation notices by text or chat; DSWD guidance: it does not send aid application links.',
+    tryIn: 'message',
+  },
+  {
+    id: 'mule', name: 'Account Rental / Money Mule', icon: UserRoundX, color: '#7c3aed',
+    hint: 'Paid to “rent” your account',
+    quickRule: 'Never rent, lend or sell your GCash, Maya or bank account.',
+    summary: 'Someone pays you to “rent”, borrow or buy your e-wallet or bank account. Scammers use it to receive and move stolen money, and the account owner is the one held liable.',
+    redFlags: ['Easy money for “just using” your account', 'Asks for your login, SIM or MPIN', 'Pay per account or per week', 'Recruiters targeting students'],
+    example: '"Rentahan namin ang GCash account mo, ₱3,000 kada linggo, wala kang gagawin."',
+    protect: ['Muling is a crime under RA 12010 (AFASA)', 'Penalties reach 14 years and ₱5 million', 'Report recruiters to your e-wallet and PNP-ACG'],
+    basis: 'SEC advisory on money muling (May 2025) under the Anti-Financial Account Scamming Act; GCash and Globe warnings on mule recruitment.',
+    tryIn: 'message',
+  },
+  {
+    id: 'qr', name: '“Scan to Receive” QR Scam', icon: QrCode, color: '#0891b2',
+    hint: 'Scan a QR to “get paid”',
+    quickRule: 'You never scan a QR or enter your MPIN to receive money.',
+    summary: 'A “buyer” or “refund agent” says you must scan a QR code to receive their payment. The QR is really a payment request, so scanning it and entering your MPIN sends your money to them.',
+    redFlags: ['Scan or MPIN needed to RECEIVE money', 'Payer won’t send to your number', '“Before the payment expires” pressure'],
+    example: '"Bayad na po ako. Para matanggap mo, i-scan mo lang itong QR code at ilagay ang MPIN mo."',
+    protect: ['Give your number; let the payer send', 'Never scan unknown QR codes', 'Check your balance in your own app'],
+    basis: 'GCash advisory on fake QR codes (“quishing”): never scan unknown QR codes or enter your MPIN through links.',
     tryIn: 'message',
   },
 ];

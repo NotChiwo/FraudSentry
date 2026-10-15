@@ -41,6 +41,15 @@ describe('Random Forest (from scratch)', () => {
     const majority = Math.max(test.y.filter(v => v === 1).length, test.y.filter(v => v === 0).length) / test.y.length;
     expect(m.accuracy).toBeGreaterThan(majority);
   });
+  it('probability is soft voting (mean leaf probability) and agrees with predict()', () => {
+    const ds = generateDemoDataset();
+    const rf = new RandomForest({ nTrees: 25, maxDepth: 6, seed: 42 }); rf.fit(ds.X, ds.y);
+    const probs = ds.X.map(x => rf.predictProba(x));
+    // hard voting could only produce multiples of 1/25; soft voting gives finer values
+    expect(probs.some(p => Math.abs(p * 25 - Math.round(p * 25)) > 1e-6)).toBe(true);
+    ds.X.forEach((x, i) => expect(rf.predict(x)).toBe(probs[i] >= 0.5 ? 1 : 0));
+    ds.X.slice(0, 20).forEach(x => { const v = rf.countVotes(x); expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(25); });
+  });
   it('feature importances sum to 1', () => {
     const ds = generateDemoDataset();
     const rf = new RandomForest({ nTrees: 15, seed: 1 }); rf.fit(ds.X, ds.y);
@@ -74,7 +83,8 @@ describe('shared model used by live scans', () => {
     expect(r.totalTrees).toBeGreaterThan(0);
     expect(r.probability).toBeGreaterThanOrEqual(0);
     expect(r.probability).toBeLessThanOrEqual(1);
-    expect(r.votesFraud).toBe(Math.round(r.probability * r.totalTrees));
+    expect(r.votesFraud).toBeGreaterThanOrEqual(0);
+    expect(r.votesFraud).toBeLessThanOrEqual(r.totalTrees);
   });
   it('clean evidence scores lower than tampered evidence', () => {
     const clean = scoreWithSharedModel([2, 1, 0, 92, 1, 1, 1, 1, 0, 96]).probability;
@@ -107,7 +117,7 @@ describe('scan evidence → feature vector', () => {
     const ex = { referenceNo: '4045 516 855953', amount: 160 } as ExtractedTransactionData;
     const v = buildFeatureVector(forensics, ocr, ex, 'GCash', 3);
     expect(v).toHaveLength(FEATURE_SPECS.length);
-    expect(v).toEqual([12, 0, 1, 88, 1, 1, 1, 1, 3, 63]);
+    expect(v).toEqual([12, 0, 1, 88, 1, 1, 1, 1, 3, 60]); // editor signature → 100 − 40
   });
   it('OCR unavailable → confidence feature is 0, unknown source → 0', () => {
     const v = buildFeatureVector({ elaHotspotPct: 0, hasExif: true, editorSoftware: null } as ForensicReport,

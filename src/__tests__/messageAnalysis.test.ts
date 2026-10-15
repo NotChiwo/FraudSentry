@@ -138,3 +138,35 @@ describe('receipt ↔ conversation linkage', () => {
     expect(['high', 'critical']).toContain(r.combinedRiskLevel);
   });
 });
+
+describe('V7.1 patterns — government, money mules, QR, re-registration, more banks', () => {
+  it('a message naming the LTO with a non-.gov.ph link is critical government impersonation', () => {
+    const r = analyzeMessageText('LTO: Your vehicle has an unpaid toll fee. Pay now at lto-ph.top to avoid alarm block.');
+    expect(r.links.some(l => l.severity === 'critical')).toBe(true);
+    expect(r.scamType).toBe('Government Impersonation');
+    expect(['high', 'critical']).toContain(r.threatLevel);
+  });
+  it('a real .gov.ph link is not called a fake government site', () => {
+    const r = analyzeMessageText('You can check your LTMS account at https://portal.lto.gov.ph');
+    expect(r.links.every(l => l.severity !== 'critical')).toBe(true);
+  });
+  it('account rental is money-mule recruitment (critical)', () => {
+    const r = analyzeMessageText('Looking for people willing to rent their bank account, P500 per day, easy lang.');
+    expect(r.scamType).toBe('Money Mule Recruitment');
+    expect(['high', 'critical']).toContain(r.threatLevel);
+  });
+  it('"scan this QR to receive" is flagged', () => {
+    expect(analyzeMessageText('Sir scan nyo lang po yung QR para ma-receive nyo yung refund.').scamType).toBe('QR Payment Scam');
+  });
+  it('SIM / e-wallet re-registration with a link is phishing', () => {
+    const r = analyzeMessageText('Your GCash will be deactivated unless you re-register here: http://gcash-update.help/login');
+    expect(r.scamType).toBe('Phishing');
+    expect(['high', 'critical']).toContain(r.threatLevel);
+  });
+  it('knows the official domains of the added banks', () => {
+    expect(analyzeMessageText('Log in only at https://www.maribank.ph').links[0].severity).toBe('low');
+    expect(analyzeMessageText('Chinabank advisory: visit https://www.chinabank.ph').links[0].severity).toBe('low');
+    const fake = analyzeMessageText('Tonik: your account is locked, verify at https://tonik-secure-login.com');
+    expect(fake.links[0].severity).toBe('critical');
+  });
+});

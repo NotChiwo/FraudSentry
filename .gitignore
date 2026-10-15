@@ -20,3 +20,6 @@ Thumbs.db
 *.log
 .env
 .env.*
+
+# output of tools/compare-versions.mjs (holds text read from real receipts)
+compare-out/

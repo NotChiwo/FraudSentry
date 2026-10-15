@@ -57,6 +57,10 @@ export type EvidenceSource =
   | 'GCash' | 'Maya' | 'BPI' | 'BDO' | 'UnionBank' | 'Metrobank'
   | 'Landbank' | 'Security Bank' | 'GoTyme' | 'RCBC' | 'PNB'
   | 'MariBank' | 'SeaBank' | 'CIMB'
+  // added in V8.3
+  | 'Chinabank' | 'EastWest' | 'PSBank' | 'AUB'
+  | 'Tonik' | 'UNO Digital Bank' | 'UnionDigital' | 'OFBank'
+  | 'ShopeePay' | 'GrabPay' | 'Coins.ph' | 'PalawanPay'
   | 'Online Banking' | 'Unknown';
 
 export interface ExtractedTransactionData {
@@ -122,7 +126,9 @@ export type ScamType =
   | 'Phishing' | 'OTP Scam' | 'Fake Bank Alert' | 'Investment Scam'
   | 'Job Offer Scam' | 'Marketplace Scam' | 'Loan Scam' | 'Prize Scam'
   | 'Impersonation' | 'Account Takeover' | 'Parcel Scam'
-  | 'Wrong-Send Refund Scam' | 'Budol / Recruitment' | 'None Detected';
+  | 'Wrong-Send Refund Scam' | 'Budol / Recruitment'
+  | 'Money Mule Recruitment' | 'Government Impersonation' | 'QR Payment Scam'
+  | 'None Detected';
 
 export interface MessageFlag {
   id: string;

@@ -16,7 +16,7 @@ const POINTS = [
   {
     icon: Lock, color: '#10b981',
     title: 'Temporary file handling',
-    body: 'Uploaded files live only in memory for the duration of your scan. A short local history is kept in this browser (so you can re-open past results) and you can clear it anytime.',
+    body: 'Uploaded files live only in memory for the duration of your scan. A short local history is kept in this browser (so you can re-open past results); it is deleted automatically after 30 days, and you can clear it anytime.',
   },
   {
     icon: UserX, color: '#6366f1',
@@ -91,7 +91,7 @@ export default function ConsentGate() {
             <span>
               Under RA 10173, you have the right to be informed, to object, and to access or correct your data. Because
               processing happens locally and nothing is retained on a server, the simplest way to withdraw consent is to
-              stop using the tool and clear your local history from the Reports page.
+              stop using the tool and clear your local history from the History page.
             </span>
           </div>
 
