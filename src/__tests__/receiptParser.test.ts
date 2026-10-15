@@ -154,3 +154,41 @@ describe('parser rules (synthetic edge cases)', () => {
     expect(amountFormattingSignal(['Amount sent 4,500.00\nTotal Amount 4,500.00']).suspicious).toBe(false);
   });
 });
+
+describe('issuer detection — more banks/e-wallets, and the destination is never the issuer', () => {
+  const src = (t: string) => detectSourceFromText(t);
+  it('a bank receipt sending TO GCash is the bank', () => {
+    expect(src('BPI\nTransfer to: GCash\nAmount PHP 500.00\nReference No. 123456789')).toBe('BPI');
+    expect(src('BDO Online\nDestination\nGCash\nAmount PHP 1,000.00')).toBe('BDO');
+    expect(src('Recipient bank: Maya\nSecurity Bank\nAmount 300.00')).toBe('Security Bank');
+  });
+  it('a receipt that only names the destination does not claim that as the issuer', () => {
+    expect(src('Transfer to: GCash\nAmount PHP 500.00')).toBe('Unknown');
+  });
+  it('"Welcome to <bank>" is not a destination', () => {
+    expect(src('Welcome to Chinabank\nAmount PHP 250.00')).toBe('Chinabank');
+  });
+  it('recognises the added institutions', () => {
+    expect(src('My CBC\nTransfer successful')).toBe('Chinabank');
+    expect(src('EastWest EasyWay app\nFund transfer')).toBe('EastWest');
+    expect(src('PSBank Mobile\nTransaction complete')).toBe('PSBank');
+    expect(src('AUB HelloMoney\nSent')).toBe('AUB');
+    expect(src('Tonik\nYou sent PHP 100.00')).toBe('Tonik');
+    expect(src('UNO Digital Bank\nTransfer')).toBe('UNO Digital Bank');
+    expect(src('UnionDigital Bank\nTransfer')).toBe('UnionDigital');
+    expect(src('OFBank\nTransfer')).toBe('OFBank');
+    expect(src('ShopeePay\nPayment successful')).toBe('ShopeePay');
+    expect(src('GrabPay Wallet\nPaid')).toBe('GrabPay');
+    expect(src('Coins.ph\nCash out')).toBe('Coins.ph');
+    expect(src('PalawanPay\nSend money')).toBe('PalawanPay');
+  });
+  it('SeaBank (pre-2025 name) is MariBank', () => {
+    expect(src('SeaBank\nTransfer Result')).toBe('MariBank');
+  });
+  it('keywords match whole words only', () => {
+    expect(src('Aubrey Santos\nThanks!')).toBe('Unknown');
+  });
+  it('"Sent via GCash" still wins over a destination bank', () => {
+    expect(src('JUAN D.\nSent via GCash\nTo: BPI 1234')).toBe('GCash');
+  });
+});

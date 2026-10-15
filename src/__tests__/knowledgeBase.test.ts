@@ -15,6 +15,9 @@ const EXPECTED: Record<string, ScamType> = {
   proof: 'Marketplace Scam',
   parcel: 'Parcel Scam',
   wrongsend: 'Wrong-Send Refund Scam',
+  government: 'Government Impersonation',
+  mule: 'Money Mule Recruitment',
+  qr: 'QR Payment Scam',
 };
 
 describe('every Knowledge Base example is detected', () => {
@@ -34,6 +37,11 @@ describe('every Knowledge Base example is detected', () => {
 // Ordinary messages a Filipino user might paste. None should be called a scam.
 const BENIGN = [
   'Hi! Is the bike still available? I can pick it up Saturday afternoon.',
+  'Pwede ko po bang hiramin yung charger mo bukas?',
+  'Scan the QR po para makabayad kayo, salamat!',
+  'Nag-renew ako ng license sa LTO kanina, ang haba ng pila.',
+  'DSWD payout schedule is posted on their official Facebook page.',
+  'I paid my traffic ticket at the LTO office yesterday.',
   'Your GCash OTP is 482913. Never share it with anyone, including GCash employees.',
   'BPI: Do not share your OTP with anyone. BPI will never ask for it.',
   'Paalala: Huwag ibigay ang OTP sa kahit sino.',

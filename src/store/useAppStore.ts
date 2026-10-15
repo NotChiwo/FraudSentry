@@ -40,6 +40,15 @@ const systemTheme = (): ThemeMode => {
   try { return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch { return 'dark'; }
 };
 
+// RA 10173 data minimisation: saved results hold names, numbers and message
+// text, so they are kept on this device for a limited time only. Anything
+// older than this is removed when the app loads and whenever history is saved.
+export const HISTORY_RETENTION_DAYS = 30;
+export function withinRetention<T extends { scannedAt: string }>(items: T[], now = Date.now()): T[] {
+  const cutoff = now - HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  return items.filter(i => { const t = Date.parse(i.scannedAt); return isNaN(t) || t >= cutoff; });
+}
+
 // Drop the heavy base64 fields so persisted history stays tiny.
 function stripHeavy(scan: ImageScanResult): ImageScanResult {
   return {
@@ -100,12 +109,24 @@ export const useAppStore = create<AppState>()(
     {
       name: 'fraudsentry-v5-store',
       storage: createJSONStorage(() => safeStorage),
+      version: 1,
+      // v0 → v1 only added retention; the shape is unchanged.
+      migrate: (persisted) => persisted as AppState,
       partialize: (s) => ({
         theme: s.theme, hasConsented: s.hasConsented,
-        imageScans: s.imageScans.map(stripHeavy),
-        messageScans: s.messageScans,
-        crossChecks: s.crossChecks,
+        imageScans: withinRetention(s.imageScans).map(stripHeavy),
+        messageScans: withinRetention(s.messageScans),
+        crossChecks: withinRetention(s.crossChecks),
       }),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AppState>;
+        return {
+          ...current, ...p,
+          imageScans: withinRetention(p.imageScans ?? []),
+          messageScans: withinRetention(p.messageScans ?? []),
+          crossChecks: withinRetention(p.crossChecks ?? []),
+        };
+      },
     }
   )
 );

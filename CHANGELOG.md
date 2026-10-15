@@ -1,5 +1,61 @@
 # Changelog
 
+## V8.4 — 2026-10-15
+
+### Hidden details are now caught (pixelated or covered fields)
+A real GCash receipt with the recipient name, mobile number and reference number pixelated came out **Low — "No signs of editing found"**. Nothing checked for blocked-out details, and the parser built a fake name (`FRel iL =" …`) and mobile number out of the mosaic noise. That receipt is now **High — "Details are hidden — cannot be verified"**.
+
+- **Pixel check (`obscuredRegions.ts`):**
+  - **Mosaics.** Pixelation leaves small, flat, roughly square tiles in an *in-between* shade of the local background and ink, with hard edges, and several different shades side by side. Anti-aliased text never has a flat in-between patch. UI tints, pills and cards are ruled out by their shape and by having a single shade.
+  - **Cover boxes.** A flat, detail-free bar the height of a text line, in a redaction colour: black, white on a non-white background, or the ink colour of text on the same line.
+  - Hidden areas are outlined in red on "Where we read it".
+- **Text check (`hiddenFields.ts`).** OCR reads the "Ref No." label but only junk where the number should be (`"Bf “Ew 9904 Bb`). This also catches covers the pixels can't show, such as a white box on a white card.
+- **Scoring.** Either signal adds the **Hidden or Blocked-Out Details** finding and sets the risk to at least **High**. A receipt with its reference hidden can't be checked, so it must not be accepted. The action plan says to ask for the full, unedited screenshot. It is not called Critical, because people also blur their own receipts before posting them.
+- **Parser.** Quote marks, `®`, `=`, `|` … are no longer accepted in a recipient name. A mobile number read through a mosaic is dropped instead of shown.
+- **Honest wording.** A Low result now says "No problems found by these checks" and "That doesn't prove the receipt is genuine", instead of "No signs of editing found".
+
+**Measured (synthetic, and tuned on that same set, so in-sample):**
+- 34 clean screenshots, including busy app UI, as PNG and chat-compressed JPEG: **0 flagged**.
+- 270 edited copies:
+  - mosaics with 6–14 px tiles: **97 %** caught;
+  - 22 px tiles over small text: 48 %;
+  - black boxes: 67 % (the misses are on a black background, where a box is invisible);
+  - white boxes: 0 % by pixels. These rely on the text check.
+- The real pixelated GCash receipt: flagged by both checks.
+- **Not measured: the false-alarm rate on real genuine screenshots.** Run `tools/compare-versions.mjs` on your genuine set before quoting the detector at the defense.
+
+Tests: 207 → **220** (`hiddenFields.test.ts`: images drawn in code, the real pixelated receipt's OCR with the name replaced, and no false alarm on any of the 13 real-OCR fixtures).
+
+## V8.3 — 2026-10-15
+
+### New: compare two builds on the same evidence
+- **`tools/compare-versions.mjs`** runs two or more built HTML files (V6, V7, V8 …) headlessly over the same receipts and messages and scores them against a labels file you write beforehand. It reports issuer / amount / reference accuracy, **fakes caught**, **false alarms on genuine receipts** and message accuracy, plus a table of every file where the builds disagree. Results are read from each build's own saved history, and pages are found by their old and new names, so it works across versions. `--bypass-csp` gives every build working OCR; `--tesseract-mirror` serves Tesseract from a local npm copy. See TESTING.md §3a.
+
+### Receipts
+- **Amount reconciliation without a fee line.** GCash "Send Money" receipts print only Amount and Total Amount Sent, so V7.1's check (amount + fee = total) never ran on them. Now, when no fee is printed, a total below the amount, or more than ₱50 above it, is a mismatch. A smaller gap may be an unread fee. It is judged only when the amount sits on an "Amount" row. No alarm on any of the 13 real-OCR fixtures.
+- **The destination is never the issuer — for every bank.** Bank names after "To:", "Destination", "Recipient bank", "Transfer to" … are ignored when choosing the issuer. The earliest remaining mention wins, and keywords match whole words only ("Aubrey" is not AUB). Previously only GoTyme had this protection.
+- **More institutions:** Chinabank, EastWest, PSBank, AUB, Tonik, UNO Digital Bank, UnionDigital, OFBank, ShopeePay, GrabPay, Coins.ph and PalawanPay. **SeaBank → MariBank**: SeaBank Philippines rebranded as MariBank in 2025, so both names identify MariBank.
+- **Editor signatures in PNG and WebP.** Only JPEG metadata was read before, but most receipt screenshots are PNG. Now PNG `tEXt` / `zTXt` / `iTXt` / `eXIf` and WebP `EXIF` / `XMP` are read too. More editors are recognised (Photopea, Meitu, PhotoRoom, Fotor, Affinity Photo, Adobe Express).
+- **(fix)** `image/jpg` and `image/pjpeg` (non-standard JPEG types some phones report) were flagged as a renamed file.
+
+### Messages
+- **Fake government notices.** A message naming the LTO, MMDA, DSWD, SSS, PhilHealth, Pag-IBIG, BIR, NBI, PNP … that links anywhere except a `.gov.ph` site is critical, classified as Government Impersonation. New rules: "unpaid traffic violation / toll / fine", "license suspension / alarm block", ayuda by link or for a fee.
+- **Money-mule recruitment:** offers to rent, borrow or buy a GCash / Maya / bank account. This is a crime under RA 12010 (AFASA).
+- **"Scan this QR to receive"**: receiving money never requires a QR scan or your MPIN.
+- **SIM / e-wallet "re-registration" links** (the DICT advisory pattern).
+- **Official domains** were added for MariBank, CIMB, Chinabank, EastWest, PSBank, AUB, Tonik, UNO, UnionDigital, OFBank and Coins.ph, each checked against the institution's own site. ShopeePay and GrabPay were left out on purpose: `shopee.ph` and `grab.com` are the shopping and ride sites, not banking domains.
+- **Knowledge Base: 10 → 13 entries.** New: Fake Government Notice (LTO / Ayuda), Account Rental / Money Mule, and "Scan to Receive" QR. Each has a quick rule and the advisory it is based on. The page header now counts its entries.
+
+### Random Forest
+- **Soft voting.** The probability is the mean leaf probability (as scikit-learn does), not the share of 0/1 votes. The "N/M trees" figure is now the exact vote count.
+- **(fix) Train/scan mismatch in `metadata_consistency`.** It was random noise in the demo training data but `100 − ELA − 25·editor` at scan time. It now has one definition used by both, built from metadata checks: spoofed container, editor signature, non-screen geometry. It no longer repeats ELA, and it leaves out progressive JPEG / EXIF, which V8 measured as normal on genuine images.
+
+### Privacy and robustness
+- **Local history is deleted after 30 days** (RA 10173 data minimisation). The Privacy page and consent screen say so. The saved-data store is versioned. This also bounds the earlier-scan comparison and the Home streak to 30 days.
+- A crashing page shows "Try again / Back to Home" instead of blanking the app.
+- `noUnusedLocals` / `noUnusedParameters` are on; three dead imports were removed.
+- Tests: 168 → **207**.
+
 ## V8.2 — 2026-10-07
 
 ### Scam Knowledge Base: master–detail redesign

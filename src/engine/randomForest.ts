@@ -166,16 +166,29 @@ export class RandomForest {
     if (node.right) this.accumulateImportance(node.right);
   }
 
-  // probability that a single sample is fraudulent (mean of tree votes)
+  private leafFor(tree: TreeNode, x: number[]): TreeNode {
+    let node = tree;
+    while (!node.leaf) node = x[node.feature!] <= node.threshold! ? node.left! : node.right!;
+    return node;
+  }
+
+  // Probability that a sample is fraudulent: the mean of each tree's leaf
+  // class probability (soft voting, as scikit-learn's RandomForestClassifier
+  // does). Averaging hard 0/1 votes instead throws away how pure each leaf is
+  // and can only produce multiples of 1/nTrees.
   predictProba(x: number[]): number {
     if (!this.trees.length) return 0;
     let s = 0;
-    for (const t of this.trees) {
-      let node = t;
-      while (!node.leaf) node = x[node.feature!] <= node.threshold! ? node.left! : node.right!;
-      s += node.pred!;
-    }
+    for (const t of this.trees) s += this.leafFor(t, x).prob ?? 0;
     return s / this.trees.length;
+  }
+
+  // How many trees vote "fraudulent" (their leaf's majority class) — the
+  // human-readable "N of M trees" figure shown next to the probability.
+  countVotes(x: number[]): number {
+    let v = 0;
+    for (const t of this.trees) v += this.leafFor(t, x).pred ?? 0;
+    return v;
   }
 
   predict(x: number[]): number { return this.predictProba(x) >= 0.5 ? 1 : 0; }

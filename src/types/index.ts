@@ -49,6 +49,8 @@ export interface ForensicReport {
   elaScore: number;        // 0–100 mean error-level magnitude (higher = more recompression/edits)
   elaHotspotPct: number;   // % of image flagged as high-error region
   elaThumbnail: string | null; // dataURL of ELA heatmap
+  /** pixelated / covered areas (original-image pixels); absent on scans saved before V8.4 */
+  obscuredRegions?: { kind: 'pixelated' | 'covered'; x: number; y: number; w: number; h: number; tiles: number }[];
   signals: ForensicSignal[];
 }
 
@@ -57,6 +59,10 @@ export type EvidenceSource =
   | 'GCash' | 'Maya' | 'BPI' | 'BDO' | 'UnionBank' | 'Metrobank'
   | 'Landbank' | 'Security Bank' | 'GoTyme' | 'RCBC' | 'PNB'
   | 'MariBank' | 'SeaBank' | 'CIMB'
+  // added in V8.3
+  | 'Chinabank' | 'EastWest' | 'PSBank' | 'AUB'
+  | 'Tonik' | 'UNO Digital Bank' | 'UnionDigital' | 'OFBank'
+  | 'ShopeePay' | 'GrabPay' | 'Coins.ph' | 'PalawanPay'
   | 'Online Banking' | 'Unknown';
 
 export interface ExtractedTransactionData {
@@ -122,7 +128,9 @@ export type ScamType =
   | 'Phishing' | 'OTP Scam' | 'Fake Bank Alert' | 'Investment Scam'
   | 'Job Offer Scam' | 'Marketplace Scam' | 'Loan Scam' | 'Prize Scam'
   | 'Impersonation' | 'Account Takeover' | 'Parcel Scam'
-  | 'Wrong-Send Refund Scam' | 'Budol / Recruitment' | 'None Detected';
+  | 'Wrong-Send Refund Scam' | 'Budol / Recruitment'
+  | 'Money Mule Recruitment' | 'Government Impersonation' | 'QR Payment Scam'
+  | 'None Detected';
 
 export interface MessageFlag {
   id: string;

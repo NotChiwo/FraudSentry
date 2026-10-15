@@ -116,8 +116,7 @@ export function scoreWithSharedModel(features: number[]): ForestAnalysis {
   const probability = rf.predictProba(features);
   return {
     probability,
-    // predictProba is the mean of 0/1 leaf votes, so this is the exact vote count
-    votesFraud: Math.round(probability * rf.treeCount),
+    votesFraud: rf.countVotes(features),
     totalTrees: rf.treeCount,
     datasetSource: m.datasetSource,
     trainedAt: m.trainedAt,

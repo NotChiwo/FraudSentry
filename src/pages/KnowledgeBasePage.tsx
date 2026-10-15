@@ -91,7 +91,7 @@ export default function KnowledgeBasePage({ onNavigate, initialId }: { onNavigat
         <div className="page-head-ico"><BookOpen size={22} /></div>
         <div>
           <h1>Scam Knowledge Base</h1>
-          <p>Ten scam patterns to know, each with one rule to remember. Educational material, not live statistics.</p>
+          <p>{ENTRIES.length} scam patterns to know, each with one rule to remember. Educational material, not live statistics.</p>
         </div>
       </div>
 
