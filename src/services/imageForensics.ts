@@ -20,6 +20,7 @@
 import { ForensicReport, ForensicSignal, RiskLevel } from '../types';
 import { generateId } from '../utils/helpers';
 import { fileToImage } from './ocr';
+import { findObscuredRegions, type ObscuredRegion } from './obscuredRegions';
 
 function sig(label: string, value: string, detail: string, severity: RiskLevel, passed: boolean, weight: number): ForensicSignal {
   return { id: generateId('fx'), label, value, detail, severity, passed, weight };
@@ -202,6 +203,18 @@ export function plausiblePhoneAspect(w: number, h: number): boolean {
   return PHONE_ASPECTS.some(a => Math.abs(r - a) <= 0.18);
 }
 
+// Pixelated / covered areas, measured at up to 2000 px on the long edge
+// (mosaic tiles stay ≥5 px), reported in the original image's pixels.
+function detectObscured(img: HTMLImageElement): ObscuredRegion[] {
+  const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(img, 0, 0, w, h);
+  return findObscuredRegions(ctx.getImageData(0, 0, w, h).data, w, h)
+    .map(r => ({ ...r, x: Math.round(r.x / k), y: Math.round(r.y / k), w: Math.round(r.w / k), h: Math.round(r.h / k) }));
+}
+
 export async function analyzeForensics(file: File): Promise<ForensicReport> {
   const buf = new Uint8Array(await file.arrayBuffer());
   const sniff = sniffType(buf);
@@ -218,6 +231,10 @@ export async function analyzeForensics(file: File): Promise<ForensicReport> {
   try { const r = await computeELA(img); ela = { mean: r.mean, hotspotPct: r.hotspotPct, thumb: r.thumb }; }
   catch { /* leave defaults */ }
 
+  let obscuredRegions: ObscuredRegion[] = [];
+  try { obscuredRegions = detectObscured(img); }
+  catch { /* canvas unavailable: leave empty */ }
+
   const signals = buildForensicSignals({ sniff, declaredType: file.type, jpeg, width, height, ela });
 
   return {
@@ -232,6 +249,7 @@ export async function analyzeForensics(file: File): Promise<ForensicReport> {
     elaScore: ela.mean,
     elaHotspotPct: ela.hotspotPct,
     elaThumbnail: ela.thumb,
+    obscuredRegions,
     signals,
   };
 }

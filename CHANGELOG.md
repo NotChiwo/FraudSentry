@@ -1,5 +1,31 @@
 # Changelog
 
+## V8.4 — 2026-10-15
+
+### Hidden details are now caught (pixelated or covered fields)
+A real GCash receipt with the recipient name, mobile number and reference number pixelated came out **Low — "No signs of editing found"**. Nothing checked for blocked-out details, and the parser built a fake name (`FRel iL =" …`) and mobile number out of the mosaic noise. That receipt is now **High — "Details are hidden — cannot be verified"**.
+
+- **Pixel check (`obscuredRegions.ts`):**
+  - **Mosaics.** Pixelation leaves small, flat, roughly square tiles in an *in-between* shade of the local background and ink, with hard edges, and several different shades side by side. Anti-aliased text never has a flat in-between patch. UI tints, pills and cards are ruled out by their shape and by having a single shade.
+  - **Cover boxes.** A flat, detail-free bar the height of a text line, in a redaction colour: black, white on a non-white background, or the ink colour of text on the same line.
+  - Hidden areas are outlined in red on "Where we read it".
+- **Text check (`hiddenFields.ts`).** OCR reads the "Ref No." label but only junk where the number should be (`"Bf “Ew 9904 Bb`). This also catches covers the pixels can't show, such as a white box on a white card.
+- **Scoring.** Either signal adds the **Hidden or Blocked-Out Details** finding and sets the risk to at least **High**. A receipt with its reference hidden can't be checked, so it must not be accepted. The action plan says to ask for the full, unedited screenshot. It is not called Critical, because people also blur their own receipts before posting them.
+- **Parser.** Quote marks, `®`, `=`, `|` … are no longer accepted in a recipient name. A mobile number read through a mosaic is dropped instead of shown.
+- **Honest wording.** A Low result now says "No problems found by these checks" and "That doesn't prove the receipt is genuine", instead of "No signs of editing found".
+
+**Measured (synthetic, and tuned on that same set, so in-sample):**
+- 34 clean screenshots, including busy app UI, as PNG and chat-compressed JPEG: **0 flagged**.
+- 270 edited copies:
+  - mosaics with 6–14 px tiles: **97 %** caught;
+  - 22 px tiles over small text: 48 %;
+  - black boxes: 67 % (the misses are on a black background, where a box is invisible);
+  - white boxes: 0 % by pixels. These rely on the text check.
+- The real pixelated GCash receipt: flagged by both checks.
+- **Not measured: the false-alarm rate on real genuine screenshots.** Run `tools/compare-versions.mjs` on your genuine set before quoting the detector at the defense.
+
+Tests: 207 → **220** (`hiddenFields.test.ts`: images drawn in code, the real pixelated receipt's OCR with the name replaced, and no false alarm on any of the 13 real-OCR fixtures).
+
 ## V8.3 — 2026-10-15
 
 ### New: compare two builds on the same evidence

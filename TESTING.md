@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**207 / 207 passing** (V8.3).
+**220 / 220 passing** (V8.4).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -28,6 +28,7 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 - highlights equal the analyzer's own matches;
 - prefilled examples are still detected. |
 | `forensics.test.ts` | 10 | V8.3: editor signatures in PNG `tEXt`/`zTXt`/`iTXt` and WebP XMP, PNG `eXIf`, screenshot tags not mistaken for editors, `image/jpg`/`image/pjpeg` aliases, the shared metadata-consistency feature |
+| `hiddenFields.test.ts` | 13 | V8.4 hidden-detail detection: a clean receipt drawn in code (UI tints, pills, icon chips, green card) has no hidden areas; a reference pixelated with 6/10/14 px tiles and a pixelated name are found; black and ink-coloured cover boxes are found; the OCR of a **real** pixelated GCash receipt (name replaced) is judged "reference hidden" and its junk is no longer a name; no false alarm on any of the 13 real-OCR fixtures; region-on-reference and region-on-mobile-number mapping |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
@@ -218,6 +219,26 @@ Answers "is the new build better than the old one?" on evidence **you** collect.
 - Both builds read the issuer, amount and reference of the two genuine screenshots correctly, and both rate them Low.
 - A screenshot whose total was changed to ₱15000.00 while the amount stayed ₱1,500.00 (GCash "Send Money" layout, no fee line): V8.2 **Low**, V8.3 **High** (no-fee reconciliation).
 - Messages: scams flagged Medium+ 1/4 → 4/4 (fake LTO fine, account rental, "scan QR to receive"); both ordinary messages stay Low in both builds.
+
+## 3b. Hidden-detail detection (V8.4)
+
+**What triggered it:** a real GCash receipt with the name, mobile number and reference pixelated scored **Low** ("No signs of editing found") in V8.3. In V8.4 it scores **High**, "Details are hidden — cannot be verified". Both the pixel check (4 pixelated areas, on the mobile-number and reference lines) and the text check (reference label read, number unreadable) flag it.
+
+**Synthetic evaluation, 2026-10-15.** Generated screenshots in three receipt styles (GCash-like, Maya-like dark, bank-like light) plus the app's own busy pages, each as PNG and as JPEG q75–80. The edited copies had the reference, the name, or name + phone + reference pixelated (tiles 6, 10, 14, 22 px) or boxed (black, white). The thresholds were **chosen on this same set** (zero false alarms first), so these are in-sample figures:
+
+| Set | Result |
+|---|---|
+| Clean screenshots (34) | **0 flagged** |
+| Mosaic, 6–14 px tiles (162) | **157 caught (97 %)** |
+| Mosaic, 22 px tiles (54) | 26 caught (48 %); large tiles over small text fade to near-background tints |
+| Black box (27) | 18 caught (67 %); all misses are on the black Maya-style background, where a black box is invisible |
+| White box (27) | 0 by pixels. Left to the text check (a white box on a white card leaves no pixel trace) |
+
+**Not measured, and needed before the defense:**
+- the false-alarm rate on **real genuine** screenshots (the 62 + 18 sets are not in this repository; run `tools/compare-versions.mjs` on them);
+- the catch rate on edits made with real phone editors (Canva, PicsArt, the gallery's markup tool).
+
+**Known gaps:** blur (smooth, no tiles) is not detected by pixels. Only the text check can catch it, and only on the reference line. A box in a colour that matches the surrounding card is invisible by design.
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

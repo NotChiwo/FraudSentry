@@ -271,6 +271,9 @@ function maskedNameLike(s: string): boolean {
   if (t.length < 2 || t.length > 28) return false;
   if (/sent\s+via|gcash|amount|total|ref\b|php|₱|reference|transaction|receipt|bank|acct|method|fee/i.test(t)) return false;
   if (/^(source|destination|purpose|from|to)\b/i.test(t)) return false; // a label row, not a name
+  // quote marks, ®, =, | … are what OCR makes of a pixelated or scribbled-over
+  // name — never part of a real one ("FRel iL =\" Lee A." is not a name)
+  if (/[=“”"®©|{}\[\]<>~^\\§¶]/.test(t)) return false;
   if (/^[+\d(]/.test(t)) return false;                 // not a phone/number line
   if (/\d{3,}/.test(t)) return false;                  // names don't contain long number runs
   const letters = (t.match(/[A-Za-z]/g) || []).length;

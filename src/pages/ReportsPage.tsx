@@ -20,7 +20,7 @@ const KIND: Record<Row['kind'], { label: string; icon: LucideIcon }> = {
   cross: { label: 'Cross-Evidence', icon: GitCompareArrows },
 };
 const RECEIPT_TITLE: Record<RiskLevel, string> = {
-  low: 'No signs of editing found', medium: "Some details don't add up", high: 'Suspicious receipt', critical: 'Likely fake receipt',
+  low: 'No problems found by these checks', medium: "Some details don't add up", high: 'Suspicious receipt', critical: 'Likely fake receipt',
 };
 
 export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) => void }) {

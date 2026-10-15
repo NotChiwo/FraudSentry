@@ -49,6 +49,8 @@ export interface ForensicReport {
   elaScore: number;        // 0–100 mean error-level magnitude (higher = more recompression/edits)
   elaHotspotPct: number;   // % of image flagged as high-error region
   elaThumbnail: string | null; // dataURL of ELA heatmap
+  /** pixelated / covered areas (original-image pixels); absent on scans saved before V8.4 */
+  obscuredRegions?: { kind: 'pixelated' | 'covered'; x: number; y: number; w: number; h: number; tiles: number }[];
   signals: ForensicSignal[];
 }
 

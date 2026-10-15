@@ -25,6 +25,7 @@ import type { OcrProgress } from '../services/ocr';
 import { analyzeForensics } from '../services/imageForensics';
 import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction } from '../services/receiptParser';
 import { reconcileAmounts, checkReceiptDate } from '../services/consistencyChecks';
+import { assessHiddenFields } from '../services/hiddenFields';
 import { matchAgainstHistory, PriorScan } from '../services/historyMatch';
 import { buildFeatureVector } from '../services/sampleDataset';
 import { REF_FORMATS } from '../services/fieldValidation';
@@ -116,11 +117,25 @@ export async function analyzeTransactionImage(
                          : 'The originating bank or e-wallet could not be confirmed from the readable text. Treat the result with reduced confidence.',
     source !== 'Unknown' ? 'low' : 'medium', source !== 'Unknown', 0.06));
 
+  // ── Hidden details: pixelated / covered areas, or a reference blocked out ──
+  // Judged from the pixels and the raw OCR text, so a manual field correction
+  // can't hide it.
+  const hidden = assessHiddenFields(
+    ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text || ''],
+    ocr.words, extracted.referenceNo, forensics.obscuredRegions ?? [],
+  );
+  const detailsHidden = hidden.regions.length > 0 || hidden.referenceUnreadable;
+  // A number read through a mosaic is made up from the noise ("…0449"): don't show it.
+  if (hidden.regionOnPhone && !opts?.extractedOverride) extracted = { ...extracted, receiverContact: null };
+  if (detailsHidden) {
+    findings.push(finding('forensic', 'Hidden or Blocked-Out Details', hidden.detail, 'high', false, 0.45));
+  }
+
   // ── Reference presence + format ──
   if (extracted.referenceNo) {
     const refFinding = validateReference(source, extracted.referenceNo);
     if (refFinding) findings.push(refFinding);
-  } else {
+  } else if (!detailsHidden) {   // when details are hidden, that finding already explains it
     findings.push(finding('reference', 'Reference Number Detection',
       'No reference or transaction number was read from this evidence. Many — but not all — receipts display one; its absence lowers how independently this can be verified, so confirm the payment inside your own account history.',
       'medium', false, 0.07));
@@ -143,7 +158,8 @@ export async function analyzeTransactionImage(
   // structural anomaly, not an OCR miss. Weighted heavily in that case.
   // (Skipped on an unsent screen: nothing was sent, so there is no recipient —
   // the Unconfirmed Transaction finding below already explains it.)
-  if (!unconfirmed && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
+  // (Also skipped when details are visibly hidden: that finding already says why.)
+  if (!unconfirmed && !detailsHidden && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
     const ocrReadable = (ocr?.confidence ?? 0) >= 65;
     const readFields = [extracted.amount != null ? 'amount' : null, extracted.referenceNo ? 'reference number' : null, extracted.date ? 'date' : null].filter(Boolean) as string[];
     const txnFieldsRead = readFields.length > 0;
@@ -213,6 +229,8 @@ export async function analyzeTransactionImage(
   // Same for a future date or totals that don't add up: never below High.
   // (Both are read from stable multi-pass OCR, so a lone misread can't trigger them.)
   if (dateCheck.status === 'future' || recon.status === 'mismatch' || hist.kind === 'edited-copy') riskScore = Math.max(riskScore, 0.45);
+  // Hidden details make the receipt unverifiable: never below High.
+  if (detailsHidden) riskScore = Math.max(riskScore, 0.45);
   const riskLevel: RiskLevel = scoreToRiskLevel(riskScore);
 
   const legitimacyLabel =
@@ -273,6 +291,9 @@ function buildActionPlan(
 
   if (riskLevel === 'critical' || riskLevel === 'high') {
     plan.push('Do not release money, goods, or services based on this screenshot.');
+    if (failedLabel('Hidden or Blocked-Out Details')) {
+      plan.push('Parts of this receipt were blocked out. Ask the sender for the full, unedited screenshot — a genuine sender has no reason to hide the reference number or name from the person they paid.');
+    }
     if (failedLabel('Unconfirmed Transaction')) {
       plan.push('This screenshot shows a payment that was never sent (a confirmation screen, before the "Send" button). Ask for the completed receipt, then check that the money actually arrived in your own account.');
     }
