@@ -29,6 +29,19 @@ export default function App() {
   const contentRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isMobile = useIsMobile();
+  // The welcome / privacy-notice screen is shown once; after that it opens from
+  // the footer, the Privacy page, or by adding #welcome to the address (demos).
+  const [welcomeOpen, setWelcomeOpen] = useState(() => typeof location !== 'undefined' && location.hash === '#welcome');
+  const openWelcome = () => { setWelcomeOpen(true); window.scrollTo({ top: 0 }); };
+  useEffect(() => {
+    const onHash = () => { if (location.hash === '#welcome') setWelcomeOpen(true); };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const closeWelcome = () => {
+    setWelcomeOpen(false);
+    if (location.hash === '#welcome') history.replaceState(null, '', location.pathname + location.search);
+  };
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
 
@@ -53,7 +66,7 @@ export default function App() {
     requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true }));
   };
 
-  if (!hasConsented) return <ConsentGate />;
+  if (!hasConsented || welcomeOpen) return <ConsentGate onClose={hasConsented ? closeWelcome : undefined} />;
 
   const highRiskCount = [...imageScans, ...messageScans].filter(s =>
     'riskLevel' in s ? (s.riskLevel === 'critical' || s.riskLevel === 'high')
@@ -92,7 +105,7 @@ export default function App() {
             {page === 'model'     && <ModelPage />}
             {page === 'knowledge' && <KnowledgeBasePage onNavigate={navigate} />}
             {page === 'reports'   && <ReportsPage onNavigate={navigate} />}
-            {page === 'privacy'   && <PrivacyPage />}
+            {page === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {page === 'about'     && <AboutPage />}
           </div>
           </ErrorBoundary>
@@ -111,6 +124,7 @@ export default function App() {
               <button type="button" onClick={() => navigate('privacy')}>Privacy & Data</button>
               <button type="button" onClick={() => navigate('knowledge')}>Knowledge Base</button>
               <button type="button" onClick={() => navigate('about')}>About</button>
+              <button type="button" onClick={openWelcome}>Welcome screen</button>
             </nav>
           </div>
           <div className="footer-legal">

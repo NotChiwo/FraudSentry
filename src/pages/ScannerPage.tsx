@@ -393,6 +393,7 @@ function ResultView(props: {
   validation?.checks.forEach(c => { vmap[c.key] = c; });
   const boxes = useMemo(() => locateFields(result.ocr.words, result.extracted), [result]);
   const hiddenAreas = result.forensics.obscuredRegions ?? [];
+  const inkAreas = result.inkOutliers ?? [];
   const size = result.ocr.imageSize;
 
   return (
@@ -468,7 +469,7 @@ function ResultView(props: {
         <section className="card pad">
           <div className="row-between">
             <h2 className="section-title"><Eye size={18} /> Where we read it</h2>
-            {(boxes.length > 0 || hiddenAreas.length > 0) && (
+            {(boxes.length > 0 || hiddenAreas.length > 0 || inkAreas.length > 0) && (
               <label className="toggle"><input type="checkbox" checked={showBoxes} onChange={e => setShowBoxes(e.target.checked)} /> Highlights</label>
             )}
           </div>
@@ -484,10 +485,16 @@ function ResultView(props: {
               <span key={`hidden-${i}`} className="field-box fb-hidden" style={{
                 left: `${(r.x / size.w) * 100}%`, top: `${(r.y / size.h) * 100}%`,
                 width: `${(r.w / size.w) * 100}%`, height: `${(r.h / size.h) * 100}%`,
-              }}><span className="fb-tag">{r.kind === 'pixelated' ? 'Pixelated' : 'Covered'}</span></span>
+              }}><span className="fb-tag">{r.kind === 'pixelated' ? 'Blurred / pixelated' : 'Covered'}</span></span>
+            ))}
+            {showBoxes && size && inkAreas.map((r, i) => (
+              <span key={`ink-${i}`} className="field-box fb-hidden" style={{
+                left: `${(r.x0 / size.w) * 100}%`, top: `${(r.y0 / size.h) * 100}%`,
+                width: `${((r.x1 - r.x0) / size.w) * 100}%`, height: `${((r.y1 - r.y0) / size.h) * 100}%`,
+              }}>{i === 0 && <span className="fb-tag">Different colour</span>}</span>
             ))}
           </div>
-          <p className="muted small">{hiddenAreas.length ? 'Red dashed outline: an area that was pixelated or covered after the receipt was made. ' : ''}{boxes.length ? 'Outlined: where each detail was read on your screenshot.' : 'Details were read, but their exact position on the image could not be pinned down.'}</p>
+          <p className="muted small">{hiddenAreas.length ? 'Red dashed outline: an area that was blurred, pixelated or covered after the receipt was made. ' : ''}{inkAreas.length ? 'Red dashed outline “Different colour”: text printed in a slightly different colour than the rest. ' : ''}{boxes.length ? 'Outlined: where each detail was read on your screenshot.' : 'Details were read, but their exact position on the image could not be pinned down.'}</p>
         </section>
       </div>
 

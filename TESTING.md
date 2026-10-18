@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**231 / 231 passing** (V8.5).
+**252 / 252 passing** (V8.6).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -30,6 +30,8 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `forensics.test.ts` | 10 | V8.3: editor signatures in PNG `tEXt`/`zTXt`/`iTXt` and WebP XMP, PNG `eXIf`, screenshot tags not mistaken for editors, `image/jpg`/`image/pjpeg` aliases, the shared metadata-consistency feature |
 | `hiddenFields.test.ts` | 13 | V8.4 hidden-detail detection: a clean receipt drawn in code (UI tints, pills, icon chips, green card) has no hidden areas; a reference pixelated with 6/10/14 px tiles and a pixelated name are found; black and ink-coloured cover boxes are found; the OCR of a **real** pixelated GCash receipt (name replaced) is judged "reference hidden" and its junk is no longer a name; no false alarm on any of the 13 real-OCR fixtures; region-on-reference and region-on-mobile-number mapping |
 | `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
+| `bpiReceipts.test.ts` | 16 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; confirmation number ↔ time and weekday ↔ date are consistent on both genuine receipts, and an edited date, time or confirmation number is caught; the blurred copy's reference reads as hidden; privacy-notice versioning |
+| `inkConsistency.test.ts` | 5 | V8.6 repaint hint on receipts drawn in code: one ink → consistent; amount line in a bluer ink → reported; a recurring design tint → not reported; non-amount lines never judged; too few words → unknown |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
@@ -258,6 +260,26 @@ Answers "is the new build better than the old one?" on evidence **you** collect.
 | Synthetic GCash (JPEG) | conf 94 · Low | conf 94 · Low · 6.2 s |
 
 Network requests attempted by the offline build: **none**. Safari/WebKit and Firefox were **not** tested for the offline build. Test it on the actual defense laptop and browser beforehand, with Wi-Fi off.
+
+## 3d. BPI receipts and the new checks (V8.6)
+
+Three real BPI receipts were supplied: two genuine (2024 layout with a Fee row, 2026 layout) and a copy of the 2026 one with the date, confirmation number and recipient blurred. Three more edited copies were made from the 2026 one for this test, by painting new text over the date, the amount, or the confirmation number in a similar font. All were scanned in the built app (Chromium):
+
+| Receipt | V8.5 | V8.6 | Caught by |
+|---|---|---|---|
+| 2024, genuine | High (false alarm) | **Low** | (confirmation time ✓, weekday ✓) |
+| 2026, genuine | Low | **Low** | (confirmation time ✓, weekday ✓) |
+| 2026, blurred copy | High | **High** | hidden details |
+| 2026, date edited | Low | **High** | weekday + confirmation time |
+| 2026, confirmation no. edited | Low | **High** | confirmation time |
+| 2026, amount edited | Low | **Medium** | text colour hint |
+
+Text-colour hint false alarms: **0 of 43** clean / genuine images (34 synthetic incl. busy app UI as PNG and JPEG; 2 real BPI; 1 real GCash; 6 others). The thresholds were set while looking at these images, so the figures are in-sample.
+
+**Limits — say so at the defense:**
+- The confirmation-time rule rests on two real BPI receipts. It is applied only to BPI numbers that decode to a plausible date.
+- An amount retyped in exactly the app's own colour and font is not caught by any pixel check. Only the user's own account proves the amount.
+- These numbers come from 3 real receipts and 3 hand-made edits, not a held-out set. Run `tools/compare-versions.mjs` on your own BPI receipts and fakes.
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

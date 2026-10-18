@@ -186,3 +186,62 @@ export function checkReceiptDate(date: string | null, time: string | null, now: 
   }
   return { status: 'ok', detail: '' };
 }
+
+// ── Weekday ↔ date ─────────────────────────────────────────────────────────
+// Bank apps print the weekday the app computed ("Monday, Jun 29 2026"). An
+// editor who changes the date usually leaves the weekday — so they disagree.
+const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAY_DATE = /\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\.?,?\s+((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4}|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*,?\s*\d{4})/i;
+
+export interface WeekdayCheck { status: 'consistent' | 'mismatch' | 'unknown'; detail: string }
+
+export function checkWeekday(texts: string[]): WeekdayCheck {
+  const reads: string[] = [];
+  for (const t of texts || []) {
+    const m = (t || '').match(WEEKDAY_DATE);
+    if (!m) continue;
+    const date = parseReceiptDate(m[2].replace(/\s+/g, ' '));
+    if (!(date instanceof Date)) continue;
+    const shown = DAYS.indexOf(m[1].toLowerCase());
+    const actual = new Date(date.getTime() + 8 * 3600_000).getUTCDay();
+    reads.push(`${shown}|${actual}|${m[2].replace(/\s+/g, ' ')}`);
+  }
+  // with several OCR passes, need the same reading at least twice
+  const counts = new Map<string, number>();
+  for (const r of reads) counts.set(r, (counts.get(r) || 0) + 1);
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!best || (reads.length >= 2 && best[1] < 2)) return { status: 'unknown', detail: '' };
+  const [shown, actual, dateText] = best[0].split('|');
+  if (shown === actual) return { status: 'consistent', detail: `The weekday printed on the receipt (${DAY_NAMES[+shown]}) matches its date (${dateText}).` };
+  return { status: 'mismatch', detail: `The receipt says ${DAY_NAMES[+shown]}, but ${dateText} was a ${DAY_NAMES[+actual]}. The app computes the weekday from the date itself, so they never disagree on a genuine receipt — the date was most likely edited.` };
+}
+
+// ── BPI: confirmation number ↔ transaction time ────────────────────────────
+// A BPI confirmation number is the moment the transfer was made, in
+// milliseconds since 1 Jan 1970 (observed on real receipts: 1710966602347 →
+// Mar 21 2024 04:30:02 AM, shown as 04:30:05 AM; 1782743489365 → Jun 29 2026
+// 10:31:29 PM, shown as 10:31:31 PM). Editing the date, the time or the number
+// breaks that link. Only judged on BPI receipts whose number decodes to a
+// plausible date (2015–2035); anything else is left "unknown".
+export interface ConfirmationTimeCheck { status: 'consistent' | 'mismatch' | 'unknown'; detail: string; encoded: Date | null }
+
+const phTime = (d: Date) => d.toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' });
+
+export function checkConfirmationTime(source: string, reference: string | null, date: string | null, time: string | null): ConfirmationTimeCheck {
+  const unknown = { status: 'unknown' as const, detail: '', encoded: null };
+  if (source !== 'BPI' || !reference || !/^1\d{12}$/.test(reference)) return unknown;
+  const encoded = new Date(Number(reference));
+  const y = encoded.getUTCFullYear();
+  if (y < 2015 || y > 2035) return unknown;
+  const shown = parseReceiptDate(date, time);
+  if (!(shown instanceof Date)) return { ...unknown, encoded };
+  const shownText = [date, time].filter(Boolean).join(' ');
+  // the receipt is shown a few seconds after the number is issued; parsed times
+  // have minute precision. Accept −1 min … +10 min; a date-only receipt must fall on the same PH day.
+  const ok = time
+    ? shown.getTime() - encoded.getTime() >= -60_000 && shown.getTime() - encoded.getTime() <= 600_000
+    : new Date(encoded.getTime() + 8 * 3600_000).toISOString().slice(0, 10) === new Date(shown.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+  if (ok) return { status: 'consistent', encoded, detail: `The BPI confirmation number encodes the transfer time (${phTime(encoded)}), which matches the time on the receipt (${shownText}).` };
+  return { status: 'mismatch', encoded, detail: `A BPI confirmation number encodes the moment of the transfer. This one (${reference}) means ${phTime(encoded)}, but the receipt shows ${shownText}. On a genuine receipt they agree to within seconds — the date, time or confirmation number was most likely edited.` };
+}

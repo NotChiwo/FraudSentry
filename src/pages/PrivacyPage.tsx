@@ -27,7 +27,7 @@ const SECTIONS = [
   },
 ];
 
-export default function PrivacyPage() {
+export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => void } = {}) {
   return (
     <div className="page" style={{ maxWidth: 820 }}>
       <div style={{ marginBottom: 22 }}>
@@ -71,6 +71,11 @@ export default function PrivacyPage() {
           FraudSentry processes everything locally and retains nothing on a server, you can exercise these rights directly:
           stop using the tool, edit any extracted text before analysis, and clear your local history whenever you wish.
         </div>
+        {onShowWelcome && (
+          <button type="button" className="btn-secondary" style={{ marginTop: 12 }} onClick={onShowWelcome}>
+            Show the welcome &amp; privacy notice again
+          </button>
+        )}
       </div>
     </div>
   );

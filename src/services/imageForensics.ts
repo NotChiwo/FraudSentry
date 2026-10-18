@@ -17,10 +17,11 @@
 // review; it never asserts forgery on its own.
 // ============================================================
 
-import { ForensicReport, ForensicSignal, RiskLevel } from '../types';
+import { ForensicReport, ForensicSignal, RiskLevel, OcrWord } from '../types';
 import { generateId } from '../utils/helpers';
 import { fileToImage } from './ocr';
 import { findObscuredRegions, type ObscuredRegion } from './obscuredRegions';
+import { checkInkConsistency, type InkCheck } from './inkConsistency';
 
 function sig(label: string, value: string, detail: string, severity: RiskLevel, passed: boolean, weight: number): ForensicSignal {
   return { id: generateId('fx'), label, value, detail, severity, passed, weight };
@@ -205,6 +206,16 @@ export function plausiblePhoneAspect(w: number, h: number): boolean {
 
 // Pixelated / covered areas, measured at up to 2000 px on the long edge
 // (mosaic tiles stay ≥5 px), reported in the original image's pixels.
+/** Ink-colour consistency needs OCR word positions, so it runs after OCR (original pixels). */
+export async function inkCheckForFile(file: File, words: OcrWord[] | undefined): Promise<InkCheck> {
+  if (!words?.length) return { status: 'unknown', outliers: [], detail: '' };
+  const img = await fileToImage(file);
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(img, 0, 0);
+  return checkInkConsistency(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height, words);
+}
+
 function detectObscured(img: HTMLImageElement): ObscuredRegion[] {
   const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));

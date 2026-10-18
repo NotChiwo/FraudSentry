@@ -35,7 +35,8 @@ const POINTS = [
   },
 ];
 
-export default function ConsentGate() {
+/** onClose: opened from inside the app (already accepted) — show a way back without re-accepting. */
+export default function ConsentGate({ onClose }: { onClose?: () => void } = {}) {
   const [checked, setChecked] = useState(false);
   const giveConsent = useAppStore(s => s.giveConsent);
 
@@ -109,10 +110,16 @@ export default function ConsentGate() {
             </span>
           </label>
 
-          <button className="btn-primary" disabled={!checked} onClick={giveConsent}
+          <button className="btn-primary" disabled={!checked} onClick={() => { giveConsent(); onClose?.(); }}
             style={{ width: '100%', justifyContent: 'center', marginTop: 16, padding: '13px' }}>
             Continue to FraudSentry <ArrowRight size={16} />
           </button>
+          {onClose && (
+            <button type="button" className="btn-ghost" onClick={onClose}
+              style={{ width: '100%', justifyContent: 'center', marginTop: 10, padding: '11px' }}>
+              Back to FraudSentry (you already accepted this notice)
+            </button>
+          )}
 
           <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
             A BSCS thesis research project · University of Perpetual Help System DALTA · For educational and evidence-support use only.

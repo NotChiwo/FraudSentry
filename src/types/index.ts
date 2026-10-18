@@ -117,6 +117,8 @@ export interface ImageScanResult {
   actionPlan?: string[];       // ordered, scan-specific next steps
   heuristicScore?: number;     // 0–1 rule-based findings score (before blending)
   forestAnalysis?: ForestAnalysis; // Random Forest vote (blended 50/50 into riskScore)
+  /** words printed in a different ink tint than the receipt's other text (V8.6, a repaint hint) */
+  inkOutliers?: { text: string; x0: number; y0: number; x1: number; y1: number }[];
   previewDataUrl?: string;     // small preview retained for the report
   scannedAt: string;
 }

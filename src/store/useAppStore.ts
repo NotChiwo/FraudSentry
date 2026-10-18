@@ -18,6 +18,8 @@ interface AppState {
   theme: ThemeMode;
   toggleTheme: () => void;
   hasConsented: boolean;
+  /** which version of the privacy notice was accepted (see CONSENT_VERSION) */
+  consentVersion?: number;
   giveConsent: () => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
@@ -52,6 +54,13 @@ const systemTheme = (): ThemeMode => {
 // RA 10173 data minimisation: saved results hold names, numbers and message
 // text, so they are kept on this device for a limited time only. Anything
 // older than this is removed when the app loads and whenever history is saved.
+// Bump when the privacy notice changes, so everyone sees and accepts it again.
+// 2 = V8.6: training labels (numbers only) and the 30-day history expiry.
+export const CONSENT_VERSION = 2;
+/** Was the CURRENT privacy notice accepted? (An older one is shown again.) */
+export function acceptedCurrentNotice(p: { hasConsented?: boolean; consentVersion?: number } | null | undefined): boolean {
+  return !!p?.hasConsented && p.consentVersion === CONSENT_VERSION;
+}
 export const HISTORY_RETENTION_DAYS = 30;
 const MAX_TRAINING_ROWS = 5000;
 export function withinRetention<T extends { scannedAt: string }>(items: T[], now = Date.now()): T[] {
@@ -100,7 +109,7 @@ export const useAppStore = create<AppState>()(
       theme: systemTheme(),
       toggleTheme: () => set(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
       hasConsented: false,
-      giveConsent: () => set({ hasConsented: true }),
+      giveConsent: () => set({ hasConsented: true, consentVersion: CONSENT_VERSION }),
       sidebarCollapsed: false,
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
       imageScans: [],
@@ -131,7 +140,7 @@ export const useAppStore = create<AppState>()(
       // v0 → v1 only added retention; the shape is unchanged.
       migrate: (persisted) => persisted as AppState,
       partialize: (s) => ({
-        theme: s.theme, hasConsented: s.hasConsented,
+        theme: s.theme, hasConsented: s.hasConsented, consentVersion: s.consentVersion,
         imageScans: withinRetention(s.imageScans).map(stripHeavy),
         // training rows are numbers + a label only (no personal data), so they
         // are not subject to the history expiry
@@ -144,6 +153,8 @@ export const useAppStore = create<AppState>()(
         const p = (persisted ?? {}) as Partial<AppState>;
         return {
           ...current, ...p,
+          // a changed privacy notice is shown (and accepted) again
+          hasConsented: acceptedCurrentNotice(p),
           imageScans: withinRetention(p.imageScans ?? []),
           messageScans: withinRetention(p.messageScans ?? []),
           crossChecks: withinRetention(p.crossChecks ?? []),

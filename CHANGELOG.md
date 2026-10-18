@@ -1,5 +1,36 @@
 # Changelog
 
+## V8.6 — 2026-10-18
+
+### BPI online-banking receipts
+Tested on three real BPI receipts: two genuine ones (2024 and 2026 layouts) and a copy of the 2026 one with the date, confirmation number and recipient name **blurred**.
+- **(fix) False alarm on a genuine BPI receipt.** The 2024 receipt scored **High**: "Confirmation No." wasn't read as the reference, and the recipient under "Transfer to" wasn't found, so the app claimed the receipt "names NO recipient". It is now **Low**, with every field read.
+- **(fix)** On the 2026 layout, the headline "Transfer successful!" was taken as the recipient's name.
+- **Reading BPI receipts:** "Confirmation No." is the reference. The "Transfer to" block is read: the nickname "Juan (QR Code)", the bank's masked legal name "V•• JE•••O …" (OCR dots are read as mask bullets), and the masked account `xxxxxxxxxxx627`.
+- **New check — confirmation number ↔ time.** A BPI confirmation number is the moment of the transfer in milliseconds since 1970. On both genuine receipts it decodes to 2–3 seconds before the time shown (1710966602347 → Mar 21 2024 04:30:02, shown 04:30:05). Editing the date, the time or the number breaks this, which makes the result at least **High**. Only applied to BPI numbers that decode to a plausible date.
+- **New check — weekday ↔ date.** "Monday, Jun 29 2026" must really be a Monday. It applies to any receipt that prints a weekday. A mismatch makes the result at least **High**.
+- **New hint — text colour consistency.** A number typed over by an editor is usually a slightly different tint from the app's own text. The amount and long-reference lines are compared with the receipt's other text of the same size and darkness, with an allowance that adapts to each image's noise. A tint that recurs elsewhere is treated as a design colour. A suspicious line is outlined, and the result is at least **Medium** (a hint, not proof).
+- Hidden-detail wording now says "blurred or pixelated": blur is caught too, as on the blurred BPI copy.
+- After hidden details are found, a time read without its date (usually from the blurred date line) is no longer shown.
+
+**Measured (real BPI receipts plus edited copies made for this test; not a held-out set):**
+
+| Receipt | V8.5 | V8.6 |
+|---|---|---|
+| BPI 2024, genuine | **High** (false alarm) | Low |
+| BPI 2026, genuine | Low (wrong recipient) | Low (all fields right) |
+| BPI 2026, blurred copy | High | High: details hidden |
+| BPI 2026 with the date edited | Low | **High**: weekday + confirmation time |
+| BPI 2026 with the confirmation no. edited | Low | **High**: confirmation time |
+| BPI 2026 with the amount edited | Low | **Medium**: colour hint, line outlined |
+
+The colour hint raised **no false alarm on any of 43 clean / genuine images** (34 synthetic screenshots incl. busy app UI, 2 real BPI, 1 real GCash, 6 others).
+
+### Welcome screen
+- **(fix) The welcome / privacy-notice screen was shown only once.** After that, the app always opened on the dashboard. The notice now has a version: when it changes, which it did in V8.5–V8.6 (training labels, 30-day expiry), everyone sees it once more. It can also be opened any time from the footer ("Welcome screen") or the Privacy page, or by adding `#welcome` to the address (handy for a demo). "Back to FraudSentry" returns without re-accepting.
+
+Tests: 231 → **252** (`bpiReceipts.test.ts` with redacted real BPI OCR, `inkConsistency.test.ts`).
+
 ## V8.5 — 2026-10-18
 
 ### Train the Random Forest on real receipts
