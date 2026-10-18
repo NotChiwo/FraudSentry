@@ -1,5 +1,22 @@
 # Changelog
 
+## V8.5 — 2026-10-18
+
+### Train the Random Forest on real receipts
+Until now every scan was scored by a forest trained on the seeded **demonstration** dataset, so the Model page's metrics described made-up data.
+- **Label your scans.** The result page and every History receipt have **Genuine / Fake** buttons. A labelled scan keeps only the 10 numeric evidence values the forest scored and the label: no name, number, amount, reference or text. Labels aren't removed by the 30-day history expiry or "Delete all" (they have their own "Delete labels").
+- **Exact features.** Each scan now records the exact vector the forest scored (`forestAnalysis.features`), so training and scanning always use identical features. Scans saved before V8.5 are rebuilt from their evidence.
+- **Model page → "Use my labelled receipts".** It needs at least 20 receipts, with at least 5 of each kind. Training uses the usual seeded 70/30 split and reports metrics on the held-out 30 %.
+- **Kept after restart.** The connected model is rebuilt from the same rows when the app reopens (same rows + seeded split = the identical forest), and scans wait for it. The demo model never quietly comes back.
+- **History → "Download training CSV".** `tools/compare-versions.mjs --features` writes the same kind of CSV for a whole labelled folder in one run.
+
+### Offline build: OCR without internet (for defense day)
+- **`npm run build:offline` → `releases/FraudSentry-V8.5-offline.html` (11.4 MB).** It embeds the pinned Tesseract engine, its SIMD WebAssembly core and the English + Filipino data, and drops Google Fonts. Tested with **all network access blocked**: three receipts read exactly as online (confidence 95 / 78 / 94, same risk levels), ~6–8 s per scan, and **no network request made**.
+- The build fails if the embedded engine doesn't match `TESSERACT_SRI`. CI now builds it on every push.
+- The normal build is unchanged (1.36 MB; Tesseract from jsDelivr; none of the offline code is included).
+
+Tests: 220 → **231** (`trainingData.test.ts`). End-to-end in the built app: label a scan, train on the Model page, reload, and the labelled model is still the one used.
+
 ## V8.4 — 2026-10-15
 
 ### Hidden details are now caught (pixelated or covered fields)

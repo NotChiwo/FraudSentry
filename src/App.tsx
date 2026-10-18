@@ -13,6 +13,7 @@ import PrivacyPage from './pages/PrivacyPage';
 import AboutPage from './pages/AboutPage';
 import { useAppStore } from './store/useAppStore';
 import { warmUpSharedModel } from './engine/sharedModel';
+import { restoreLabelledModel } from './services/trainingData';
 import { ShieldCheck, AlertTriangle } from 'lucide-react';
 
 const PAGE_TITLE: Record<PageId, string> = Object.fromEntries(
@@ -35,6 +36,9 @@ export default function App() {
   // the first scan doesn't stall the page while it trains.
   useEffect(() => {
     if (!hasConsented) return;
+    // a model you trained on your own labelled scans replaces the demo one
+    const { labelledModel, trainingRows } = useAppStore.getState();
+    if (labelledModel) void restoreLabelledModel(trainingRows, labelledModel);
     const start = () => { void warmUpSharedModel(); };
     const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
     if (ric) ric(start, { timeout: 2500 }); else setTimeout(start, 800);

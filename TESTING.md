@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**220 / 220 passing** (V8.4).
+**231 / 231 passing** (V8.5).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -29,6 +29,7 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 - prefilled examples are still detected. |
 | `forensics.test.ts` | 10 | V8.3: editor signatures in PNG `tEXt`/`zTXt`/`iTXt` and WebP XMP, PNG `eXIf`, screenshot tags not mistaken for editors, `image/jpg`/`image/pjpeg` aliases, the shared metadata-consistency feature |
 | `hiddenFields.test.ts` | 13 | V8.4 hidden-detail detection: a clean receipt drawn in code (UI tints, pills, icon chips, green card) has no hidden areas; a reference pixelated with 6/10/14 px tiles and a pixelated name are found; black and ink-coloured cover boxes are found; the OCR of a **real** pixelated GCash receipt (name replaced) is judged "reference hidden" and its junk is no longer a name; no false alarm on any of the 13 real-OCR fixtures; region-on-reference and region-on-mobile-number mapping |
+| `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
@@ -239,6 +240,24 @@ Answers "is the new build better than the old one?" on evidence **you** collect.
 - the catch rate on edits made with real phone editors (Canva, PicsArt, the gallery's markup tool).
 
 **Known gaps:** blur (smooth, no tiles) is not detected by pixels. Only the text check can catch it, and only on the reference line. A box in a colour that matches the surrounding card is invisible by design.
+
+## 3c. Real-data training and offline OCR (V8.5)
+
+**Training on labelled scans, end to end in the built app (Chromium, 2026-10-18):**
+1. Scan a receipt and label it Genuine on the result page. The saved row holds only `id, features, label, addedAt`, and its features equal the vector the forest scored.
+2. History counts it (41 labelled: 21 genuine, 20 fake, with 40 pre-seeded rows).
+3. Model page → "Use my labelled receipts" → Train. Live scans then use "trained on your labelled receipts" (29 training rows = 70 % of 41).
+4. Reload the app. The same labelled model is in use again.
+
+**Offline build, all network blocked (Chromium, `file://`, 2026-10-18):**
+
+| Receipt | Online build | Offline build, no network |
+|---|---|---|
+| Synthetic GCash (PNG) | conf 95 · Low · GCash ₱1,500 · ref read | conf 95 · Low · same fields · 7.1 s |
+| Real pixelated GCash (JPEG) | conf 78 · High (details hidden) | conf 78 · High · 7.0 s |
+| Synthetic GCash (JPEG) | conf 94 · Low | conf 94 · Low · 6.2 s |
+
+Network requests attempted by the offline build: **none**. Safari/WebKit and Firefox were **not** tested for the offline build. Test it on the actual defense laptop and browser beforehand, with Wi-Fi off.
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

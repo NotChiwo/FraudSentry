@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ThemeMode, ImageScanResult, MessageScanResult, CrossEvidenceResult } from '../types';
+import { rowFromScan, type TrainingRow, type LabelledModelOptions } from '../services/trainingData';
 
 interface AppState {
   theme: ThemeMode;
@@ -33,6 +34,14 @@ interface AppState {
   /** Knowledge Base "try this" example waiting to be prefilled in Check Message (never persisted) */
   pendingExample: string | null;
   setPendingExample: (t: string | null) => void;
+  /** receipts you labelled genuine/fake for training — numbers only (see trainingData.ts) */
+  trainingRows: TrainingRow[];
+  /** label a scan (0 genuine, 1 fake), or remove its label (null) */
+  labelScan: (scan: ImageScanResult, label: 0 | 1 | null) => void;
+  clearTrainingRows: () => void;
+  /** when set, live scans use a forest trained on trainingRows with these settings */
+  labelledModel: LabelledModelOptions | null;
+  setLabelledModel: (o: LabelledModelOptions | null) => void;
 }
 
 // First visit follows the device's light/dark setting; after that the saved choice wins.
@@ -44,6 +53,7 @@ const systemTheme = (): ThemeMode => {
 // text, so they are kept on this device for a limited time only. Anything
 // older than this is removed when the app loads and whenever history is saved.
 export const HISTORY_RETENTION_DAYS = 30;
+const MAX_TRAINING_ROWS = 5000;
 export function withinRetention<T extends { scannedAt: string }>(items: T[], now = Date.now()): T[] {
   const cutoff = now - HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
   return items.filter(i => { const t = Date.parse(i.scannedAt); return isNaN(t) || t >= cutoff; });
@@ -105,6 +115,14 @@ export const useAppStore = create<AppState>()(
       removeCrossCheck: (id) => set(s => ({ crossChecks: s.crossChecks.filter(x => x.id !== id) })),
       pendingExample: null,
       setPendingExample: (t) => set({ pendingExample: t }),
+      trainingRows: [],
+      labelScan: (scan, label) => set(s => {
+        const rest = s.trainingRows.filter(r => r.id !== scan.id);
+        return { trainingRows: label === null ? rest : [...rest, rowFromScan(scan, label)].slice(-MAX_TRAINING_ROWS) };
+      }),
+      clearTrainingRows: () => set({ trainingRows: [], labelledModel: null }),
+      labelledModel: null,
+      setLabelledModel: (o) => set({ labelledModel: o }),
     }),
     {
       name: 'fraudsentry-v5-store',
@@ -115,6 +133,10 @@ export const useAppStore = create<AppState>()(
       partialize: (s) => ({
         theme: s.theme, hasConsented: s.hasConsented,
         imageScans: withinRetention(s.imageScans).map(stripHeavy),
+        // training rows are numbers + a label only (no personal data), so they
+        // are not subject to the history expiry
+        trainingRows: s.trainingRows,
+        labelledModel: s.labelledModel,
         messageScans: withinRetention(s.messageScans),
         crossChecks: withinRetention(s.crossChecks),
       }),

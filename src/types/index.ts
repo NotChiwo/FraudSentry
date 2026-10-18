@@ -92,9 +92,11 @@ export interface ForestAnalysis {
   probability: number;        // mean tree vote for "fraudulent" (0–1)
   votesFraud: number;         // trees that voted fraudulent
   totalTrees: number;
-  datasetSource: 'demo' | 'csv';
+  datasetSource: 'demo' | 'csv' | 'labelled';
   trainedAt: string;
   featureNames: string[];
+  /** the exact 10-value evidence vector that was scored (since V8.5) — reused as training data */
+  features?: number[];
 }
 
 export interface ImageScanResult {

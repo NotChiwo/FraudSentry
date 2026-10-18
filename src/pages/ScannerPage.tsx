@@ -13,6 +13,7 @@ import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../services/uploadValid
 import { locateFields, FieldBox } from '../services/fieldLocator';
 import { useAppStore } from '../store/useAppStore';
 import CameraScanner from '../components/CameraScanner';
+import TrainingLabel from '../components/training/TrainingLabel';
 import { ImageScanResult, ExtractedTransactionData, OcrResult, OcrWord, RiskLevel, VerificationFinding } from '../types';
 import { formatBytes, formatPHP, formatRelativeTime } from '../utils/helpers';
 
@@ -422,6 +423,7 @@ function ResultView(props: {
           <button type="button" className="btn-primary" onClick={() => generateImageReport(result)}><Download size={16} /> Download report</button>
           <button type="button" className="btn-secondary" onClick={onReset}><RefreshCw size={15} /> Check another</button>
         </div>
+        <div style={{ marginTop: 14 }}><TrainingLabel scan={result} /></div>
       </section>
 
       {/* 2 · what we read */}

@@ -46,6 +46,9 @@
 //                           tesseract.js-core@5.1.1 @tesseract.js-data/eng@1.0.0 \
 //                           @tesseract.js-data/fil@1.0.0 --ignore-scripts
 //   --timeout           seconds to wait for one scan before recording "timeout".
+//   --features          also write features-<build>.csv: the evidence vector each
+//                       scan was scored on + your label, ready for the Model page's
+//                       "Upload labelled CSV" (real training data for the forest).
 //
 // Requires playwright (not a project dependency): npm i -g playwright
 import fs from 'node:fs';
@@ -70,6 +73,7 @@ function parseArgs(argv) {
     else if (k === '--timeout') a.timeout = Number(v());
     else if (k === '--tesseract-mirror') a.mirror = path.resolve(v());
     else if (k === '--bypass-csp') a.bypassCsp = true;
+    else if (k === '--features') a.features = true;
     else if (k === '--headed') a.headed = true;
     else if (k === '-h' || k === '--help') { console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\nimport ')[0]); process.exit(0); }
     else die(`unknown option ${k} (see --help)`);
@@ -370,6 +374,9 @@ for (const build of args.builds) {
         ocr_available: String(scan.ocr?.available ?? ''),
         ocr_confidence: scan.ocr?.confidence ?? '',
         failed_findings: (scan.findings ?? []).filter(x => !x.passed).map(x => x.label).join('; '),
+        // the exact evidence vector the forest scored (V8.5+), for --features
+        _features: scan.forestAnalysis?.features ?? null,
+        _featureNames: scan.forestAnalysis?.featureNames ?? null,
       });
     } catch (e) {
       row.status = 'error';
@@ -398,6 +405,23 @@ if (msgRows.length) {
   const mcols = ['build', 'id', 'status', 'threat_level', 'risk_score', 'scam_type', 'error'];
   fs.writeFileSync(path.join(args.out, 'messages.csv'), [mcols.join(','), ...msgRows.map(r => mcols.map(c => csvCell(r[c])).join(','))].join('\n') + '\n');
 }
+// --features: one training CSV per build, from receipts whose truth you labelled.
+// Header = the build's own feature names + label (1 = fake, 0 = genuine); the
+// Model page's "Upload labelled CSV" accepts it and connects it to live scans.
+if (args.features) {
+  if (!labels.length) console.warn('--features needs --labels (the truth column is the training label)');
+  const L = new Map(labels.map(l => [l.file, l.truth?.toLowerCase()]));
+  for (const b of args.builds) {
+    const rs = rows.filter(r => r.build === b.name && r.status === 'ok' && r._features && (L.get(r.file) === 'genuine' || L.get(r.file) === 'fake'));
+    if (!rs.length) { console.warn(`--features: ${b.name} recorded no feature vectors (needs V8.5 or later)`); continue; }
+    const file = path.join(args.out, `features-${b.name.replace(/[^\w.-]+/g, '_')}.csv`);
+    const head = [...rs[0]._featureNames, 'label'].map(csvCell).join(',');
+    fs.writeFileSync(file, [head, ...rs.map(r => [...r._features, L.get(r.file) === 'fake' ? 1 : 0].join(','))].join('\n') + '\n');
+    const fakes = rs.filter(r => L.get(r.file) === 'fake').length;
+    console.log(`Wrote ${file} (${rs.length} rows: ${rs.length - fakes} genuine, ${fakes} fake)`);
+  }
+}
+
 const summary = summarise(args, args.builds, rows, labels, msgRows, messages);
 fs.writeFileSync(path.join(args.out, 'summary.md'), summary);
 console.log(`\n${summary}\nWrote ${path.join(args.out, 'results.csv')} and summary.md`);

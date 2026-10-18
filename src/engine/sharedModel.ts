@@ -23,7 +23,7 @@ import { RandomForest } from './randomForest';
 import type { ForestAnalysis } from '../types';
 import { FEATURE_SPECS, generateDemoDataset, isEvidenceSchema } from '../services/sampleDataset';
 
-export type ModelDatasetSource = 'demo' | 'csv';
+export type ModelDatasetSource = 'demo' | 'csv' | 'labelled';
 
 export interface SharedModelMeta {
   datasetSource: ModelDatasetSource;
@@ -66,8 +66,10 @@ function trainDefault() {
  * first scan doesn't freeze the page (training blocked the main thread for
  * ~1.2 s under 4x CPU throttling). Safe to call repeatedly.
  */
-export function warmUpSharedModel(): Promise<void> {
-  if (forest) return Promise.resolve();
+export async function warmUpSharedModel(): Promise<void> {
+  // a model being rebuilt from your labelled scans takes priority over the demo one
+  if (restoring) await restoring;
+  if (forest) return;
   if (!warming) {
     warming = (async () => {
       const ds = generateDemoDataset();
@@ -77,6 +79,18 @@ export function warmUpSharedModel(): Promise<void> {
     })().finally(() => { warming = null; });
   }
   return warming;
+}
+
+// The model you connected on the Model page from your own labelled scans is
+// rebuilt when the app opens (same rows + seeded split ⇒ the identical forest).
+// Scans wait for it via warmUpSharedModel, so none is scored by the demo model meanwhile.
+let restoring: Promise<void> | null = null;
+export function restoreSharedModel(build: () => Promise<{ rf: RandomForest; featureNames: string[]; info: Omit<SharedModelMeta, 'trainedAt'> } | null>): Promise<void> {
+  restoring = build()
+    .then(r => { if (r) setSharedModel(r.rf, r.featureNames, r.info); })
+    .catch(() => { /* keep whatever model is in place */ })
+    .finally(() => { restoring = null; });
+  return restoring;
 }
 
 function ensure(): { forest: RandomForest; meta: SharedModelMeta } {
@@ -121,6 +135,7 @@ export function scoreWithSharedModel(features: number[]): ForestAnalysis {
     datasetSource: m.datasetSource,
     trainedAt: m.trainedAt,
     featureNames: FEATURE_SPECS.map(f => f.label),
+    features: features.slice(),
   };
 }
 
@@ -129,4 +144,5 @@ export function resetSharedModelForTests() {
   forest = null;
   meta = null;
   warming = null;
+  restoring = null;
 }

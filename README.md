@@ -34,7 +34,8 @@ Retraining on the Detection Model page replaces the forest used by every future 
 npm install
 npm run typecheck     # tsc --noEmit — must report 0 errors
 npm test              # vitest — unit/regression suite
-npm run build         # → dist/index.html (~1.31 MB, self-contained) + dist/_headers
+npm run build         # → dist/index.html (~1.36 MB, self-contained) + dist/_headers
+npm run build:offline # → dist-offline/index.html (~11.4 MB): OCR works with no internet
 npm audit --omit=dev  # shipped (runtime) dependencies: must report 0 vulnerabilities
 ```
 
@@ -48,7 +49,13 @@ Plain `npm audit` currently also lists a build-time-only advisory (`vite-plugin-
 - `vitest` **≥ 4.1.11** (earlier versions carry a moderate advisory in `@vitest/mocker`).
 - `xlsx` and `react-router-dom` were removed as unused (they caused most of an earlier audit's high-severity findings). Do not re-add without a real need.
 
-### Tesseract (the only runtime dependency loaded from the network)
+### Offline build (use this on defense day)
+`npm run build:offline` (released as `releases/FraudSentry-V8.5-offline.html`) embeds the Tesseract engine, its WebAssembly core and the English + Filipino language data, and drops Google Fonts. It was verified with **all network access blocked**: receipts read the same as online and no request is made. It is ~11 MB because of the embedded engine.
+- The page's CSP adds `blob:` to `script-src` in this build only: the embedded engine is started from `blob:` URLs. The build fails if the embedded `tesseract.min.js` does not match `TESSERACT_SRI`.
+- A page opened from disk (`file://`) can't let a worker load other `blob:` URLs, so the worker's own source carries the fetch shim (serving the language data), the core and the worker script. Language data can't be handed to `createWorker` directly, because tesseract.js 5.1.1's `initialize` joins the data instead of the language codes.
+- Only the SIMD core is embedded (every current Chrome, Edge, Firefox and Safari 16.4+ has SIMD). Without SIMD, the core is fetched from jsDelivr as in the normal build.
+
+### Tesseract (the only runtime dependency loaded from the network in the normal build)
 `src/services/ocr.ts` loads `tesseract.js@5.1.1` from jsDelivr with a pinned **Subresource Integrity** hash (`TESSERACT_SRI`). If the version or URL ever changes, recompute it from the real package:
 ```bash
 npm pack tesseract.js@<version> && tar xzf tesseract.js-<version>.tgz
@@ -69,6 +76,7 @@ See **[TESTING.md](TESTING.md)** for what is verified, how, and what is still pe
 Developer tools in `tools/` (never part of the build):
 - `tools/ocr-corpus.html` + `tools/ocr-corpus.mjs` — run the app's real OCR pipeline in headless Chromium over a folder of screenshots to collect genuine, noisy OCR output for parser work.
 - `tools/redact-corpus.cjs` — turn that output into privacy-safe test fixtures (names/e-mails replaced, digits scrambled, OCR noise kept). Keep the raw corpus and the name list **out of the repository**.
+- `tools/compare-versions.mjs --features` — also writes `features-<build>.csv`: the evidence vector each receipt was scored on plus your label, ready for the Model page's "Upload labelled CSV" (real training data for the forest).
 - `tools/compare-versions.mjs` — run two built versions (e.g. V6 vs V8.3) over the same receipts and messages and score them against your own labels: fakes caught, false alarms on genuine receipts, field accuracy, message accuracy. How to use it: TESTING.md §3a.
 
 ---

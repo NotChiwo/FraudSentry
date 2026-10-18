@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { History, Download, Trash2, Inbox, ScanLine, MessageSquareWarning, GitCompareArrows, Search, HardDrive, X } from 'lucide-react';
+import { History, Download, Trash2, Inbox, ScanLine, MessageSquareWarning, GitCompareArrows, Search, HardDrive, X, Trees } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { generateImageReport, generateMessageReport } from '../services/reportGenerator';
-import { formatDateTime, formatRelativeTime, formatPHP } from '../utils/helpers';
-import { RiskLevel } from '../types';
+import { formatDateTime, formatRelativeTime, formatPHP, downloadBlob } from '../utils/helpers';
+import { RiskLevel, ImageScanResult } from '../types';
+import TrainingLabel from '../components/training/TrainingLabel';
+import { counts, readiness, rowsToCsv } from '../services/trainingData';
 
 type Kind = 'all' | 'receipt' | 'message' | 'cross';
 type LevelFilter = 'any' | 'risky';
 interface Row {
   id: string; kind: Exclude<Kind, 'all'>; title: string; meta: string; level: RiskLevel; when: string;
   search: string; onDownload?: () => void; onDelete: () => void;
+  /** receipts only: for the Genuine / Fake training label */
+  scan?: ImageScanResult;
 }
 
 const LEVEL_LABEL: Record<RiskLevel, string> = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' };
@@ -35,6 +39,9 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
   const [level, setLevel] = useState<LevelFilter>('any');
   const [q, setQ] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
+  const trainingRows = useAppStore(s => s.trainingRows);
+  const clearTrainingRows = useAppStore(s => s.clearTrainingRows);
+  const [confirmClearTraining, setConfirmClearTraining] = useState(false);
 
   const rows: Row[] = useMemo(() => {
     const r: Row[] = [
@@ -43,7 +50,7 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
         title: RECEIPT_TITLE[s.riskLevel],
         meta: [s.source !== 'Unknown' ? s.source : null, s.extracted.amount != null ? formatPHP(s.extracted.amount) : null, s.extracted.referenceNo ? `Ref ${s.extracted.referenceNo}` : null].filter(Boolean).join(' · ') || s.filename,
         search: [s.filename, s.source, s.extracted.referenceNo, s.extracted.receiverName, s.extracted.amount].join(' '),
-        onDownload: () => generateImageReport(s), onDelete: () => removeImageScan(s.id),
+        onDownload: () => generateImageReport(s), onDelete: () => removeImageScan(s.id), scan: s,
       })),
       ...messageScans.map(s => ({
         id: s.id, kind: 'message' as const, level: s.threatLevel, when: s.scannedAt,
@@ -78,6 +85,11 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
       </div>
 
       {rows.length === 0 ? (
+        <>
+        {trainingRows.length > 0 && (
+          <TrainingCard rows={trainingRows} onNavigate={onNavigate}
+            confirmClear={confirmClearTraining} setConfirmClear={setConfirmClearTraining} onClear={clearTrainingRows} />
+        )}
         <div className="card empty-state">
           <span className="empty-ico"><Inbox size={28} /></span>
           <h2>No checks yet</h2>
@@ -89,6 +101,7 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
             </div>
           )}
         </div>
+        </>
       ) : (
         <>
           <div className="history-tools">
@@ -110,6 +123,9 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
             </div>
           </div>
 
+          <TrainingCard rows={trainingRows} onNavigate={onNavigate}
+            confirmClear={confirmClearTraining} setConfirmClear={setConfirmClearTraining} onClear={clearTrainingRows} />
+
           <p className="muted small" aria-live="polite">{shown.length} of {rows.length} shown</p>
           <ul className="history-list">
             {shown.map(r => <HistoryRow key={r.id} row={r} />)}
@@ -120,7 +136,7 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
             <HardDrive size={20} aria-hidden="true" />
             <div>
               <b>Your data stays on this device.</b>
-              <p>History lives in this browser's local storage (up to the last 40 receipts and 40 messages). Clearing your browser data also removes it. Receipt images are not kept, only the details read from them.</p>
+              <p>History lives in this browser's local storage (up to the last 40 receipts and 40 messages). Clearing your browser data also removes it. Receipt images are not kept, only the details read from them. Training labels are kept separately (numbers only) and are not removed by “Delete all”.</p>
             </div>
             {confirmClear ? (
               <div className="confirm-row">
@@ -151,6 +167,7 @@ function HistoryRow({ row }: { row: Row }) {
         </div>
         <div className="hr-title">{row.title}</div>
         <div className="hr-meta">{row.meta}</div>
+        {row.scan && <TrainingLabel scan={row.scan} compact />}
       </div>
       <div className="hr-side">
         <time dateTime={row.when} title={formatDateTime(row.when)}>{formatRelativeTime(row.when)}</time>
@@ -167,5 +184,46 @@ function HistoryRow({ row }: { row: Row }) {
         </div>
       </div>
     </li>
+  );
+}
+
+function TrainingCard(props: {
+  rows: ReturnType<typeof useAppStore.getState>['trainingRows'];
+  onNavigate?: (p: string) => void;
+  confirmClear: boolean; setConfirmClear: (v: boolean) => void; onClear: () => void;
+}) {
+  const c = counts(props.rows);
+  const ready = readiness(props.rows);
+  return (
+    <section className="card training-card" aria-labelledby="training-title">
+      <div className="tc-head">
+        <Trees size={20} aria-hidden="true" />
+        <h2 id="training-title" className="section-title" style={{ margin: 0 }}>Training data for the Random Forest</h2>
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>
+        Mark each checked receipt <b>Genuine</b> or <b>Fake</b> (what it really is, not what the app said). The forest then learns from real evidence instead of the demonstration data.
+        Only the 10 evidence numbers and your label are kept — no names, account numbers or amounts — and they stay on this device even after history is cleared.
+      </p>
+      <div className="tc-counts" aria-live="polite">
+        <span><b>{c.total}</b> labelled</span><span><b>{c.genuine}</b> genuine</span><span><b>{c.fake}</b> fake</span>
+        <span>{ready.message}</span>
+      </div>
+      <div className="tc-actions">
+        <button type="button" className="btn-primary" disabled={!ready.ok} onClick={() => props.onNavigate?.('model')}><Trees size={15} /> Train on the Model page</button>
+        <button type="button" className="btn-secondary" disabled={c.total === 0}
+          onClick={() => downloadBlob(rowsToCsv(props.rows), `fraudsentry-training-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv')}>
+          <Download size={15} /> Download training CSV
+        </button>
+        {c.total > 0 && (props.confirmClear ? (
+          <span className="confirm-row">
+            <span>Delete all {c.total} labels?</span>
+            <button type="button" className="btn-ghost danger" onClick={() => { props.onClear(); props.setConfirmClear(false); }}>Yes, delete</button>
+            <button type="button" className="btn-ghost" onClick={() => props.setConfirmClear(false)}>Cancel</button>
+          </span>
+        ) : (
+          <button type="button" className="btn-ghost danger" onClick={() => props.setConfirmClear(true)}><Trash2 size={15} /> Delete labels</button>
+        ))}
+      </div>
+    </section>
   );
 }
