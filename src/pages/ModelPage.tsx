@@ -12,6 +12,8 @@ import {
 } from '../services/sampleDataset';
 import { setSharedModel, getSharedModelMeta, onSharedModelChange, SharedModelMeta } from '../engine/sharedModel';
 import { formatDateTime } from '../utils/helpers';
+import { useAppStore } from '../store/useAppStore';
+import { datasetFromRows, readiness } from '../services/trainingData';
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -39,7 +41,12 @@ const PRESET_TAMPERED = [42, 0, 1, 61, 0, 0, 1, 1, 3, 55];
 
 export default function ModelPage() {
   const [dataset, setDataset] = useState<Dataset>(() => generateDemoDataset());
-  const [datasetSource, setDatasetSource] = useState<'demo' | 'uploaded'>('demo');
+  const [datasetSource, setDatasetSource] = useState<'demo' | 'uploaded' | 'labelled'>('demo');
+  const trainingRows = useAppStore(s => s.trainingRows);
+  const setLabelledModel = useAppStore(s => s.setLabelledModel);
+  const labelledReady = readiness(trainingRows);
+  // the exact rows loaded, so reopening the app rebuilds this very model
+  const labelledIds = useRef<string[]>([]);
   const [nTrees, setNTrees] = useState(40);
   const [maxDepth, setMaxDepth] = useState(9);
 
@@ -94,10 +101,14 @@ export default function ModelPage() {
     setModel(rf); setMetrics(m); setImportances(rf.importances);
     // Connect this forest to every FUTURE scan — only possible when it was
     // trained on the same 10 evidence features the scanner produces.
-    setWired(setSharedModel(rf, dataset.featureNames, {
-      datasetSource: datasetSource === 'demo' ? 'demo' : 'csv',
+    const connected = setSharedModel(rf, dataset.featureNames, {
+      datasetSource: datasetSource === 'demo' ? 'demo' : datasetSource === 'labelled' ? 'labelled' : 'csv',
       nTrees, maxDepth, trainRows: train.y.length,
-    }));
+    });
+    setWired(connected);
+    // Only a model trained on your labelled scans is kept across app restarts
+    // (rebuilt from the same rows with the same seeded split).
+    if (connected) setLabelledModel(datasetSource === 'labelled' ? { nTrees, maxDepth, rowIds: labelledIds.current } : null);
     setPhase('done');
   }
 
@@ -110,6 +121,13 @@ export default function ModelPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that CSV.');
     }
+  }
+
+  function loadLabelled() {
+    if (!labelledReady.ok) { setError(labelledReady.message); return; }
+    labelledIds.current = trainingRows.map(r => r.id);
+    setDataset(datasetFromRows(trainingRows)); setDatasetSource('labelled');
+    setPhase('idle'); setModel(null); setMetrics(null); setError(''); setWired(null);
   }
 
   function resetToDemo() {
@@ -142,6 +160,8 @@ export default function ModelPage() {
         <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
           {datasetSource === 'demo'
             ? <>The loaded data is a <strong style={{ color: 'var(--text-primary)' }}>demonstration dataset</strong> — synthetically generated (seeded, reproducible) to validate the model pipeline end-to-end. It is not real collected fraud data. For your thesis results, upload your own labelled CSV of authentic vs. fraudulent evidence and the same pipeline produces your real numbers.</>
+            : datasetSource === 'labelled'
+            ? <>Training on <strong style={{ color: 'var(--text-primary)' }}>your {dataset.y.length} labelled receipts</strong> — real evidence from your own scans. Metrics below are computed on a held-out 30% test split. With few receipts these figures move a lot between datasets: report the counts (TP / FP / TN / FN) with them.</>
             : <>Training on your <strong style={{ color: 'var(--text-primary)' }}>uploaded dataset</strong>. Metrics below are computed on a held-out 30% test split of this data.</>}
         </div>
       </div>
@@ -151,7 +171,7 @@ export default function ModelPage() {
         <Link2 size={15} color="var(--accent-light)" style={{ flexShrink: 0 }} />
         <span>
           <strong style={{ color: 'var(--text-primary)' }}>Model used by live Transaction Checks:</strong>{' '}
-          {liveMeta.datasetSource === 'demo' ? 'demonstration-trained' : 'trained on your uploaded evidence CSV'} · {liveMeta.nTrees} trees · depth {liveMeta.maxDepth} · {liveMeta.trainRows} training rows · since {formatDateTime(liveMeta.trainedAt)}
+          {liveMeta.datasetSource === 'demo' ? 'demonstration-trained' : liveMeta.datasetSource === 'labelled' ? 'trained on your labelled receipts (kept after restart)' : 'trained on your uploaded evidence CSV'} · {liveMeta.nTrees} trees · depth {liveMeta.maxDepth} · {liveMeta.trainRows} training rows · since {formatDateTime(liveMeta.trainedAt)}
         </span>
       </div>
 
@@ -163,7 +183,7 @@ export default function ModelPage() {
             <Database size={16} color="var(--accent-light)" />
             <span style={{ fontSize: 14, fontWeight: 700 }}>Dataset</span>
             <span className={`badge ${datasetSource === 'demo' ? 'badge-medium' : 'badge-accent'}`} style={{ marginLeft: 'auto' }}>
-              {datasetSource === 'demo' ? 'Demonstration' : 'Uploaded CSV'}
+              {datasetSource === 'demo' ? 'Demonstration' : datasetSource === 'labelled' ? 'My labelled receipts' : 'Uploaded CSV'}
             </span>
           </div>
 
@@ -182,8 +202,9 @@ export default function ModelPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+            <button className="btn-secondary" onClick={loadLabelled} disabled={trainingRows.length === 0} title={labelledReady.message}><Database size={14} /> Use my labelled receipts ({trainingRows.length})</button>
             <button className="btn-secondary" onClick={() => csvRef.current?.click()}><Upload size={14} /> Upload labelled CSV</button>
-            {datasetSource === 'uploaded' && <button className="btn-ghost" onClick={resetToDemo}><RefreshCw size={13} /> Back to demo data</button>}
+            {datasetSource !== 'demo' && <button className="btn-ghost" onClick={resetToDemo}><RefreshCw size={13} /> Back to demo data</button>}
             <input ref={csvRef} type="file" accept=".csv,text/csv" hidden onChange={e => { const f = e.target.files?.[0]; if (f) onCsv(f); e.target.value = ''; }} />
           </div>
           {error && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--accent-red)', display: 'flex', gap: 6, alignItems: 'center' }}><AlertTriangle size={13} /> {error}</div>}

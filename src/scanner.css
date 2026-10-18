@@ -147,6 +147,7 @@
 .field-box:nth-of-type(2) { animation-delay: .1s } .field-box:nth-of-type(3) { animation-delay: .2s } .field-box:nth-of-type(4) { animation-delay: .3s }
 @keyframes box-in { from { opacity: 0; transform: scale(1.25) } to { opacity: 1; transform: none } }
 .fb-amount { --fb: #34d399; } .fb-reference { --fb: #a99bff; } .fb-date { --fb: #60a5fa; } .fb-recipient { --fb: #fbbf24; }
+.fb-hidden { --fb: #f87171; border-style: dashed; }
 .fb-tag { position: absolute; left: -2px; bottom: 100%; margin-bottom: 3px; font-size: 12px; font-weight: 800; color: #0b1222; background: var(--fb); padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
 .toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--accent); }

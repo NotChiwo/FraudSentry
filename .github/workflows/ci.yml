@@ -27,3 +27,11 @@ jobs:
           name: fraudsentry-single-file
           path: dist/index.html
           retention-days: 14
+      # offline build: OCR engine + language data embedded (also checks the
+      # embedded engine's hash against TESSERACT_SRI)
+      - run: npm run build:offline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fraudsentry-offline
+          path: dist-offline/index.html
+          retention-days: 14

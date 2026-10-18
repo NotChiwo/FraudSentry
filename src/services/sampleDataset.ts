@@ -21,6 +21,7 @@
 import Papa from 'papaparse';
 import { Dataset, makeRng } from '../engine/randomForest';
 import { EvidenceSource, ExtractedTransactionData, ForensicReport, ImageScanResult, OcrResult } from '../types';
+import { declaredTypeMatches, plausiblePhoneAspect } from './imageForensics';
 
 export interface FeatureSpec {
   key: string;
@@ -42,7 +43,7 @@ export const FEATURE_SPECS: FeatureSpec[] = [
   { key: 'institution_known', label: 'Institution known',  description: 'The issuing bank / e-wallet was identified from the text (1 = yes).', min: 0, max: 1, kind: 'binary' },
   { key: 'amount_present',  label: 'Amount present',       description: 'A clearly formatted peso amount was detected (1 = yes).', min: 0, max: 1, kind: 'binary' },
   { key: 'failed_signals',  label: 'Failed checks',        description: 'How many forensic/structure checks did not pass (0–6).', min: 0, max: 6, kind: 'count' },
-  { key: 'metadata_consistency', label: 'Metadata consistency', description: 'How internally consistent the file metadata is (higher = cleaner).', min: 0, max: 100, kind: 'percent' },
+  { key: 'metadata_consistency', label: 'Metadata consistency', description: 'File-metadata checks that passed: 100, minus 40 for a spoofed container, 40 for an editor signature and 20 for non-screen dimensions.', min: 0, max: 100, kind: 'percent' },
 ];
 
 export const CLASS_NAMES: [string, string] = ['Legitimate', 'Fraudulent'];
@@ -75,8 +76,9 @@ export function generateDemoDataset(n = 440, seed = 7): Dataset {
         bern(0.60),                                   // institution known
         bern(0.80),                                   // amount present
         Math.round(clamp(gauss(2.4, 1.2), 0, 6)),     // failed checks (more)
-        clamp(gauss(58, 18), 0, 100),                 // metadata consistency (lower)
+        0,                                            // metadata consistency — derived below
       ];
+      row[9] = metadataConsistency({ containerMismatch: !!bern(0.08), editor: row[2] === 1, oddGeometry: !!bern(0.35) });
     } else {
       row = [
         clamp(gauss(9, 6), 0, 100),
@@ -88,8 +90,9 @@ export function generateDemoDataset(n = 440, seed = 7): Dataset {
         bern(0.92),
         bern(0.95),
         Math.round(clamp(gauss(0.5, 0.7), 0, 6)),
-        clamp(gauss(90, 8), 0, 100),
+        0,
       ];
+      row[9] = metadataConsistency({ containerMismatch: !!bern(0.01), editor: row[2] === 1, oddGeometry: !!bern(0.08) });
     }
     // ~6% label noise — keeps the problem realistic (no perfect separation)
     let label = fraud;
@@ -150,7 +153,6 @@ export function buildFeatureVector(
   failedChecks: number,
 ): number[] {
   const refValid = extracted.referenceNo ? (/^[A-Z0-9]{8,20}$/i.test(extracted.referenceNo.replace(/\s/g, '')) ? 1 : 0) : 0;
-  const metadataConsistency = clampPct(100 - (forensics.elaHotspotPct ?? 0) - (forensics.editorSoftware ? 25 : 0));
   return [
     forensics.elaHotspotPct ?? 0,
     forensics.hasExif ? 1 : 0,
@@ -161,7 +163,11 @@ export function buildFeatureVector(
     source !== 'Unknown' ? 1 : 0,
     extracted.amount != null ? 1 : 0,
     Math.min(6, failedChecks),
-    metadataConsistency,
+    metadataConsistency({
+      containerMismatch: !!forensics.sniffType && !declaredTypeMatches(forensics.declaredType === 'unknown' ? '' : forensics.declaredType, forensics.sniffType),
+      editor: !!forensics.editorSoftware,
+      oddGeometry: !!forensics.width && !!forensics.height && !plausiblePhoneAspect(forensics.width, forensics.height),
+    }),
   ];
 }
 
@@ -170,6 +176,15 @@ export function featureVectorFromScan(scan: ImageScanResult): number[] {
     scan.findings.filter(s => !s.passed).length);
 }
 function clampPct(x: number) { return Math.max(0, Math.min(100, Math.round(x))); }
+
+// ONE definition of the metadata-consistency feature, used both to generate
+// the demonstration training rows and to score live scans — so the model is
+// never trained on a feature that means something different at scan time.
+// It deliberately excludes ELA (already feature 1) and progressive JPEG / EXIF,
+// which V8 measured as normal on genuine chat-forwarded images.
+export function metadataConsistency(m: { containerMismatch: boolean; editor: boolean; oddGeometry: boolean }): number {
+  return clampPct(100 - (m.containerMismatch ? 40 : 0) - (m.editor ? 40 : 0) - (m.oddGeometry ? 20 : 0));
+}
 
 // ---- Does a dataset describe the SAME 10 evidence features the scanner produces? ----
 // Only such a model may be connected to live scans. A CSV with other columns

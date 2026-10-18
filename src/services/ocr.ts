@@ -22,6 +22,7 @@
 import { OcrResult, OcrWord } from '../types';
 import { scaledSize, enhancePixels, binarizePixels } from './ocrFilters';
 import PrepWorker from './ocrPreprocess.worker?worker&inline';
+import * as offline from 'virtual:ocr-offline';
 
 const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
 // Subresource Integrity hash of the EXACT pinned file above. Computed from the
@@ -30,6 +31,48 @@ const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tess
 // browser will (correctly) refuse to execute the script.
 const TESSERACT_SRI = 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F';
 declare global { interface Window { Tesseract?: any } }
+
+// ── Offline build (npm run build:offline): the engine runs from embedded copies ──
+// tesseract.min.js and its worker (with the WebAssembly core inside) start from blob: URLs.
+// The language data is served to the worker by a tiny fetch shim placed in front
+// of the worker script, under a made-up https://fraudsentry.offline/ URL, so no
+// request ever leaves the device. (Passing the data to createWorker directly is
+// broken in tesseract.js 5.1.1: its initialize step joins the data, not the codes.)
+const OFFLINE = offline.available;
+const OFFLINE_LANG = 'https://fraudsentry.offline/lang';
+let offlineUrls: { tesseract: string; worker: string } | null = null;
+function simdSupported(): boolean {
+  try {   // the same probe wasm-feature-detect uses for SIMD
+    return WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]));
+  } catch { return false; }
+}
+function offlineAssetUrls() {
+  if (offlineUrls) return offlineUrls;
+  const blobUrl = (src: string) => URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  const shim = `(() => {
+    const data = { eng: ${JSON.stringify(offline.engGzBase64)}, fil: ${JSON.stringify(offline.filGzBase64)} };
+    const real = self.fetch.bind(self);
+    self.fetch = (u, o) => {
+      const prefix = ${JSON.stringify(OFFLINE_LANG + '/')};
+      const lang = typeof u === 'string' && u.startsWith(prefix) ? u.slice(prefix.length).replace('.traineddata.gz', '') : '';
+      if (!data[lang]) return real(u, o);
+      const bin = atob(data[lang]); const a = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      return Promise.resolve(new Response(a));
+    };
+  })();\n`;
+  // A page opened as a local file (file://) can't let a worker load ANY other
+  // blob URL, so the worker's own source carries everything: the shim, the
+  // WebAssembly core (Tesseract skips loading one when TesseractCore already
+  // exists) and the worker script. Only the SIMD core is embedded (every current
+  // browser has SIMD); without SIMD the worker fetches its core from jsDelivr.
+  const core = simdSupported() ? offline.coreSimdLstmJs + '\n' : '';
+  offlineUrls = { tesseract: blobUrl(offline.tesseractJs), worker: blobUrl(shim + core + offline.workerJs) };
+  return offlineUrls;
+}
+const workerOptions = () => (OFFLINE
+  ? { workerPath: offlineAssetUrls().worker, workerBlobURL: false, langPath: OFFLINE_LANG, cacheMethod: 'none' }
+  : {});
 
 let loaderPromise: Promise<any> | null = null;
 let workerPromise: Promise<any> | null = null;
@@ -46,8 +89,13 @@ function loadTesseract(timeoutMs = 20000): Promise<any> {
   if (loaderPromise) return loaderPromise;
   loaderPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = TESSERACT_CDN; s.async = true;
-    s.integrity = TESSERACT_SRI; s.crossOrigin = 'anonymous'; s.referrerPolicy = 'no-referrer';
+    if (OFFLINE) {
+      // embedded copy: its hash was checked against TESSERACT_SRI at build time
+      s.src = offlineAssetUrls().tesseract; s.async = true;
+    } else {
+      s.src = TESSERACT_CDN; s.async = true;
+      s.integrity = TESSERACT_SRI; s.crossOrigin = 'anonymous'; s.referrerPolicy = 'no-referrer';
+    }
     // A failed load must NOT stay cached — otherwise "Retry scan" could never
     // succeed after the connection comes back (it would replay the old rejection).
     const fail = (msg: string) => {
@@ -95,10 +143,10 @@ async function getWorker(T: any): Promise<any | null> {
     if (typeof T.createWorker !== 'function') return null;
     let worker: any;
     try {
-      worker = await T.createWorker('eng+fil', 1, { logger });
+      worker = await T.createWorker('eng+fil', 1, { logger, ...workerOptions() });
       workerLangs = 'eng+fil';
     } catch {
-      try { worker = await T.createWorker('eng', 1, { logger }); workerLangs = 'eng'; }
+      try { worker = await T.createWorker('eng', 1, { logger, ...workerOptions() }); workerLangs = 'eng'; }
       catch { return null; }
     }
     try {
@@ -214,7 +262,7 @@ async function recognise(T: any, worker: any | null, image: OcrSource, withWords
     const { data } = await worker.recognize(image, {}, withWords ? { text: true, blocks: true } : undefined);
     return pick(data);
   }
-  const { data } = await T.recognize(image, workerLangs, {});
+  const { data } = await T.recognize(image, workerLangs, workerOptions());
   return pick(data);
 }
 

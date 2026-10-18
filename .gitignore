@@ -1,6 +1,7 @@
 # dependencies & build output (reproducible: npm install / npm run build)
 node_modules/
 dist/
+dist-offline/
 
 # old V6 build kept locally for reference only (its OCR is broken — see CHANGELOG)
 FraudSentry-V6.html
@@ -20,3 +21,6 @@ Thumbs.db
 *.log
 .env
 .env.*
+
+# output of tools/compare-versions.mjs (holds text read from real receipts)
+compare-out/

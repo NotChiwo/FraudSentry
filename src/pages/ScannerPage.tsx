@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
-  ScanLine, UploadCloud, FileImage, X, RefreshCw, Download, AlertTriangle, CheckCircle2, ShieldAlert,
-  Pencil, Camera, ClipboardPaste, ChevronDown, Info, WifiOff, Copy, ShieldCheck, Smartphone, Clock,
+  ScanLine, FileImage, X, RefreshCw, Download, AlertTriangle, CheckCircle2, ShieldAlert,
+  Pencil, Camera, ClipboardPaste, ChevronDown, Info, WifiOff, Copy, Smartphone, Clock,
   Eye, ScanText, Sparkles, Square,
 } from 'lucide-react';
 import { analyzeTransactionImage } from '../engine/imageVerification';
@@ -13,17 +13,24 @@ import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../services/uploadValid
 import { locateFields, FieldBox } from '../services/fieldLocator';
 import { useAppStore } from '../store/useAppStore';
 import CameraScanner from '../components/CameraScanner';
+import TrainingLabel from '../components/training/TrainingLabel';
 import { ImageScanResult, ExtractedTransactionData, OcrResult, OcrWord, RiskLevel, VerificationFinding } from '../types';
 import { formatBytes, formatPHP, formatRelativeTime } from '../utils/helpers';
 
 // Plain-language verdicts. The technical label (legitimacyLabel) still goes in the PDF report.
 export const VERDICT: Record<RiskLevel, { title: string; level: string; Icon: typeof CheckCircle2 }> = {
-  low:      { title: 'No signs of editing found', level: 'Low risk', Icon: CheckCircle2 },
+  low:      { title: 'No problems found by these checks', level: 'Low risk', Icon: CheckCircle2 },
   medium:   { title: "Some details don't add up", level: 'Medium risk', Icon: AlertTriangle },
   high:     { title: 'Suspicious — verify before trusting', level: 'High risk', Icon: AlertTriangle },
   critical: { title: 'Likely fake — do not accept', level: 'Critical risk', Icon: ShieldAlert },
 };
 const LEVELS: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
+/** The verdict for this result — hidden details get their own, clearer title. */
+export function verdictFor(r: ImageScanResult) {
+  const v = VERDICT[r.riskLevel];
+  const hidden = r.findings.some(f => !f.passed && f.label === 'Hidden or Blocked-Out Details');
+  return hidden && r.riskLevel !== 'critical' ? { ...v, title: 'Details are hidden — cannot be verified' } : v;
+}
 
 type Phase = 'idle' | 'selected' | 'scanning' | 'complete';
 type Step = 'image' | 'engine' | 'read' | 'score';
@@ -171,7 +178,7 @@ export default function ScannerPage() {
       )}
 
       <div className="sr-only" aria-live="polite">
-        {phase === 'scanning' && live ? stepAnnouncement(live) : phase === 'complete' && result ? `Result: ${VERDICT[result.riskLevel].title}. ${VERDICT[result.riskLevel].level}.` : ''}
+        {phase === 'scanning' && live ? stepAnnouncement(live) : phase === 'complete' && result ? `Result: ${verdictFor(result).title}. ${verdictFor(result).level}.` : ''}
       </div>
 
       {error && (
@@ -362,8 +369,8 @@ function topFailures(r: ImageScanResult): VerificationFinding[] {
 }
 function oneLineReason(r: ImageScanResult): string {
   const top = topFailures(r)[0];
-  if (!top) return 'We read the receipt and none of our checks found a sign of editing or a missing detail.';
-  if (r.riskLevel === 'low') return `None of the checks found a serious problem. Minor note: ${top.label.toLowerCase()}.`;
+  if (!top) return 'None of our checks found a problem. That doesn’t prove the receipt is genuine — only your own app can confirm the money arrived.';
+  if (r.riskLevel === 'low') return `None of our checks found a serious problem (minor note: ${top.label.toLowerCase()}). That doesn’t prove the receipt is genuine.`;
   return `${top.label}: ${firstSentence(top.detail)}`;
 }
 
@@ -375,7 +382,7 @@ function ResultView(props: {
   const { result, preview, editing, editData, setEditing, setEditData, onReanalyze, onReset } = props;
   const [howOpen, setHowOpen] = useState(false);
   const [showBoxes, setShowBoxes] = useState(true);
-  const v = VERDICT[result.riskLevel];
+  const v = verdictFor(result);
   const app = result.source === 'Unknown' ? 'bank or e-wallet' : result.source;
   const failures = topFailures(result);
   const validation = useMemo(
@@ -385,6 +392,7 @@ function ResultView(props: {
   const vmap: Record<string, FieldCheck | undefined> = {};
   validation?.checks.forEach(c => { vmap[c.key] = c; });
   const boxes = useMemo(() => locateFields(result.ocr.words, result.extracted), [result]);
+  const hiddenAreas = result.forensics.obscuredRegions ?? [];
   const size = result.ocr.imageSize;
 
   return (
@@ -415,6 +423,7 @@ function ResultView(props: {
           <button type="button" className="btn-primary" onClick={() => generateImageReport(result)}><Download size={16} /> Download report</button>
           <button type="button" className="btn-secondary" onClick={onReset}><RefreshCw size={15} /> Check another</button>
         </div>
+        <div style={{ marginTop: 14 }}><TrainingLabel scan={result} /></div>
       </section>
 
       {/* 2 · what we read */}
@@ -459,7 +468,7 @@ function ResultView(props: {
         <section className="card pad">
           <div className="row-between">
             <h2 className="section-title"><Eye size={18} /> Where we read it</h2>
-            {boxes.length > 0 && (
+            {(boxes.length > 0 || hiddenAreas.length > 0) && (
               <label className="toggle"><input type="checkbox" checked={showBoxes} onChange={e => setShowBoxes(e.target.checked)} /> Highlights</label>
             )}
           </div>
@@ -471,8 +480,14 @@ function ResultView(props: {
                 width: `${((b.x1 - b.x0) / size.w) * 100}%`, height: `${((b.y1 - b.y0) / size.h) * 100}%`,
               }}><span className="fb-tag">{b.label}</span></span>
             ))}
+            {showBoxes && size && hiddenAreas.map((r, i) => (
+              <span key={`hidden-${i}`} className="field-box fb-hidden" style={{
+                left: `${(r.x / size.w) * 100}%`, top: `${(r.y / size.h) * 100}%`,
+                width: `${(r.w / size.w) * 100}%`, height: `${(r.h / size.h) * 100}%`,
+              }}><span className="fb-tag">{r.kind === 'pixelated' ? 'Pixelated' : 'Covered'}</span></span>
+            ))}
           </div>
-          <p className="muted small">{boxes.length ? 'Outlined: where each detail was read on your screenshot.' : 'Details were read, but their exact position on the image could not be pinned down.'}</p>
+          <p className="muted small">{hiddenAreas.length ? 'Red dashed outline: an area that was pixelated or covered after the receipt was made. ' : ''}{boxes.length ? 'Outlined: where each detail was read on your screenshot.' : 'Details were read, but their exact position on the image could not be pinned down.'}</p>
         </section>
       </div>
 

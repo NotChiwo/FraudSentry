@@ -12,8 +12,8 @@ const render = (initialId?: string) => renderToStaticMarkup(createElement(Knowle
 const count = (html: string, re: RegExp) => (html.match(re) || []).length;
 
 describe('Knowledge Base data contract', () => {
-  it('has 10 entries, each with a quick rule, list hint, basis and ≤4 flags/tips', () => {
-    expect(ENTRIES).toHaveLength(10);
+  it('has 13 entries, each with a quick rule, list hint, basis and ≤4 flags/tips', () => {
+    expect(ENTRIES).toHaveLength(13);
     for (const e of ENTRIES) {
       expect(e.quickRule.length, e.id).toBeGreaterThan(10);
       expect(e.hint.length, e.id).toBeGreaterThan(5);
@@ -38,9 +38,9 @@ describe('Knowledge Base data contract', () => {
 });
 
 describe('rendered page', () => {
-  it('renders all 10 scam types as tabs, with exactly one selected', () => {
+  it('renders all 13 scam types as tabs, with exactly one selected', () => {
     const html = render();
-    expect(count(html, /role="tab"/g)).toBe(10);
+    expect(count(html, /role="tab"/g)).toBe(13);
     for (const e of ENTRIES) expect(html, e.id).toContain(`id="kb-tab-${e.id}"`);
     expect(count(html, /aria-selected="true"/g)).toBe(1);
   });
@@ -78,7 +78,7 @@ describe('list logic', () => {
   it('filter matches name, hint and quick rule; nonsense matches nothing', () => {
     expect(filterEntries(ENTRIES, 'otp').map(e => e.id)).toContain('otp');
     expect(filterEntries(ENTRIES, 'customs').map(e => e.id)).toEqual(['parcel']);
-    expect(filterEntries(ENTRIES, '  ')).toHaveLength(10);
+    expect(filterEntries(ENTRIES, '  ')).toHaveLength(ENTRIES.length);
     expect(filterEntries(ENTRIES, 'zzqqxx')).toEqual([]);
   });
   it('arrow keys wrap; Home/End jump; other keys do nothing', () => {

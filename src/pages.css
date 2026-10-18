@@ -122,3 +122,17 @@
 .device-card > div { flex: 1; min-width: 220px; font-size: 15px; color: var(--text-primary); }
 .device-card p { margin: 4px 0 0; font-size: 14px; color: var(--text-secondary); }
 .confirm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--text-secondary); }
+
+/* Training labels (V8.5) */
+.train-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
+.train-label .tl-q { font-weight: 600; color: var(--text-primary); }
+.tl-btn { min-height: 36px; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--border-input); background: var(--bg-input); color: var(--text-secondary); font: inherit; font-weight: 650; cursor: pointer; }
+.train-label.compact .tl-btn { min-height: 32px; padding: 4px 11px; font-size: 12.5px; }
+.tl-btn:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 2px; }
+.tl-genuine.on { background: color-mix(in srgb, #10b981 22%, transparent); border-color: #10b981; color: var(--text-primary); }
+.tl-fake.on { background: color-mix(in srgb, #ef4444 22%, transparent); border-color: #ef4444; color: var(--text-primary); }
+.tl-note { font-size: 12px; color: var(--text-muted); }
+.training-card { display: grid; gap: 10px; padding: 18px; margin: 12px 0; }
+.training-card .tc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.training-card .tc-counts { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
+.training-card .tc-actions { display: flex; gap: 8px; flex-wrap: wrap; }

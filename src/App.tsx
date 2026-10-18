@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Sidebar, { PageId, useIsMobile, NAV_GROUPS } from './components/layout/Sidebar';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import ConsentGate from './components/consent/ConsentGate';
 import HomePage from './pages/HomePage';
 import ScannerPage from './pages/ScannerPage';
@@ -12,6 +13,7 @@ import PrivacyPage from './pages/PrivacyPage';
 import AboutPage from './pages/AboutPage';
 import { useAppStore } from './store/useAppStore';
 import { warmUpSharedModel } from './engine/sharedModel';
+import { restoreLabelledModel } from './services/trainingData';
 import { ShieldCheck, AlertTriangle } from 'lucide-react';
 
 const PAGE_TITLE: Record<PageId, string> = Object.fromEntries(
@@ -34,6 +36,9 @@ export default function App() {
   // the first scan doesn't stall the page while it trains.
   useEffect(() => {
     if (!hasConsented) return;
+    // a model you trained on your own labelled scans replaces the demo one
+    const { labelledModel, trainingRows } = useAppStore.getState();
+    if (labelledModel) void restoreLabelledModel(trainingRows, labelledModel);
     const start = () => { void warmUpSharedModel(); };
     const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
     if (ric) ric(start, { timeout: 2500 }); else setTimeout(start, 800);
@@ -78,7 +83,8 @@ export default function App() {
         </header>
 
         <main id="main" ref={mainRef} tabIndex={-1} className="app-main" aria-label={PAGE_TITLE[page]}>
-          <div key={page} className="page-enter">
+          <ErrorBoundary key={page} onHome={() => navigate('home')}>
+          <div className="page-enter">
             {page === 'home'      && <HomePage onNavigate={navigate} />}
             {page === 'scanner'   && <ScannerPage />}
             {page === 'analyzer'  && <MessageAnalyzerPage />}
@@ -89,6 +95,7 @@ export default function App() {
             {page === 'privacy'   && <PrivacyPage />}
             {page === 'about'     && <AboutPage />}
           </div>
+          </ErrorBoundary>
         </main>
 
         <footer className="site-footer">

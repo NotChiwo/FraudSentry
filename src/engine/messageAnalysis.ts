@@ -73,6 +73,18 @@ const RULES: PatternRule[] = [
   { keyword: /\b(by mistake|nagkamali|na-?wrong send|maling (number|numero)|wrong number)\b.{0,90}\b(refund|return|(paki-?)?balik|ibalik|send back|i-?send)\b/i, reason: 'The "accidental wrong send — please return it" script: scammers send money from stolen accounts and ask you to "refund" it to a different number, making you the money mule.', weight: 0.36, scamType: 'Wrong-Send Refund Scam', severity: 'critical' },
   // Medium on purpose: honest buyers say this too — the point is to verify first.
   { keyword: /\b(already paid|paid na( po)?|bayad na( po)?|nagbayad na|sent na( po)?)\b.{0,80}\b(ship|deliver|send the (item|order)|ipadala|i-?ship)\b/i, reason: 'Says payment is done and pushes you to ship right away — the classic fake-proof-of-payment setup. A screenshot proves nothing; check that the money is in YOUR account first.', weight: 0.22, scamType: 'Marketplace Scam', severity: 'medium' },
+  // ── Government impersonation (fake LTO fines, toll, ayuda) ──
+  // The LTO has said it does not send violation notices by SMS or chat; DSWD
+  // does not send application links for financial aid.
+  { keyword: /\b(unpaid|outstanding|overdue|unsettled)\b.{0,40}\b(traffic violations?|toll(?: fees?)?|ncap|fines?|penalt(?:y|ies))\b/i, reason: 'Claims you have an unpaid traffic violation, toll or fine. The LTO has said it does not send violation notices by text or chat — these messages lead to fake payment pages.', weight: 0.30, scamType: 'Government Impersonation', severity: 'high' },
+  { keyword: /\b(license suspension|suspension of (?:your )?licen[cs]e|alarm block|plate (?:number )?(?:block|hold)|registration (?:block|hold))\b/i, reason: 'Threatens a licence suspension or an "alarm block" on your vehicle to force a quick payment — the wording used in fake LTO messages.', weight: 0.26, scamType: 'Government Impersonation', severity: 'high' },
+  { keyword: /\b(ayuda|financial assistance|cash assistance|calamity assistance|akap|tupad)\b.{0,60}\b(click|link|register|i-?claim|claim|fee|bayad)\b/i, reason: 'Offers government aid ("ayuda") through a link or for a fee. DSWD does not send application links for financial assistance, and real aid never requires a fee.', weight: 0.30, scamType: 'Government Impersonation', severity: 'high' },
+  // ── Money-mule recruitment (renting / buying your account) ──
+  { keyword: /\b(rent(?:ing|ahan)?|renta(?:han)?|paupahan|borrow|hiramin|hiram|buy(?:ing)?|bibilhin|bilhin|sell(?:ing)?|benta(?:han)?|ibenta)\b.{0,25}\b(gcash|maya|e-?wallet|bank)\s*(?:accounts?|acct)\b/i, reason: 'Offers to rent, borrow or buy an e-wallet or bank account. This is money muling — the account is used to move stolen money, and lending, renting or selling it is a crime under the Anti-Financial Account Scamming Act (RA 12010), with up to 14 years in prison.', weight: 0.38, scamType: 'Money Mule Recruitment', severity: 'critical' },
+  // ── "Scan this QR to receive the money" ──
+  { keyword: /\b(scan|i-?scan)\b.{0,30}\bqr\b.{0,50}\b(receive|matanggap|makuha|ma-?receive|refund)\b|\b(to receive|para (?:ma)?tanggap|para makuha|para ma-?receive)\b.{0,40}\b(scan|i-?scan)\b.{0,20}\bqr\b/i, reason: 'Asks you to scan a QR code to RECEIVE money. Receiving money never requires scanning a QR or entering your PIN — scanning a payment QR sends money FROM your account. Ask the payer to send to your number instead.', weight: 0.32, scamType: 'QR Payment Scam', severity: 'high' },
+  // ── SIM / e-wallet "re-registration" phishing (DICT advisory) ──
+  { keyword: /\b(sim|e-?wallet|gcash|maya)\b.{0,25}\b(re-?register\w*|re-?verify|will be (?:blocked|deactivated)|deactivat\w+|reactivat\w+)\b.{0,50}\b(link|click|tap|http|www\.)/i, reason: 'Says your SIM or e-wallet must be re-registered or will be deactivated, and points you to a link — a phishing pattern the DICT has warned about. Re-registration is never done through a messaged link.', weight: 0.28, scamType: 'Phishing', severity: 'high' },
 ];
 
 const SHORTENERS = /(bit\.ly|tinyurl\.com|t\.co|is\.gd|cutt\.ly|shorturl|rb\.gy|ow\.ly|buff\.ly|rebrand\.ly|short\.io|s\.id|linktr\.ee)/i;
@@ -95,7 +107,24 @@ const BRANDS: Brand[] = [
   { label: 'RCBC',          token: /\brcbc\b/i,               domains: ['rcbc.com'] },
   { label: 'GoTyme',        token: /\bgo\s?tyme\b/i,          domains: ['gotyme.com.ph'] },
   { label: 'PayPal',        token: /\bpaypal\b/i,             domains: ['paypal.com'] },
+  // added in V7.1 — each domain checked against the institution's own site
+  { label: 'MariBank',      token: /\b(mari|sea)\s?bank\b/i,   domains: ['maribank.ph'] },
+  { label: 'CIMB',          token: /\bcimb\b/i,               domains: ['cimbbank.com.ph'] },
+  { label: 'Chinabank',     token: /\bchina\s?bank\b/i,       domains: ['chinabank.ph'] },
+  { label: 'EastWest',      token: /\beast\s?west\b/i,        domains: ['eastwestbanker.com'] },
+  { label: 'PSBank',        token: /\bpsbank\b/i,             domains: ['psbank.com.ph'] },
+  { label: 'AUB',           token: /\b(aub|asia united bank)\b/i, domains: ['aub.com.ph'] },
+  { label: 'Tonik',         token: /\btonik\b/i,              domains: ['tonikbank.com'] },
+  { label: 'UNO Digital Bank', token: /\buno\s?(digital\s)?bank\b/i, domains: ['uno.bank'] },
+  { label: 'UnionDigital',  token: /\bunion\s?digital\b/i,    domains: ['uniondigitalbank.io'] },
+  { label: 'OFBank',        token: /\b(ofbank|overseas filipino bank)\b/i, domains: ['ofbank.com.ph'] },
+  { label: 'Coins.ph',      token: /\bcoins\.?ph\b/i,         domains: ['coins.ph'] },
 ];
+
+// Government agencies: every official site ends in .gov.ph (the LTO portal is
+// portal.lto.gov.ph). A message naming an agency that links anywhere else is
+// impersonating it.
+const GOV_AGENCY = /\b(LTO|MMDA|BIR|SSS|PhilHealth|Pag-?IBIG|DSWD|DICT|NBI|PNP|DFA|PSA|LTFRB|Bangko Sentral)\b/;
 
 const ALL_OFFICIAL = BRANDS.flatMap(b => b.domains);
 function isOfficialHost(host: string): boolean {
@@ -107,10 +136,10 @@ function hostOf(raw: string): string {
   catch { return url.toLowerCase(); }
 }
 
-interface LinkAnalysis { links: LinkFinding[]; extraScore: number; phishing: boolean; }
+interface LinkAnalysis { links: LinkFinding[]; extraScore: number; phishing: boolean; government: boolean; }
 
 // Brand names as they appear inside look-alike hosts ("gcash-verify.com", "mybpi-rewards.top").
-const BRAND_IN_HOST = /(gcash|paymaya|maya|bpi|bdo|unionbank|metrobank|landbank|securitybank|pnb|rcbc|gotyme|paypal)/i;
+const BRAND_IN_HOST = /(gcash|paymaya|maya|bpi|bdo|unionbank|metrobank|landbank|securitybank|pnb|rcbc|gotyme|paypal|maribank|seabank|cimb|chinabank|eastwest|psbank|tonik|unobank|uniondigital|ofbank)/i;
 
 // Links written with a scheme or "www.", PLUS bare domains ("lbc-ph.top/pay"),
 // which scam SMS use constantly. A bare domain is only treated as a link when it
@@ -134,6 +163,7 @@ function analyzeLinks(text: string): LinkAnalysis {
   const links: LinkFinding[] = [];
   let extra = 0;
   let phishing = false;
+  let government = false;
 
   for (const raw of urls) {
     const url = raw.replace(/[.,)]+$/, '');
@@ -143,6 +173,13 @@ function analyzeLinks(text: string): LinkAnalysis {
     if (isOfficialHost(host)) {
       links.push({ url, reason: 'Resolves to an official banking/e-wallet domain. Still only log in through the app, never through a messaged link.', severity: 'low' });
       continue;
+    }
+
+    // 2a) Message names a government agency, but the link is not a .gov.ph site.
+    const agency = text.match(GOV_AGENCY);
+    if (agency && !host.endsWith('.gov.ph')) {
+      links.push({ url, reason: `The message claims to be from ${agency[1]}, but "${host}" is not a government site — every official Philippine government website ends in ".gov.ph". Government agencies do not send payment or claim links by text or chat. This is a phishing link.`, severity: 'critical' });
+      extra += 0.6; phishing = true; government = true; continue;
     }
 
     // 2) Message names a bank/e-wallet, but the link is NOT its official site.
@@ -184,7 +221,7 @@ function analyzeLinks(text: string): LinkAnalysis {
     extra += 0.05;
   }
 
-  return { links, extraScore: Math.min(0.85, extra), phishing };
+  return { links, extraScore: Math.min(0.85, extra), phishing, government };
 }
 
 function detectPlatformFromText(text: string): MessagePlatform {
@@ -240,7 +277,7 @@ export function analyzeMessageText(rawText: string, platformHint?: MessagePlatfo
     }
   }
 
-  const { links, extraScore, phishing } = analyzeLinks(text);
+  const { links, extraScore, phishing, government } = analyzeLinks(text);
 
   let riskScore = matched.reduce((s, m) => s + m.rule.weight, 0) + extraScore;
   riskScore = 1 - Math.exp(-riskScore * 1.35);   // saturating curve (strong single signals still register)
@@ -255,7 +292,7 @@ export function analyzeMessageText(rawText: string, platformHint?: MessagePlatfo
 
   // Link-derived scam type (a critical phishing link should classify the message).
   const linkExtra: { type: ScamType; weight: number }[] = [];
-  if (links.some(l => l.severity === 'critical')) linkExtra.push({ type: 'Phishing', weight: 0.6 });
+  if (links.some(l => l.severity === 'critical')) linkExtra.push({ type: government ? 'Government Impersonation' : 'Phishing', weight: 0.6 });
   else if (links.some(l => l.severity === 'high')) linkExtra.push({ type: 'Phishing', weight: 0.32 });
   const scamType = pickScamType(matched.map(m => m.rule), linkExtra);
 

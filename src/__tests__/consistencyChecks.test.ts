@@ -95,3 +95,23 @@ describe('receipt date plausibility', () => {
     }
   });
 });
+
+describe('reconciliation without a fee line (GCash Send Money layout)', () => {
+  const gap = (n: number) => ' '.repeat(n);
+  it('flags an edited total when no fee is printed (real OCR spacing)', () => {
+    const pass = `Sent via GCash\nAmount${gap(54)}1,500.00\nTotal Amount Sent${gap(25)}P15000.00`;
+    expect(reconcileAmounts([pass, pass, pass.replace('P15000', '£15000')], 1500).status).toBe('mismatch');
+  });
+  it('flags a total below the amount', () => {
+    expect(reconcileAmounts(['Amount 2,000.00\nTotal Amount Sent ₱200.00'], 2000).status).toBe('mismatch');
+  });
+  it('a small gap may be an unread fee — not flagged', () => {
+    expect(reconcileAmounts(['Amount 500.00\nTotal 515.00'], 500).status).toBe('unknown');
+  });
+  it('amount = total with no fee is not flagged', () => {
+    expect(reconcileAmounts(['Amount 160.00\nTotal Amount Sent ₱160.00'], 160).status).toBe('unknown');
+  });
+  it('is not judged when the amount is not on an "Amount" row (parser fallback)', () => {
+    expect(reconcileAmounts(['Paid 1,500.00\nTotal 9,000.00'], 1500).status).toBe('unknown');
+  });
+});

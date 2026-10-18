@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import {
   MessageSquareWarning, Type, ImagePlus, Loader2, Download, RefreshCw,
-  AlertTriangle, CheckCircle2, ShieldAlert, Link2, ListChecks, Highlighter, X, Info,
+  AlertTriangle, CheckCircle2, ShieldAlert, Link2, ListChecks, Highlighter, Info,
 } from 'lucide-react';
 import { analyzeMessageText } from '../engine/messageAnalysis';
 import { runOcr } from '../services/ocr';

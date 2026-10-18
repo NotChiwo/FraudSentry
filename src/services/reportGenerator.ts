@@ -126,7 +126,7 @@ export function generateImageReport(scan: ImageScanResult) {
     y = kv(doc, y, 'Rule-based findings score', `${Math.round((scan.heuristicScore ?? 0) * 100)}%`);
     y = kv(doc, y, 'Random Forest probability', `${Math.round(fa.probability * 100)}% (${fa.votesFraud} of ${fa.totalTrees} trees voted fraudulent)`);
     y = kv(doc, y, 'Final risk (50% + 50%)', `${Math.round(scan.riskScore * 100)}%`);
-    y = kv(doc, y, 'Forest training data', fa.datasetSource === 'demo' ? 'seeded demonstration dataset (not real collected evidence)' : 'uploaded labelled evidence dataset');
+    y = kv(doc, y, 'Forest training data', fa.datasetSource === 'demo' ? 'seeded demonstration dataset (not real collected evidence)' : fa.datasetSource === 'labelled' ? 'your labelled scans (real evidence)' : 'uploaded labelled evidence dataset');
     y += 3;
   }
 
