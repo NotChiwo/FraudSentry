@@ -27,7 +27,7 @@ let kv: KV = browserKV;
 export function setSessionKV(k: KV) { kv = k; }
 export const sessionKV = () => kv;
 
-const pick = (s: UserData): UserData => ({ imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, manualTransactions: s.manualTransactions, alerts: s.alerts, alertLevel: s.alertLevel });
+const pick = (s: UserData): UserData => ({ imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, manualTransactions: s.manualTransactions, alerts: s.alerts, alertLevel: s.alertLevel, reports: s.reports });
 
 // ── saving ───────────────────────────────────────────────────
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -64,6 +64,7 @@ export const useSession = create<SessionState>()((set, get) => ({
         messageScans: [...data.messageScans, ...legacy.messageScans],
         crossChecks: [...data.crossChecks, ...legacy.crossChecks],
         manualTransactions: data.manualTransactions,
+        reports: data.reports,
         alerts: [...data.alerts, ...legacy.alerts],
         alertLevel: saved?.alertLevel ?? legacy.alertLevel,
       });
@@ -100,6 +101,7 @@ useAppStore.subscribe((now, before) => {
       newIds(now.messageScans, before.messageScans).forEach(m => log('message-checked', `${m.id} ${m.threatLevel}`));
     }
     newIds(now.manualTransactions, before.manualTransactions).forEach(t => log('transaction-entered', `${t.id} ${t.riskLevel}`));
+    newIds(now.reports, before.reports).forEach(r => log('report-generated', `${r.reportType}, ${r.scope === 'all' ? 'all users' : 'own records'}, ${r.periodFrom} to ${r.periodTo}`));
     const had = before.imageScans.length + before.messageScans.length + before.crossChecks.length + before.manualTransactions.length;
     if (had > 0 && !now.imageScans.length && !now.messageScans.length && !now.crossChecks.length && !now.manualTransactions.length) log('history-cleared', `${had} records`);
     else if (before.alerts.length > 0 && now.alerts.length === 0) log('alerts-cleared', `${before.alerts.length} alerts`);

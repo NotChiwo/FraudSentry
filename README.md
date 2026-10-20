@@ -16,6 +16,7 @@ FraudSentry lets Filipino users check whether a GCash / Maya / GoTyme / MariBank
 | **Accounts** — local sign-in, admin / user roles, lock-out, per-user encrypted history | `src/components/auth/AuthGate.tsx`, `src/pages/AccountPage.tsx` | `src/services/accounts.ts`, `vaultCrypto.ts`, `src/store/useSession.ts` |
 | **Administration** — users, per-user overview and records, tamper-evident activity log, settings | `src/pages/AdminPage.tsx` | `src/services/accounts.ts`, `auditLog.ts` |
 | **Transactions** — every payment checked (receipt or typed details), transaction type, outcome (received / not received, which is also the training label), filters, CSV | `src/pages/TransactionsPage.tsx` | `src/engine/transactionCheck.ts`, `transactionTypeOf()` in `receiptParser.ts` |
+| **Reports** — summary / detailed reports for a period (own or all users), classification vs confirmed outcome, breakdowns, saved, PDF / CSV | `src/pages/FraudReportsPage.tsx` | `src/services/fraudReports.ts`, `generateFraudReportPdf()` in `reportGenerator.ts` |
 | **Alerts** — an alert for every High / Critical check (level adjustable), unread / read, alert history; fields follow the ERD's ALERT table | `src/pages/AlertsPage.tsx`, `src/components/alerts/AlertToast.tsx` | `src/services/alerts.ts`, stored by `src/store/useAppStore.ts` |
 | **Detection Model** — train / evaluate the Random Forest live; model registry, ROC-AUC, rules-vs-forest McNemar test | `src/pages/ModelPage.tsx` | `src/engine/randomForest.ts` (from scratch), `src/engine/sharedModel.ts` |
 
@@ -54,7 +55,7 @@ Plain `npm audit` currently also lists a build-time-only advisory (`vite-plugin-
 - `xlsx` and `react-router-dom` were removed as unused (they caused most of an earlier audit's high-severity findings). Do not re-add without a real need.
 
 ### Offline build (use this on defense day)
-`npm run build:offline` (released as `releases/FraudSentry-V9.1-offline.html`) embeds the Tesseract engine, its WebAssembly core and the English + Filipino language data, and drops Google Fonts. It was verified with **all network access blocked**: receipts read the same as online and no request is made. It is ~11 MB because of the embedded engine.
+`npm run build:offline` (released as `releases/FraudSentry-V9.2-offline.html`) embeds the Tesseract engine, its WebAssembly core and the English + Filipino language data, and drops Google Fonts. It was verified with **all network access blocked**: receipts read the same as online and no request is made. It is ~11 MB because of the embedded engine.
 - The page's CSP adds `blob:` to `script-src` in this build only: the embedded engine is started from `blob:` URLs. The build fails if the embedded `tesseract.min.js` does not match `TESSERACT_SRI`.
 - A page opened from disk (`file://`) can't let a worker load other `blob:` URLs, so the worker's own source carries the fetch shim (serving the language data), the core and the worker script. Language data can't be handed to `createWorker` directly, because tesseract.js 5.1.1's `initialize` joins the data instead of the language codes.
 - Only the SIMD core is embedded (every current Chrome, Edge, Firefox and Safari 16.4+ has SIMD). Without SIMD, the core is fetched from jsDelivr as in the normal build.

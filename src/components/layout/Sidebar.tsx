@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import {
   Home, ScanLine, MessageSquareWarning, GitCompareArrows, BookOpen, History, Info, Lock,
-  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X, Bell, UserCog, ReceiptText,
+  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X, Bell, UserCog, ReceiptText, FileBarChart,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { unreadCount } from '../../services/alerts';
 import { useSession } from '../../store/useSession';
 
-export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'reports' | 'alerts' | 'privacy' | 'about' | 'admin' | 'account' | 'transactions';
+export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'reports' | 'alerts' | 'privacy' | 'about' | 'admin' | 'account' | 'transactions' | 'fraudreports';
 
 interface NavItem { id: PageId; label: string; icon: LucideIcon; sub: string; adminOnly?: boolean }
 interface NavGroup { title: string; items: NavItem[]; note?: string }
@@ -22,6 +22,7 @@ export const NAV_GROUPS: NavGroup[] = [
     { id: 'reports',  label: 'History',        icon: History,              sub: 'Your checks, on this device' },
     { id: 'transactions', label: 'Transactions', icon: ReceiptText,        sub: 'Payments and whether they arrived' },
     { id: 'alerts',   label: 'Alerts',         icon: Bell,                 sub: 'Warnings from your checks' },
+    { id: 'fraudreports', label: 'Reports',    icon: FileBarChart,         sub: 'Summary & detailed reports' },
   ] },
   { title: 'Learn', items: [
     { id: 'knowledge', label: 'Scam Knowledge Base', icon: BookOpen, sub: 'Common PH scams' },

@@ -18,6 +18,7 @@ import AuthGate, { ForcePasswordChange } from './components/auth/AuthGate';
 import AdminPage from './pages/AdminPage';
 import AccountPage from './pages/AccountPage';
 import TransactionsPage from './pages/TransactionsPage';
+import FraudReportsPage from './pages/FraudReportsPage';
 import { useSession, sessionKV } from './store/useSession';
 import { accountSettings } from './services/accounts';
 import { useAppStore } from './store/useAppStore';
@@ -140,6 +141,7 @@ export default function App() {
             {shown === 'reports'   && <ReportsPage onNavigate={navigate} />}
             {shown === 'alerts'    && <AlertsPage onNavigate={navigate} />}
             {shown === 'transactions' && <TransactionsPage onNavigate={navigate} />}
+            {shown === 'fraudreports' && <FraudReportsPage />}
             {shown === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {shown === 'about'     && <AboutPage />}
             {shown === 'admin'     && <AdminPage />}

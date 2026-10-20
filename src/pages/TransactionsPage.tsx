@@ -9,6 +9,7 @@ import { checkTransaction, toExtracted, describeTransaction, type TransactionInp
 import { KNOWN_SOURCES, TRANSACTION_TYPES, type TransactionType } from '../services/receiptParser';
 import type { PriorScan } from '../services/historyMatch';
 import { formatDateTime, formatPHP, downloadBlob, classificationOf, CLASSIFICATION_LABEL } from '../utils/helpers';
+import { phDay } from '../services/fraudReports';
 import type { EvidenceSource, RiskLevel, TransactionStatus, Classification } from '../types';
 
 const LEVEL: Record<RiskLevel, string> = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' };
@@ -65,7 +66,7 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
   const shown = rows.filter(r =>
     (status === 'all' || r.status === status) && (cls === 'all' || r.classification === cls) &&
     (source === 'all' || r.source === source) && (type === 'all' || r.type === type) &&
-    (!from || r.when.slice(0, 10) >= from) && (!to || r.when.slice(0, 10) <= to) &&
+    (!from || phDay(r.when) >= from) && (!to || phDay(r.when) <= to) &&
     (!q.trim() || [r.source, r.type, r.amount, r.reference, r.receiver].join(' ').toLowerCase().includes(q.trim().toLowerCase())));
   const count = (st: TransactionStatus) => rows.filter(r => r.status === st).length;
   const sources = [...new Set(rows.map(r => r.source))].sort();

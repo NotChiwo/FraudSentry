@@ -1,5 +1,22 @@
 # Changelog
 
+## V9.2 — 2026-10-20
+
+### Fraud detection reports (thesis Module 5, REPORT table)
+- **New Reports page.** Generate a **summary** or **detailed** report for today, the last 7 or 30 days, this month or a custom range. Administrators can report on **all users** of the device; the report then includes a per-user breakdown.
+- **What a report contains:**
+  - **Counts:** checks by kind (receipts, typed transactions, messages, cross-evidence), the classification (possibly fraudulent / legitimate), risk levels, and payment outcomes (pending / received / not received).
+  - **Classification vs what really happened:** caught, missed, false alarms and correct results, with accuracy, precision and recall, based on the outcomes users confirmed in their own accounts.
+  - **Totals and breakdowns:** the claimed amount in flagged payments; breakdowns by bank / e-wallet, transaction type, most common warning signs, and which models scored the receipts; alerts.
+  - **A plain-language description** of the findings (REPORT.description).
+  - **Detailed reports only:** a table of every check in the period.
+- **Saved and reopenable.** Reports are stored in the generating user's encrypted vault (`report_id`, `user_id`, `report_type`, `description`, `generated_date`), expire after 30 days with the history, and can be reopened, downloaded as **PDF** or **CSV**, or deleted.
+- Report periods use Philippine dates (UTC+8), as do the Transactions date filters.
+- The receipt PDF now also prints the classification, the model that scored it and the confirmed outcome.
+- Generating a report is written to the activity log.
+
+Tests: 299 → **306** (`fraudReports.test.ts`).
+
 ## V9.1 — 2026-10-20
 
 ### Transactions (thesis Module 2)

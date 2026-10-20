@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**299 / 299 passing** (V9.1).
+**306 / 306 passing** (V9.2).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -32,6 +32,7 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
 | `bpiReceipts.test.ts` | 16 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; confirmation number ↔ time and weekday ↔ date are consistent on both genuine receipts, and an edited date, time or confirmation number is caught; the blurred copy's reference reads as hidden; privacy-notice versioning |
 | `inkConsistency.test.ts` | 5 | V8.6 repaint hint on receipts drawn in code: one ink → consistent; amount line in a bluer ink → reported; a recurring design tint → not reported; non-amount lines never judged; too few words → unknown |
+| `fraudReports.test.ts` | 7 | V9.2: period-only counts by kind, classification, risk and outcome; classification vs confirmed outcome (TP / FP / TN / FN, accuracy, precision, recall); breakdowns by app, type, warning sign, model, alerts; plain-language description (and "no checks"); summary vs detailed with typed transactions and CSV; all-users report with per-user counts; saved reports expire after 30 days |
 | `evaluation.test.ts` | 12 | V9.1: ROC-AUC (perfect, guessing, reversed, ties, one class), ROC curve area = AUC, demo forest AUC > 0.85; McNemar exact binomial (hand-computed p), no or balanced disagreement, χ² with continuity correction; rules vs forest vs combined on the same held-out receipts with a significant improvement, rows without a rule score left out; a labelled scan keeps its rule score and floor; blend and classification threshold; model versions, names and which models can be reactivated |
 | `transactions.test.ts` | 8 | V9.1: typed details (consistent → Low; wrong-shape or missing reference; future date ≥ High; edited copy of an earlier check; BPI confirmation time); transaction type from receipt wording; "received / not received" sets a receipt's training label and pending removes it; typed-details transactions never train the model and raise an alert that is removed with them |
 | `accounts.test.ts` | 11 | V9.0 accounts: first account is the administrator and no password is stored; sign-in (username case-insensitive), wrong password, unknown user; lock-out after 5 wrong passwords (even the right password is refused while locked), 5 → 10 minutes, reset on success; username / password rules; admin-created user must change the temporary password; standard users cannot administer; sign-up only when allowed; password reset keeps the user's data; roles, disable, unlock, delete, always one administrator; a vault is unreadable to another user but readable by an administrator; the activity log records events without passwords and its hash chain detects an edited or removed entry |
@@ -335,6 +336,17 @@ Run in the built app (Chromium), starting from a V8.7 device with one saved scam
 | Train on 61 labelled receipts | registered as "RF v1 · labelled receipts (61 rows)", ROC-AUC and ROC curve shown, now used by scans |
 | Rules vs forest vs combined (seeded synthetic labels) | McNemar exact p = 0.031 → H₀ rejected (the test data was made to differ; this checks the mechanics, not a finding) |
 | Switch back to the demonstration model | scans use RF v0 again |
+
+## 3h. Reports in the built app (V9.2)
+
+| Step | Result |
+|---|---|
+| Cashier enters a ₱1,500 GCash payment and marks it received | stored in the cashier's vault |
+| Owner enters ₱2,000 with ref 8041241631871, then ₱20,000 with the same ref | the second is an edited copy (Earlier Check Comparison): possibly fraudulent, alert |
+| Owner marks the ₱20,000 not received and the ₱2,000 received; detailed report, all users | "3 checks … 1 (33.3%) was classified possibly fraudulent, involving ₱20,000.00 … the classification matched it in 3 (100%) …"; per-user table owner 2 / cashier1 1 |
+| PDF | valid PDF, 2 pages: findings, key figures, classification vs outcome, by app / type / warning sign / user, every check |
+| Sign out, reload, sign in | the saved report is still listed |
+| Activity log | report generation and typed transactions logged |
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

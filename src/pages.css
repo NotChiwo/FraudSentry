@@ -205,3 +205,19 @@
   background: var(--bg-subtle); border: 1px solid var(--border-default); border-left: 4px solid var(--sev); }
 .tx-form label { font-size: 13px; }
 .admin-msg.neutral { background: var(--bg-subtle); border-color: var(--border-default); }
+
+/* ── Reports (V9.2) ─────────────────────────────────────────── */
+.report-form { display: flex; flex-wrap: wrap; gap: 16px; }
+.report-fs { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.report-fs legend { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; padding: 0; }
+.report-fs .filter-btn { display: inline-flex; align-items: center; gap: 6px; }
+.report-dates { display: flex; gap: 8px; flex-wrap: wrap; }
+.report-desc { margin: 0; font-size: 15px; line-height: 1.6; color: var(--text-primary); padding: 12px 14px; border-radius: 12px; background: var(--bg-subtle); border: 1px solid var(--border-default); }
+.report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.report-view .how-h { margin: 6px 0 8px; }
+.admin-table th[scope=row] { text-align: left; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--text-primary); }
+.bar-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bar-list li { display: grid; grid-template-columns: 80px 1fr 40px; gap: 10px; align-items: center; font-size: 13px; color: var(--text-secondary); }
+.bar-track { height: 10px; border-radius: 99px; background: var(--bg-input); overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--sev); }
+.bar-value { text-align: right; color: var(--text-primary); font-weight: 700; }
