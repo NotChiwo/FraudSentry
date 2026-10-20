@@ -1,0 +1,122 @@
+name: Apps
+
+# Builds the installable apps from the offline single-file build:
+#   • Android APK (Capacitor) — and checks on an emulator that it starts
+#   • Windows installer + portable .exe, macOS .dmg, Linux AppImage (Electron)
+# Download them from the run's "Artifacts". Pushing a tag such as v10.0.0
+# also attaches them to a GitHub Release.
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:offline
+      - uses: actions/upload-artifact@v4
+        with: { name: web-offline, path: dist-offline/index.html, retention-days: 7 }
+
+  android:
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: web-offline, path: dist-offline }
+      - run: npx cap sync android
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk FraudSentry-android.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: FraudSentry-android-apk, path: FraudSentry-android.apk, retention-days: 30 }
+
+  # Installs the APK on an Android emulator and checks, through the WebView's
+  # debugging socket, that the FraudSentry page loaded from inside the app.
+  android-smoke:
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: FraudSentry-android-apk }
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash tools/android-smoke.sh FraudSentry-android.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: android-smoke-screenshot, path: android-smoke.png, if-no-files-found: ignore, retention-days: 14 }
+
+  desktop:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: desktop/package-lock.json }
+      - uses: actions/download-artifact@v4
+        with: { name: web-offline, path: dist-offline }
+      - run: npm ci
+        working-directory: desktop
+      - run: npm run dist
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # unsigned builds (no code-signing certificate)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FraudSentry-desktop-${{ runner.os }}
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.AppImage
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, android-smoke, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, pattern: FraudSentry-*, merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { name: web-offline, path: out/web }
+      - run: mv out/web/index.html "out/FraudSentry-${GITHUB_REF_NAME}-offline.html"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true

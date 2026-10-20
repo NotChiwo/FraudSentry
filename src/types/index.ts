@@ -6,6 +6,10 @@
 
 export type ThemeMode = 'dark' | 'light';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+/** FRAUD_RESULT.classification: High or Critical (risk score ≥ 0.45) = possibly fraudulent */
+export type Classification = 'fraudulent' | 'legitimate';
+/** TRANSACTION.status: what really happened to the payment, as the user confirms it in their own account */
+export type TransactionStatus = 'pending' | 'received' | 'not-received';
 export type ScanStatus = 'idle' | 'preprocessing' | 'ocr' | 'forensics' | 'analyzing' | 'complete' | 'error';
 
 // ── OCR ─────────────────────────────────────────────────────
@@ -94,6 +98,9 @@ export interface ForestAnalysis {
   totalTrees: number;
   datasetSource: 'demo' | 'csv' | 'labelled';
   trainedAt: string;
+  /** RF_MODEL.model_id / model_name of the forest that scored this scan (V9.1) */
+  modelId?: string;
+  modelName?: string;
   featureNames: string[];
   /** the exact 10-value evidence vector that was scored (since V8.5) — reused as training data */
   features?: number[];
@@ -116,7 +123,18 @@ export interface ImageScanResult {
   recommendedAction: string;
   actionPlan?: string[];       // ordered, scan-specific next steps
   heuristicScore?: number;     // 0–1 rule-based findings score (before blending)
+  /** the lowest score definitive findings allow (hidden details, a future date …), 0 if none (V9.1) */
+  scoreFloor?: number;
+  /** possibly fraudulent (High / Critical) or legitimate (V9.1) */
+  classification?: Classification;
+  /** the kind of payment the receipt shows: Send Money, Bank Transfer, QR Payment … (V9.1) */
+  transactionType?: string;
+  /** did the money really arrive? set by the user from their own account (V9.1) */
+  txStatus?: TransactionStatus;
+  txStatusAt?: string;
   forestAnalysis?: ForestAnalysis; // Random Forest vote (blended 50/50 into riskScore)
+  /** words printed in a different ink tint than the receipt's other text (V8.6, a repaint hint) */
+  inkOutliers?: { text: string; x0: number; y0: number; x1: number; y1: number }[];
   previewDataUrl?: string;     // small preview retained for the report
   scannedAt: string;
 }

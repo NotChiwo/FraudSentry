@@ -11,7 +11,7 @@ const PRINCIPLES = [
   { icon: Eye, title: 'Explainable by design', body: 'Every percentage breaks down into named, weighted factors. No unexplained scores.' },
   { icon: Cpu, title: 'Real, on-device analysis', body: 'OCR and image forensics run in your browser — no fabricated data, no synthetic predictions.' },
   { icon: Layers, title: 'Evidence over assumptions', body: 'The system never claims to know if money was truly stolen; it assesses what the evidence shows.' },
-  { icon: ShieldCheck, title: 'Privacy first', body: 'No accounts, no tracking, no server uploads. Your data stays with you.' },
+  { icon: ShieldCheck, title: 'Privacy first', body: 'Local accounts only, no tracking, no server uploads. Your history is encrypted on your device.' },
 ];
 
 export default function AboutPage() {

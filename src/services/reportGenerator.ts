@@ -7,7 +7,14 @@
 
 import { jsPDF } from 'jspdf';
 import { ImageScanResult, MessageScanResult } from '../types';
-import { RISK_META } from '../utils/helpers';
+import { RISK_META, CLASSIFICATION_LABEL, classificationOf } from '../utils/helpers';
+import type { FraudReport } from './fraudReports';
+import { saveFile } from '../platform/native';
+
+// doc.save() only works in a browser; saveFile also covers the Android app
+function savePdf(doc: jsPDF, filename: string) {
+  void saveFile(filename, doc.output('blob'), 'application/pdf').catch(e => console.error('FraudSentry: could not save the PDF', e));
+}
 
 const NAVY = '#0f172a';
 const BLUE = '#2563eb';
@@ -125,7 +132,10 @@ export function generateImageReport(scan: ImageScanResult) {
     y = sectionTitle(doc, y, 'How the Risk Score Was Computed');
     y = kv(doc, y, 'Rule-based findings score', `${Math.round((scan.heuristicScore ?? 0) * 100)}%`);
     y = kv(doc, y, 'Random Forest probability', `${Math.round(fa.probability * 100)}% (${fa.votesFraud} of ${fa.totalTrees} trees voted fraudulent)`);
-    y = kv(doc, y, 'Final risk (50% + 50%)', `${Math.round(scan.riskScore * 100)}%`);
+    y = kv(doc, y, 'Final risk (50% + 50%)', `${Math.round(scan.riskScore * 100)}%${scan.scoreFloor && scan.riskScore <= scan.scoreFloor + 1e-9 ? ' (minimum set by a definitive finding)' : ''}`);
+    y = kv(doc, y, 'Classification', CLASSIFICATION_LABEL[scan.classification ?? classificationOf(scan.riskLevel)]);
+    if (fa.modelName) y = kv(doc, y, 'Model', pdfSafe(fa.modelName));
+    if (scan.txStatus) y = kv(doc, y, 'Payment outcome', scan.txStatus === 'received' ? 'money received (confirmed by the user)' : scan.txStatus === 'not-received' ? 'NOT received (confirmed by the user)' : 'not confirmed yet');
     y = kv(doc, y, 'Forest training data', fa.datasetSource === 'demo' ? 'seeded demonstration dataset (not real collected evidence)' : fa.datasetSource === 'labelled' ? 'your labelled scans (real evidence)' : 'uploaded labelled evidence dataset');
     y += 3;
   }
@@ -165,7 +175,7 @@ export function generateImageReport(scan: ImageScanResult) {
   }
 
   footer(doc);
-  doc.save(`${caseId}-transaction-report.pdf`);
+  savePdf(doc, `${caseId}-transaction-report.pdf`);
 }
 
 export function generateMessageReport(scan: MessageScanResult) {
@@ -220,5 +230,78 @@ export function generateMessageReport(scan: MessageScanResult) {
   }
 
   footer(doc);
-  doc.save(`${caseId}-message-report.pdf`);
+  savePdf(doc, `${caseId}-message-report.pdf`);
+}
+
+// ── period reports (REPORT table, V9.2) ──────────────────────
+function table(doc: jsPDF, y: number, head: string[], rows: (string | number)[][], widths: number[]): number {
+  const x0 = 14;
+  const drawHead = () => {
+    doc.setFillColor(241, 245, 249); doc.rect(x0, y - 4, 182, 6, 'F');
+    doc.setTextColor(MUTE); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+    let x = x0 + 1.5; head.forEach((h, i) => { doc.text(h, x, y); x += widths[i]; });
+    y += 5;
+  };
+  drawHead();
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(NAVY); doc.setFontSize(7.5);
+  for (const r of rows) {
+    if (y > 276) { doc.addPage(); y = 20; drawHead(); doc.setFont('helvetica', 'normal'); doc.setTextColor(NAVY); doc.setFontSize(7.5); }
+    let x = x0 + 1.5;
+    r.forEach((c, i) => { doc.text(doc.splitTextToSize(pdfSafe(String(c)), widths[i] - 2)[0] ?? '', x, y); x += widths[i]; });
+    y += 4.6;
+  }
+  return y + 3;
+}
+
+const pctText = (v: number | null) => (v == null ? '-' : `${(v * 100).toFixed(1)}%`);
+
+export function generateFraudReportPdf(r: FraudReport) {
+  const doc = new jsPDF();
+  const id = `REPORT-${r.id.replace(/[^a-z0-9]/gi, '').slice(-8).toUpperCase()}`;
+  header(doc, `Fraud Detection Report (${r.reportType === 'summary' ? 'Summary' : 'Detailed'})`, id);
+  let y = 48;
+  y = kv(doc, y, 'Period', `${r.periodFrom} to ${r.periodTo}`);
+  y = kv(doc, y, 'Scope', r.scope === 'all' ? 'all users of this device' : `records of ${r.username ?? 'this user'}`);
+  y = kv(doc, y, 'Generated', `${new Date(r.generatedAt).toLocaleString('en-PH')}${r.username ? ` by ${r.username}` : ''}`);
+  y += 2;
+  y = sectionTitle(doc, y, 'Findings');
+  doc.setTextColor(NAVY); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+  const desc = doc.splitTextToSize(pdfSafe(r.description), 180);
+  doc.text(desc, 16, y); y += desc.length * 4 + 4;
+
+  const s = r.stats;
+  y = sectionTitle(doc, y, 'Key figures');
+  y = table(doc, y, ['Measure', 'Value'], [
+    ['Checks', s.checks], ['Receipts / typed / messages / cross-evidence', `${s.byKind.Receipt} / ${s.byKind['Typed details']} / ${s.byKind.Message} / ${s.byKind['Cross-Evidence']}`],
+    ['Possibly fraudulent', s.fraudulent], ['Legitimate', s.legitimate],
+    ['Risk: low / medium / high / critical', `${s.byRisk.low} / ${s.byRisk.medium} / ${s.byRisk.high} / ${s.byRisk.critical}`],
+    ['Outcome: pending / received / not received', `${s.outcomes.pending} / ${s.outcomes.received} / ${s.outcomes['not-received']}`],
+    ['Claimed amount in flagged payments', `PHP ${s.amountFlagged.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`],
+    ['Alerts (unread)', `${s.alerts.total} (${s.alerts.unread})`],
+  ], [120, 62]);
+
+  y = sectionTitle(doc, y, 'Classification vs confirmed outcome');
+  const a = s.agreement;
+  y = table(doc, y, ['', 'Outcome: not received (fake)', 'Outcome: received (genuine)'], [
+    ['Classified possibly fraudulent', `${a.tp} (caught)`, `${a.fp} (false alarm)`],
+    ['Classified legitimate', `${a.fn} (missed)`, `${a.tn} (correct)`],
+  ], [62, 60, 60]);
+  y = kv(doc, y - 1, 'Confirmed payments', String(a.confirmed));
+  y = kv(doc, y, 'Accuracy / precision / recall', `${pctText(a.accuracy)} / ${pctText(a.precision)} / ${pctText(a.recall)}`);
+  y += 3;
+
+  if (s.byApp.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'By bank / e-wallet'); y = table(doc, y, ['App or bank', 'Checks', 'Possibly fraudulent', 'Not received'], s.byApp.map(x => [x.app, x.checks, x.fraudulent, x.notReceived]), [70, 30, 45, 37]); }
+  if (s.byType.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'By transaction type'); y = table(doc, y, ['Type', 'Checks', 'Possibly fraudulent'], s.byType.map(x => [x.type, x.checks, x.fraudulent]), [90, 40, 52]); }
+  if (s.topReasons.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'Most common warning signs'); y = table(doc, y, ['Check that failed', 'Times'], s.topReasons.map(x => [x.label, x.count]), [150, 32]); }
+  if (s.models.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'Models that scored the receipts'); y = table(doc, y, ['Model', 'Receipts'], s.models.map(x => [x.name, x.checks]), [150, 32]); }
+  if (s.users?.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'By user'); y = table(doc, y, ['User', 'Checks', 'Possibly fraudulent'], s.users.map(x => [x.username, x.checks, x.fraudulent]), [90, 40, 52]); }
+  if (r.rows?.length) {
+    if (y > 230) { doc.addPage(); y = 20; }
+    y = sectionTitle(doc, y, `Every check (${r.rows.length})`);
+    table(doc, y, ['When', 'Kind', 'App', 'Amount', 'Reference', 'Risk', 'Class', 'Outcome', ...(r.scope === 'all' ? ['User'] : [])],
+      r.rows.map(x => [new Date(x.when).toLocaleDateString('en-PH'), x.kind, x.app, x.amount != null ? x.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 }) : '-', x.reference ?? '-', x.riskLevel, x.classification === 'fraudulent' ? 'fraud?' : 'legit', x.outcome ?? '-', ...(r.scope === 'all' ? [x.user ?? ''] : [])]),
+      r.scope === 'all' ? [20, 22, 20, 20, 32, 16, 14, 20, 18] : [22, 24, 22, 22, 36, 18, 16, 22]);
+  }
+  footer(doc);
+  savePdf(doc, `${id}-${r.reportType}-${r.periodFrom}-${r.periodTo}.pdf`);
 }

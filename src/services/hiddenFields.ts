@@ -27,9 +27,9 @@ export interface HiddenFields {
   detail: string;
 }
 
-// "Ref No.", "Reference No.", "Reference ID", "Trace ID", "Transaction No."
+// "Ref No.", "Reference No.", "Reference ID", "Confirmation No." (BPI), "Trace ID", "Transaction No."
 // (+ OCR's "Rel No" / "Ref Mo")
-const REF_LABEL = /\b(?:re[fl](?:erence)?\.?\s*(?:[nm]o\.?|number|#|id)|trace\s*id|transaction\s*(?:no\.?|number|id))\b/i;
+const REF_LABEL = /\b(?:re[fl](?:erence)?\.?\s*(?:[nm]o\.?|number|#|id)|confirmation\s*(?:[nm]o\.?|number|#|code)|trace\s*id|transaction\s*(?:no\.?|number|id))\b/i;
 // characters OCR produces from mosaic/scribble, never part of a reference
 const JUNK = /[“”"‘’'®©|\[\]{}=~^\\<>§¶]/;
 // where the value part of a "Ref No. …   Oct 04, 2026" line ends
@@ -88,7 +88,7 @@ export function assessHiddenFields(texts: string[], words: OcrWord[] | undefined
   const parts: string[] = [];
   if (regions.length) {
     const kinds = new Set(regions.map(r => r.kind));
-    const what = kinds.has('pixelated') && kinds.has('covered') ? 'pixelated and covered' : kinds.has('pixelated') ? 'pixelated (blocked out with squares)' : 'covered with a solid box';
+    const what = kinds.has('pixelated') && kinds.has('covered') ? 'blurred/pixelated and covered' : kinds.has('pixelated') ? 'blurred or pixelated' : 'covered with a solid box';
     const on = [regionOnReference ? 'the reference number' : '', regionOnPhone ? 'the mobile number' : ''].filter(Boolean).join(' and ');
     parts.push(`${regions.length === 1 ? 'Part of this receipt is' : `${regions.length} parts of this receipt are`} ${what}${on ? `, including ${on}` : ''}.`);
   }

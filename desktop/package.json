@@ -1,0 +1,80 @@
+{
+  "name": "fraudsentry-desktop",
+  "productName": "FraudSentry",
+  "version": "10.0.0",
+  "description": "FraudSentry desktop app: the offline FraudSentry page in its own window. Nothing is sent anywhere.",
+  "author": "FraudSentry thesis team (UPHSD Molino)",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "prepare-app": "node prepare-app.cjs",
+    "start": "npm run prepare-app && electron .",
+    "dist": "npm run prepare-app && electron-builder --publish never",
+    "dist:win": "npm run prepare-app && electron-builder --win --publish never",
+    "dist:mac": "npm run prepare-app && electron-builder --mac --publish never",
+    "dist:linux": "npm run prepare-app && electron-builder --linux --publish never"
+  },
+  "devDependencies": {
+    "electron": "43.7.7",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.fraudsentry.app",
+    "productName": "FraudSentry",
+    "copyright": "FraudSentry \u00b7 BSCS thesis project \u00b7 University of Perpetual Help System DALTA",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "app/**"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "FraudSentry-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "FraudSentry-Portable-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.finance",
+      "icon": "build/icon.png"
+    },
+    "dmg": {
+      "artifactName": "FraudSentry-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "build/icon.png",
+      "artifactName": "FraudSentry-${version}-${arch}.${ext}",
+      "desktop": {
+        "entry": {
+          "Name": "FraudSentry",
+          "StartupWMClass": "FraudSentry"
+        }
+      }
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NotChiwo/FraudSentry"
+  }
+}

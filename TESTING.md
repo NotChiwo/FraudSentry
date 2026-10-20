@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**231 / 231 passing** (V8.5).
+**306 / 306 passing** (V9.2).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -30,6 +30,14 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `forensics.test.ts` | 10 | V8.3: editor signatures in PNG `tEXt`/`zTXt`/`iTXt` and WebP XMP, PNG `eXIf`, screenshot tags not mistaken for editors, `image/jpg`/`image/pjpeg` aliases, the shared metadata-consistency feature |
 | `hiddenFields.test.ts` | 13 | V8.4 hidden-detail detection: a clean receipt drawn in code (UI tints, pills, icon chips, green card) has no hidden areas; a reference pixelated with 6/10/14 px tiles and a pixelated name are found; black and ink-coloured cover boxes are found; the OCR of a **real** pixelated GCash receipt (name replaced) is judged "reference hidden" and its junk is no longer a name; no false alarm on any of the 13 real-OCR fixtures; region-on-reference and region-on-mobile-number mapping |
 | `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
+| `bpiReceipts.test.ts` | 16 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; confirmation number ↔ time and weekday ↔ date are consistent on both genuine receipts, and an edited date, time or confirmation number is caught; the blurred copy's reference reads as hidden; privacy-notice versioning |
+| `inkConsistency.test.ts` | 5 | V8.6 repaint hint on receipts drawn in code: one ink → consistent; amount line in a bluer ink → reported; a recurring design tint → not reported; non-amount lines never judged; too few words → unknown |
+| `fraudReports.test.ts` | 7 | V9.2: period-only counts by kind, classification, risk and outcome; classification vs confirmed outcome (TP / FP / TN / FN, accuracy, precision, recall); breakdowns by app, type, warning sign, model, alerts; plain-language description (and "no checks"); summary vs detailed with typed transactions and CSV; all-users report with per-user counts; saved reports expire after 30 days |
+| `evaluation.test.ts` | 12 | V9.1: ROC-AUC (perfect, guessing, reversed, ties, one class), ROC curve area = AUC, demo forest AUC > 0.85; McNemar exact binomial (hand-computed p), no or balanced disagreement, χ² with continuity correction; rules vs forest vs combined on the same held-out receipts with a significant improvement, rows without a rule score left out; a labelled scan keeps its rule score and floor; blend and classification threshold; model versions, names and which models can be reactivated |
+| `transactions.test.ts` | 8 | V9.1: typed details (consistent → Low; wrong-shape or missing reference; future date ≥ High; edited copy of an earlier check; BPI confirmation time); transaction type from receipt wording; "received / not received" sets a receipt's training label and pending removes it; typed-details transactions never train the model and raise an alert that is removed with them |
+| `accounts.test.ts` | 11 | V9.0 accounts: first account is the administrator and no password is stored; sign-in (username case-insensitive), wrong password, unknown user; lock-out after 5 wrong passwords (even the right password is refused while locked), 5 → 10 minutes, reset on success; username / password rules; admin-created user must change the temporary password; standard users cannot administer; sign-up only when allowed; password reset keeps the user's data; roles, disable, unlock, delete, always one administrator; a vault is unreadable to another user but readable by an administrator; the activity log records events without passwords and its hash chain detects an edited or removed entry |
+| `session.test.ts` | 3 | V9.0 sessions: signing in loads only that user's data, work is saved encrypted (no plain reference numbers), signing out clears memory, another user sees nothing; the first administrator inherits pre-accounts history; checks, clearing history and signing out are logged |
+| `alerts.test.ts` | 13 | V8.7 alerts: a High receipt gives an alert with exactly the ERD fields, unread, dated when the check ran; the message names app, amount, reference and the strongest failed checks; the alert level (Low never; Medium only when chosen; Critical only); message and cross-evidence wording; one alert per check, newest first, capped at 100; store: risky checks create alerts and clean ones don't, read / unread / mark all / delete, deleting a check (or it leaving the 40-item history) deletes its alert, a Cross-Evidence run raises one alert, saved and reopened alerts keep their status and expired ones are dropped |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
@@ -259,9 +267,116 @@ Answers "is the new build better than the old one?" on evidence **you** collect.
 
 Network requests attempted by the offline build: **none**. Safari/WebKit and Firefox were **not** tested for the offline build. Test it on the actual defense laptop and browser beforehand, with Wi-Fi off.
 
+## 3d. BPI receipts and the new checks (V8.6)
+
+Three real BPI receipts were supplied: two genuine (2024 layout with a Fee row, 2026 layout) and a copy of the 2026 one with the date, confirmation number and recipient blurred. Three more edited copies were made from the 2026 one for this test, by painting new text over the date, the amount, or the confirmation number in a similar font. All were scanned in the built app (Chromium):
+
+| Receipt | V8.5 | V8.6 | Caught by |
+|---|---|---|---|
+| 2024, genuine | High (false alarm) | **Low** | (confirmation time ✓, weekday ✓) |
+| 2026, genuine | Low | **Low** | (confirmation time ✓, weekday ✓) |
+| 2026, blurred copy | High | **High** | hidden details |
+| 2026, date edited | Low | **High** | weekday + confirmation time |
+| 2026, confirmation no. edited | Low | **High** | confirmation time |
+| 2026, amount edited | Low | **Medium** | text colour hint |
+
+Text-colour hint false alarms: **0 of 43** clean / genuine images (34 synthetic incl. busy app UI as PNG and JPEG; 2 real BPI; 1 real GCash; 6 others). The thresholds were set while looking at these images, so the figures are in-sample.
+
+**Limits — say so at the defense:**
+- The confirmation-time rule rests on two real BPI receipts. It is applied only to BPI numbers that decode to a plausible date.
+- An amount retyped in exactly the app's own colour and font is not caught by any pixel check. Only the user's own account proves the amount.
+- These numbers come from 3 real receipts and 3 hand-made edits, not a held-out set. Run `tools/compare-versions.mjs` on your own BPI receipts and fakes.
+
+## 3e. Alerts in the built app (V8.7)
+
+Run in the built app (Chromium, desktop 1280×900 and phone 390×844):
+
+| Step | Result |
+|---|---|
+| Genuine BPI receipt (2026) | Low; **no alert**, no pop-up, bell "none unread" |
+| Blurred BPI copy | High; **1 alert** + pop-up "High risk: Suspicious receipt"; bell "1 unread" |
+| Scam SMS (fake GCash link + OTP request) | Critical; 2 alerts, bell "2 unread" |
+| Alerts page | 2 rows, "2 unread · 2 total" |
+| Mark one read / unread / mark all read | the bell count follows (1 → 2 → 0) |
+| "View check" | opens History with that receipt highlighted; the alert becomes read |
+| Reload | alerts and their status kept; old alerts don't pop up again |
+| Delete the receipt check in History | its alert is deleted; the message alert stays |
+| Phone layout | Alerts reachable from "More" and from the bell |
+
+Page errors: none.
+
+## 3f. Accounts in the built app (V9.0)
+
+Run in the built app (Chromium), starting from a V8.7 device with one saved scam-message check:
+
+| Step | Result |
+|---|---|
+| Open V9.0 | the updated privacy notice is shown again, then "Set up FraudSentry" says the existing check will move into the account |
+| Administrator password `owner123` for user `owner` | rejected: "must not contain the username" |
+| Create administrator | signed in after ~0.9–1.4 s of key derivation; the old alert is in Alerts |
+| Browser storage afterwards | old plain history removed; vault holds no readable text; the password appears nowhere |
+| Admin creates `Cashier1` | stored as `cashier1`, with a temporary password like `bayan-c26-bituin-32` |
+| 5 wrong passwords for `cashier1` | "locked … Try again in 4:59"; the countdown applies to that username only |
+| Admin unlocks; activity log "Verify integrity" | "All 10 entries are intact"; 5 failed sign-ins highlighted |
+| Cashier signs in with the temporary password | forced to choose a new one |
+| Cashier's menu | no Detection Model or Administration |
+| Cashier checks a phishing SMS | Critical alert for the cashier only; the owner does not see it |
+| Admin overview / records | 2 users, 2 checks, 2 alerts; the cashier's check listed read-only |
+| Reload | signed out (keys exist only in memory) |
+| `tools/compare-versions.mjs` V8.7 vs V9.0 on the 6 BPI receipts | identical results (detection unchanged) |
+
+## 3g. Transactions and model evaluation in the built app (V9.1)
+
+| Step | Result |
+|---|---|
+| Blurred BPI receipt | High · **Possibly fraudulent** · Bank Transfer · "Scored with RF v0 · demonstration (built-in)" |
+| Mark "Not received" | saved with time; becomes a fake-labelled training row |
+| Typed details: BPI ₱15,000, ref 1782743489365, Jun 29 2026 9:00 AM | High · Possibly fraudulent · main reason Confirmation Number Timing (the number encodes 10:31 PM) · alert raised |
+| Transactions page | 2 transactions, 1 not confirmed, 1 not received; survives sign-out and reload |
+| Train on 61 labelled receipts | registered as "RF v1 · labelled receipts (61 rows)", ROC-AUC and ROC curve shown, now used by scans |
+| Rules vs forest vs combined (seeded synthetic labels) | McNemar exact p = 0.031 → H₀ rejected (the test data was made to differ; this checks the mechanics, not a finding) |
+| Switch back to the demonstration model | scans use RF v0 again |
+
+## 3h. Reports in the built app (V9.2)
+
+| Step | Result |
+|---|---|
+| Cashier enters a ₱1,500 GCash payment and marks it received | stored in the cashier's vault |
+| Owner enters ₱2,000 with ref 8041241631871, then ₱20,000 with the same ref | the second is an edited copy (Earlier Check Comparison): possibly fraudulent, alert |
+| Owner marks the ₱20,000 not received and the ₱2,000 received; detailed report, all users | "3 checks … 1 (33.3%) was classified possibly fraudulent, involving ₱20,000.00 … the classification matched it in 3 (100%) …"; per-user table owner 2 / cashier1 1 |
+| PDF | valid PDF, 2 pages: findings, key figures, classification vs outcome, by app / type / warning sign / user, every check |
+| Sign out, reload, sign in | the saved report is still listed |
+| Activity log | report generation and typed transactions logged |
+
+## 3i. The apps (V10)
+
+**Desktop (Electron 43, run on Linux under a virtual display with Playwright):**
+
+| Step | Result |
+|---|---|
+| Opens `app://fraudsentry/index.html` | secure context; `require` is undefined (no Node.js in the page) |
+| `fetch('https://example.com')` from the page | blocked |
+| Privacy notice → create administrator → scan the blurred BPI receipt | OCR from the built-in engine; High · Possibly fraudulent · alert |
+| Close and reopen the app | accounts and encrypted vault kept; sign-in required |
+| `electron-builder --linux AppImage` | `FraudSentry-10.0.0-x86_64.AppImage` (136 MB) built |
+
+**Android:** the SDK cannot be downloaded in the development sandbox, so the APK is built and tested by the GitHub Actions **Apps** workflow:
+- the APK is installed on an Android 14 emulator;
+- through the WebView debugging socket, the check confirms the page loaded from `https://localhost` inside the app with Web Crypto available;
+- it then accepts the notice and creates the administrator.
+
+The same check was run against headless Chromium here: "Welcome to FraudSentry", secure context, signed in as owner.
+
+**First CI run (2026-10-20, run 39460539320): all jobs passed.**
+- APK 11 MB, Windows installer + portable exe, macOS dmg, Linux AppImage.
+- Emulator: Android 14 with its WebView (Chrome 113). The page loaded from inside the app (without the INTERNET permission), was a secure context with Web Crypto, and showed "Welcome to FraudSentry". The administrator was created and signed in.
+
+**Not yet tested on a physical phone:** do that before the defense, especially the camera and the share sheet.
+
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.
-- `npm audit --omit=dev` (shipped dependencies) → **0 vulnerabilities** on 2026-10-07; CI now runs it on every push.
+- `npm audit --omit=dev` (shipped dependencies) → **0 vulnerabilities** on 2026-10-07; CI now runs it on every push. Re-checked 2026-10-20 with the Capacitor runtime packages added: 0.
+- Build-time only (never shipped): `@capacitor/cli → xcode → uuid` (moderate) and, in `desktop/`, `electron-builder → … → sprintf-js` (moderate). Both are used only while building.
 - `npm audit` → 0 vulnerabilities on 2026-10-01. On 2026-10-05 a new advisory (GHSA-vfj7-8cjw-p6xm, `braces`, "high") reports 3 findings via `vite-plugin-singlefile → micromatch → braces`. No patched `braces` exists yet. It is a **build-time only** dependency: it matches file-name globs from our own build config, and none of it is shipped in the built app. Re-check when a fixed version is released.
 - Tesseract SRI hash recomputed from the npm tarball → matches.
 

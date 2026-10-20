@@ -11,11 +11,11 @@ const SECTIONS = [
   },
   {
     icon: Server, color: '#6366f1', title: 'Temporary file handling',
-    body: 'Uploaded files are held in memory only for the duration of a scan and are not written to any server. A short history of your results is stored locally in your browser (localStorage) so you can re-open and export them. New receipts are compared against the fields in this local history (reference number, amount, recipient, date) to warn you about a reused or edited copy of an earlier receipt; that comparison also happens only in your browser. Results are deleted automatically after 30 days, and clearing your history from the History page removes them immediately. If you label receipts as genuine or fake for training the detection model, only the 10 numeric evidence values and your label are kept (no names, numbers, amounts or text); you can delete them from the History page.',
+    body: 'Uploaded files are held in memory only for the duration of a scan and are not written to any server. A short history of your results is stored locally in your browser (localStorage) so you can re-open and export them. New receipts are compared against the fields in this local history (reference number, amount, recipient, date) to warn you about a reused or edited copy of an earlier receipt; that comparison also happens only in your browser. When a result is risky, an alert (title, risk level, short message, date and read/unread status) is stored with it in the same local history; it is deleted together with its result. Results and alerts are deleted automatically after 30 days, and clearing your history from the History page removes them immediately. If you label receipts as genuine or fake for training the detection model, only the 10 numeric evidence values and your label are kept (no names, numbers, amounts or text); you can delete them from the History page.',
   },
   {
     icon: Eye, color: '#10b981', title: 'How results are used',
-    body: 'Analysis results exist only to help you assess fraud risk. We do not profile users, run advertising, sell data, or share your content with third parties. There is no account system, so your scans are not linked to an identity.',
+    body: 'Analysis results exist only to help you assess fraud risk. We do not profile users, run advertising, sell data, or share your content with third parties. Accounts exist only on this device (a username, a role and a hashed password — no email or phone number), and nothing is linked to an identity outside it. Each user\u2019s history and alerts are encrypted with a key unlocked by their password; this device\u2019s administrator can open them for review, and sees an activity log of sign-ins and checks (without receipt or message contents).',
   },
   {
     icon: AlertCircle, color: '#f59e0b', title: 'AI limitations disclaimer',
@@ -27,7 +27,7 @@ const SECTIONS = [
   },
 ];
 
-export default function PrivacyPage() {
+export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => void } = {}) {
   return (
     <div className="page" style={{ maxWidth: 820 }}>
       <div style={{ marginBottom: 22 }}>
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
 
       <div className="privacy-notice" style={{ marginBottom: 18 }}>
         <ShieldCheck size={15} color="var(--accent-light)" style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>In short: your uploads are processed in your browser, not on a server. There is no login, no tracking, and no data resale. You stay in control and can clear everything at any time.</span>
+        <span>In short: your uploads are processed in your browser, not on a server. Your account and history never leave this device; there is no tracking and no data resale. You stay in control and can clear everything at any time.</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
@@ -71,6 +71,11 @@ export default function PrivacyPage() {
           FraudSentry processes everything locally and retains nothing on a server, you can exercise these rights directly:
           stop using the tool, edit any extracted text before analysis, and clear your local history whenever you wish.
         </div>
+        {onShowWelcome && (
+          <button type="button" className="btn-secondary" style={{ marginTop: 12 }} onClick={onShowWelcome}>
+            Show the welcome &amp; privacy notice again
+          </button>
+        )}
       </div>
     </div>
   );

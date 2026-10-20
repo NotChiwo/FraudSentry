@@ -270,6 +270,8 @@ function maskedNameLike(s: string): boolean {
   const t = s.trim();
   if (t.length < 2 || t.length > 28) return false;
   if (/sent\s+via|gcash|amount|total|ref\b|php|₱|reference|transaction|receipt|bank|acct|method|fee/i.test(t)) return false;
+  // success headlines ("Transfer successful!") sit above "Sent via …" on bank receipts
+  if (/success|transfer|confirm|complete|congrat|thank/i.test(t)) return false;
   if (/^(source|destination|purpose|from|to)\b/i.test(t)) return false; // a label row, not a name
   // quote marks, ®, =, | … are what OCR makes of a pixelated or scribbled-over
   // name — never part of a real one ("FRel iL =\" Lee A." is not a name)
@@ -344,6 +346,36 @@ function extractAmount(text: string): number | null {
   return null;
 }
 
+// "Transfer to" block (BPI and other bank apps): the label on its own line, then
+//   Jeth (QR Code)                   ← the nickname saved for a QR / favourite
+//   V•• JE•••O EB••A LA•••••O        ← the bank's masked legal name (may be absent)
+//   xxxxxxxxxxx627                   ← the masked account number
+// up to "Transfer amount" / "Fee" / "Transfer from". The masked legal name is
+// preferred (it is what the bank shows); the nickname is the fallback.
+const MASKED_ACCOUNT = /^(?:[x•*]\s?){4,}\d{3,6}$/i;
+function transferToBlock(lines: string[]): { name: string | null; account: string | null } {
+  const at = lines.findIndex(l => /^transfer(?:red)?\s+to\s*:?\s*$/i.test(l));
+  if (at === -1) return { name: null, account: null };
+  let nickname: string | null = null, masked: string | null = null, account: string | null = null;
+  for (let j = at + 1; j < Math.min(lines.length, at + 5); j++) {
+    const l = lines[j].trim();
+    if (/^(transfer\s+amount|amount|fee|transfer\s+from|hide|show)\b/i.test(l)) break;
+    const compact = l.replace(/\s+/g, '');
+    if (MASKED_ACCOUNT.test(compact)) { account = compact.toLowerCase(); continue; }
+    const qr = l.match(/^(.+?)\s*\((?:qr\s*code|favou?rite|saved)\)\s*$/i);
+    if (qr && maskedNameLike(qr[1])) { nickname = qr[1].trim(); continue; }
+    // a bank's masked legal name starts with a capital ("V•• JE•••O …"); a lowercase start is OCR noise (often a blurred line)
+    if (!masked && maskedNameLike(l) && /^[A-Z]/.test(l) && /[A-Z].*\s.*[A-Z]/.test(l)) {
+      // OCR reads the bank's mask bullets as "•", "·" or dots ("V•. JE...O")
+      let m = l.replace(/[•·∙*°●]/g, '•');
+      if (/[•.]{2,}/.test(m)) m = m.replace(/\./g, '•');
+      masked = reconstructMaskedName(m, true);
+    }
+    else if (!nickname && maskedNameLike(l)) nickname = l.trim();
+  }
+  return { name: masked ?? nickname, account };
+}
+
 export function parseReceipt(rawText: string, filename = ''): { data: ExtractedTransactionData; source: EvidenceSource } {
   const text = rawText.replace(/\u00a0/g, ' ');
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -368,6 +400,9 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
     // an alphanumeric reference must contain at least one digit — stops plain
     // words (e.g. the label "REFERENCE NUMBER" itself) being captured
     /ref(?:erence)?\.?\s*(?:no\.?|number|#|id|code)?\s*[:.\-]?\s*((?=[A-Z]*\d)[A-Z0-9]{6,24})/i,
+    // BPI (and several banks) print "Confirmation No. 1782743489365"
+    /confirmation\s*(?:[nm]o\.?|number|#|code)\s*[:.\-]?\s*(\d[\d ]{8,22}\d)(?![\d])/i,
+    /confirmation\s*(?:[nm]o\.?|number|#|code)\s*[:.\-]?\s*((?=[A-Z]*\d)[A-Z0-9]{8,24})(?![A-Z0-9])/i,
   ]);
   const referenceNo = refRaw ? refRaw.replace(/\s+/g, '') : null;
 
@@ -394,7 +429,9 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
   ]);
 
   // Parties — label-driven for banks; GCash falls back to the top-of-receipt name.
-  let receiverName = valueForLabel(lines, [
+  // BPI-style block: "Transfer to" / nickname "(QR Code)" / masked legal name / masked account
+  const transferTo = transferToBlock(lines);
+  let receiverName = transferTo.name ?? valueForLabel(lines, [
     'account name', 'recipient name', 'recipient', 'receiver', 'beneficiary',
     'pay to', 'send money to', 'send to', 'received by', 'credit to', 'payee',
   ]);
@@ -412,7 +449,7 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
     data: {
       senderName: senderName || null,
       receiverName: receiverName || null,
-      receiverContact: receiverContact || null,
+      receiverContact: receiverContact || transferTo.account || null,
       amount,
       date: date ? date.replace(/\s+/g, ' ').trim() : null,
       time: time ? time.replace(/\s+/g, ' ').trim() : null,
@@ -567,3 +604,25 @@ export function amountFormattingSignal(texts: string[]): { suspicious: boolean; 
   }
   return { suspicious: false, detail: '' };
 }
+
+// ── transaction type (TRANSACTION.transaction_type, V9.1) ─────
+export const TRANSACTION_TYPES = ['Send Money', 'Bank Transfer', 'QR Payment', 'Bill Payment', 'Purchase', 'Cash In', 'Cash Out', 'Other'] as const;
+export type TransactionType = typeof TRANSACTION_TYPES[number];
+
+/** The kind of payment a receipt shows, from its wording (first match wins). */
+export function transactionTypeOf(text: string, source?: string): TransactionType {
+  const t = text.replace(/\s+/g, ' ');
+  if (/\bpay\s*bills?\b|\bbills?\s*payment\b|\bbiller\b|\bmeralco\b|\bmaynilad\b|manila water|\bpldt\b|\bconverge\b|\bglobe at home\b|\bsss\b|pag-?ibig|philhealth/i.test(t)) return 'Bill Payment';
+  if (/\bcash[\s-]?in\b/i.test(t)) return 'Cash In';
+  if (/\bcash[\s-]?out\b|\bwithdraw(al|n)?\b/i.test(t)) return 'Cash Out';
+  if (/\bpurchas(e|ed)\b|\bpaid to\b|\bpayment to\b|\bmerchant\b|\border (no|id|number)\b/i.test(t)) return 'Purchase';
+  // OCR often reads "InstaPay" as "instaFay"
+  if (/\binsta\s*[pf]ay\b|\bpesonet\b|bank transfer|fund transfer|transfer to (another|other) bank|\btransfer(red)? (to|successful|amount|result)\b|\btransferred\b/i.test(t)) return 'Bank Transfer';
+  if (/\bqr\s*(ph|payment|pay)\b|scan to pay|pay(ment)? via qr/i.test(t)) return 'QR Payment';
+  if (/\bsend money\b|express send|\bmoney sent\b|\byou sent\b|\bsent via\b|\bsent to\b|(^|\n)\s*sent\s*(\n|$)/i.test(text)) return 'Send Money';
+  if (source && /gcash|maya|shopeepay|grabpay|coins|palawan/i.test(source)) return 'Send Money';
+  return 'Other';
+}
+
+/** Every bank / e-wallet FraudSentry recognises, for pickers. */
+export const KNOWN_SOURCES = Object.keys(SOURCE_KEYWORDS) as Exclude<EvidenceSource, 'Unknown'>[];

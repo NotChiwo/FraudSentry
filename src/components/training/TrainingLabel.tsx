@@ -1,18 +1,16 @@
 import { useAppStore } from '../../store/useAppStore';
+import { OutcomeControl } from '../../pages/TransactionsPage';
 import type { ImageScanResult } from '../../types';
 
-// Mark a scanned receipt as genuine or fake for the Random Forest's training
-// data. Only the 10 numeric evidence features and the label are kept.
-export default function TrainingLabel({ scan, compact = false }: { scan: ImageScanResult; compact?: boolean }) {
+// After checking their own account, the user marks whether the money arrived.
+// That real outcome is also the receipt's training label for the Random
+// Forest (received = genuine, not received = fake); only the 10 numeric
+// evidence features and the label are kept for training.
+export default function TrainingLabel({ scan }: { scan: ImageScanResult; compact?: boolean }) {
+  const live = useAppStore(s => s.imageScans.find(x => x.id === scan.id));
   const label = useAppStore(s => s.trainingRows.find(r => r.id === scan.id)?.label ?? null);
-  const labelScan = useAppStore(s => s.labelScan);
-  const set = (l: 0 | 1) => labelScan(scan, label === l ? null : l);
-  return (
-    <div className={`train-label${compact ? ' compact' : ''}`} role="group" aria-label="Training label for this receipt">
-      {!compact && <span className="tl-q">For training: is this receipt really</span>}
-      <button type="button" className={`tl-btn tl-genuine${label === 0 ? ' on' : ''}`} aria-pressed={label === 0} onClick={() => set(0)}>Genuine</button>
-      <button type="button" className={`tl-btn tl-fake${label === 1 ? ' on' : ''}`} aria-pressed={label === 1} onClick={() => set(1)}>Fake</button>
-      {!compact && <span className="tl-note">{label === null ? 'Not labelled' : 'Saved as training data (numbers only)'}</span>}
-    </div>
-  );
+  const setTxStatus = useAppStore(s => s.setTxStatus);
+  // receipts labelled before V9.1 have a label but no outcome yet
+  const status = live?.txStatus && live.txStatus !== 'pending' ? live.txStatus : label === 0 ? 'received' : label === 1 ? 'not-received' : 'pending';
+  return <OutcomeControl status={status} statusAt={live?.txStatusAt} isReceipt onChange={st => setTxStatus('receipt', scan.id, st)} />;
 }

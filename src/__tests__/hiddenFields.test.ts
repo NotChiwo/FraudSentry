@@ -117,11 +117,12 @@ describe('text check: the reference label is there but its number is blocked out
   it('OCR junk is no longer accepted as the recipient name', () => {
     expect(parseReceiptMulti(PIXELATED_PASSES).data.receiverName ?? '').not.toMatch(/[="“”®]/);
   });
-  it('never fires on any real-OCR receipt fixture', () => {
+  it('never fires on any GENUINE real-OCR receipt fixture', () => {
     const dir = path.join(__dirname, 'fixtures');
     for (const f of fs.readdirSync(dir).filter(n => n.endsWith('.json'))) {
       const fx = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as Record<string, { passes: string[]; filename?: string }>;
       for (const [k, v] of Object.entries(fx)) {
+        if (/blurred|pixelated|edited/.test(k)) continue;   // fixtures that are hidden on purpose
         const p = parseReceiptMulti(v.passes, v.filename ?? '');
         expect(referenceLooksHidden(v.passes, p.data.referenceNo), `${f}:${k}`).toBe(false);
       }

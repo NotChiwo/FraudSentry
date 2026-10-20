@@ -16,12 +16,12 @@ const POINTS = [
   {
     icon: Lock, color: '#10b981',
     title: 'Temporary file handling',
-    body: 'Uploaded files live only in memory for the duration of your scan. A short local history is kept in this browser (so you can re-open past results); it is deleted automatically after 30 days, and you can clear it anytime.',
+    body: 'Uploaded files live only in memory for the duration of your scan. A short history of your results is kept on this device, encrypted with your own password, so you can re-open past results; it is deleted automatically after 30 days, and you can clear it anytime.',
   },
   {
     icon: UserX, color: '#6366f1',
-    title: 'No account, no tracking',
-    body: 'FraudSentry requires no registration or login. We do not build user profiles, run advertising, or resell any data you provide.',
+    title: 'Local accounts, no tracking',
+    body: 'Your FraudSentry account exists only on this device: a username, a role and a scrambled (hashed) form of your password — never the password itself, and no email or phone number. This device\u2019s administrator can review the checks made with it and the activity log. We do not build profiles, run advertising, or share any data.',
   },
   {
     icon: AlertTriangle, color: '#f59e0b',
@@ -35,7 +35,8 @@ const POINTS = [
   },
 ];
 
-export default function ConsentGate() {
+/** onClose: opened from inside the app (already accepted) — show a way back without re-accepting. */
+export default function ConsentGate({ onClose }: { onClose?: () => void } = {}) {
   const [checked, setChecked] = useState(false);
   const giveConsent = useAppStore(s => s.giveConsent);
 
@@ -109,10 +110,16 @@ export default function ConsentGate() {
             </span>
           </label>
 
-          <button className="btn-primary" disabled={!checked} onClick={giveConsent}
+          <button className="btn-primary" disabled={!checked} onClick={() => { giveConsent(); onClose?.(); }}
             style={{ width: '100%', justifyContent: 'center', marginTop: 16, padding: '13px' }}>
             Continue to FraudSentry <ArrowRight size={16} />
           </button>
+          {onClose && (
+            <button type="button" className="btn-ghost" onClick={onClose}
+              style={{ width: '100%', justifyContent: 'center', marginTop: 10, padding: '11px' }}>
+              Back to FraudSentry (you already accepted this notice)
+            </button>
+          )}
 
           <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
             A BSCS thesis research project · University of Perpetual Help System DALTA · For educational and evidence-support use only.

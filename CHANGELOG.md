@@ -1,5 +1,158 @@
 # Changelog
 
+## V10.0 — 2026-10-20
+
+### FraudSentry as installable apps
+Both apps wrap the offline single-file build (OCR built in), so they work with no internet. See README → "Installable apps".
+- **Android app** (Capacitor 8, `com.fraudsentry.app`):
+  - No INTERNET permission: Android guarantees nothing can be sent anywhere.
+  - Camera permission only, for the live receipt camera; `allowBackup` off.
+  - Edge-to-edge layout with safe areas.
+  - Hardware back button: closes an open panel, then returns to Home, then leaves the app.
+  - PDFs and CSVs go to the share sheet, because a WebView cannot download. All saving now goes through `src/platform/native.ts`.
+  - New launcher icon (adaptive, brand gradient) and splash screens.
+- **Desktop app** (Electron 43, Windows / macOS / Linux):
+  - Every http(s) request is blocked; sandboxed, with context isolation and no Node.js in the page.
+  - No navigation away and no new windows; https links open in the browser.
+  - Only camera permission; a single instance.
+  - Served from an `app://` secure origin, so the data persists and Web Crypto works.
+- **GitHub Actions "Apps" workflow** builds the APK, the Windows installer and portable exe, the macOS dmg and the Linux AppImage on every push. It smoke-tests the APK on an Android 14 emulator: the page must load inside the app, Web Crypto must be available, and creating the administrator must work. A `v*` tag publishes everything to a GitHub Release.
+- Dependencies are pinned to releases at least two weeks old: Capacitor 8.5.2 / app 8.1.2 / filesystem 8.1.4 / share 8.0.3, Electron 43.7.7, electron-builder 26.15.3.
+
+## V9.2 — 2026-10-20
+
+### Fraud detection reports (thesis Module 5, REPORT table)
+- **New Reports page.** Generate a **summary** or **detailed** report for today, the last 7 or 30 days, this month or a custom range. Administrators can report on **all users** of the device; the report then includes a per-user breakdown.
+- **What a report contains:**
+  - **Counts:** checks by kind (receipts, typed transactions, messages, cross-evidence), the classification (possibly fraudulent / legitimate), risk levels, and payment outcomes (pending / received / not received).
+  - **Classification vs what really happened:** caught, missed, false alarms and correct results, with accuracy, precision and recall, based on the outcomes users confirmed in their own accounts.
+  - **Totals and breakdowns:** the claimed amount in flagged payments; breakdowns by bank / e-wallet, transaction type, most common warning signs, and which models scored the receipts; alerts.
+  - **A plain-language description** of the findings (REPORT.description).
+  - **Detailed reports only:** a table of every check in the period.
+- **Saved and reopenable.** Reports are stored in the generating user's encrypted vault (`report_id`, `user_id`, `report_type`, `description`, `generated_date`), expire after 30 days with the history, and can be reopened, downloaded as **PDF** or **CSV**, or deleted.
+- Report periods use Philippine dates (UTC+8), as do the Transactions date filters.
+- The receipt PDF now also prints the classification, the model that scored it and the confirmed outcome.
+- Generating a report is written to the activity log.
+
+Tests: 299 → **306** (`fraudReports.test.ts`).
+
+## V9.1 — 2026-10-20
+
+### Transactions (thesis Module 2)
+- **New Transactions page.** It lists every payment checked on this device, from a screenshot or from typed details, with:
+  - amount, app or bank, transaction type, reference, recipient and transaction date;
+  - risk level and classification;
+  - outcome (see below).
+
+  You can filter by outcome, classification, app/bank, type and date range, search, and export the filtered list as CSV.
+- **Did the money arrive?** After checking their own account, the user marks each receipt **Received** or **Not received** (TRANSACTION.status: pending / received / not received, with the time it was marked). On a receipt, that real outcome **is its training label**: received = genuine, not received = fake. This replaces the separate "Genuine / Fake" buttons, so labelling happens as part of normal use.
+- **Check typed details.** For when the buyer only sends "sent na po, ref …", with no screenshot. The details are checked:
+  - the reference is present and has that app's format;
+  - the date is real and not in the future;
+  - for BPI, the confirmation number matches the stated time;
+  - the reference is compared with earlier checks: a reused reference, or the same reference with another amount (an edited copy).
+
+  It is clearly marked rules-only, because image forensics and the Random Forest need an image. Risky results raise an alert.
+- **Transaction type** is read from each receipt's wording: Send Money, Bank Transfer (including OCR's "instaFay" for InstaPay), QR Payment, Bill Payment, Purchase, Cash In, Cash Out. It is correct on all 16 real receipts in the test fixtures.
+
+### Fraud results (FRAUD_RESULT)
+- Every result now has a **classification**: *Possibly fraudulent* (High or Critical, risk ≥ 0.45) or *Legitimate*, shown on the result page and in Transactions.
+- Every scan records **which model scored it** (`model_id`, `model_name`).
+- The score floors set by definitive findings (hidden details, future date, BPI timing …) are now kept as `scoreFloor`, so an evaluation can replay exactly how a result was scored.
+
+### Model management (RF_MODEL)
+- **Model registry.** Every forest trained on the Model page is recorded with:
+  - name and version (auto "RF v3 · labelled receipts (61 rows)" or your own name);
+  - data source, trees / depth, train / test rows;
+  - accuracy, precision, recall, F1, **ROC-AUC** and the confusion matrix;
+  - feature importance, date and who trained it.
+
+  The page shows the model in use. You can switch back to an earlier labelled-receipt model (rebuilt exactly from the same rows) or to the built-in demonstration model.
+- **ROC-AUC and ROC curve** on the Model page, computed from the forest's probabilities on the held-out 30 %.
+- **Hypothesis test: does the Random Forest improve detection?**
+  - On labelled receipts, the same held-out 30 % is classified by the rules alone, by the forest alone, and by FraudSentry's combination.
+  - Each approach gets accuracy, precision, recall, F1, ROC-AUC and TP / FP / TN / FN.
+  - **McNemar's test** (exact binomial for fewer than 25 disagreements, χ² with continuity correction otherwise) reports whether H₀ (no difference) is rejected at α = 0.05.
+  - It uses receipts whose outcome was marked from V9.1 on, because they keep their rule score.
+
+Tests: 279 → **299** (`evaluation.test.ts`, `transactions.test.ts`).
+
+## V9.0 — 2026-10-20
+
+### Local accounts (thesis Module 1) and administration (Module 7)
+Everything still runs on the device with no server. Accounts, keys and data never leave it.
+- **Sign-in.** The first account created on a device is the **administrator**. Administrators add users, with a temporary password that must be changed at first sign-in. They can also allow self sign-up, which is off by default.
+- **Passwords are never stored.** PBKDF2-SHA-256 with 600 000 iterations and a random salt produces a key that unlocks the user's data. The directory keeps only a verifier hash, the "hashed password" of the USER table.
+- **Each user's history is encrypted** (AES-GCM 256), using their own key. History, alerts and the alert setting live in that user's encrypted "vault", and nothing personal is left in plain browser storage.
+  - Users cannot see each other's checks.
+  - The administrator can open them for review. Every user's key is also sealed with the organisation's RSA-OAEP key, which only administrators can unlock.
+  - The same mechanism lets the administrator reset a forgotten password **without losing the user's data**.
+- **Lock-out:** 5 wrong passwords lock an account for 5 minutes, doubling for each further lock-out, up to 60 minutes. The sign-in screen shows a countdown. An administrator can unlock early.
+- **Automatic sign-out** after 15 minutes without activity (adjustable from 5 minutes up to never). Reloading the page also signs out, because the keys exist only in memory.
+- **Roles:** standard users get Home, Check Receipt, Check Message, History, Alerts, Cross-Evidence and the learning pages. Administrators additionally get the **Detection Model** and **Administration** pages, and every admin action is re-checked against the role. There is always at least one active administrator.
+- **Administration page:**
+  - **Overview:** users, checks, high/critical results and unread alerts, per user and in total, plus the model in use.
+  - Read-only **records** of any user.
+  - **Users:** create, reset password, make admin/user, disable/enable, unlock, delete.
+  - **Activity log.**
+  - **Settings:** sign-up and auto sign-out.
+- **Tamper-evident activity log.** It records:
+  - sign-ins, failed sign-ins, lock-outs and sign-outs;
+  - account and setting changes;
+  - every check, with its result id and risk level only;
+  - history and label deletions;
+  - model training.
+
+  Each entry stores the SHA-256 of the previous one. **Verify integrity** reports the first entry that was edited, removed or re-ordered outside the app. The log can be exported as CSV, and it holds no receipt or message contents.
+- **Upgrading from V8.x:** history saved in plain storage moves into the first administrator's vault, then is removed from plain storage.
+- The privacy notice was updated: it now explains local accounts and administrator review, and is shown once more (notice version 3).
+- `tools/compare-versions.mjs` signs in to V9+ builds with its own account, and reads results from that account's vault with its own password.
+
+Tests: 264 → **279** (`accounts.test.ts`, `session.test.ts`; alerts persistence tests rewritten for vaults).
+
+## V8.7 — 2026-10-20
+
+### Alerts (thesis §9.5.1, Notification & Alert Management)
+- **Fraud alerts.** A check that comes back **High or Critical** (adjustable: Critical only / High and Critical / Medium and above) generates an alert. Its fields follow the ERD's ALERT table: `id` (alert_id), `resultId` (result_id), `userId` (user_id, empty until user accounts exist), `message`, `riskLevel` (risk_level), `status` (unread / read) and `dateGenerated` (date_generated).
+- **The message says why:** the app, amount and reference, the strongest failed checks, and what to do. For example: "BPI receipt for ₱15,000.00. Main reason: Hidden or Blocked-Out Details. Do not release goods or money until the payment shows in your own account."
+- **Notice when it happens.** A pop-up names the risk level and opens the Alerts page. The topbar bell and the sidebar show the unread count. This replaces the old "high-risk" pill, which counted results and couldn't be cleared.
+- **Alerts page:** filter All / Unread / Read, mark one read or unread, "Mark all as read", "View check" (opens History at that check, highlighted, and marks the alert read), delete one, delete all.
+- **Alert history follows the checks.** Alerts are saved with the history on this device. An alert is removed together with its check: deleting it, "Delete all", or the 30-day expiry. A Cross-Evidence run saves three records but raises **one** alert (for the combined result).
+- No email or SMS: those need a server, and nothing leaves the device. Alerts are in-app only.
+
+Tests: 252 → **264** (`alerts.test.ts`).
+
+## V8.6 — 2026-10-18
+
+### BPI online-banking receipts
+Tested on three real BPI receipts: two genuine ones (2024 and 2026 layouts) and a copy of the 2026 one with the date, confirmation number and recipient name **blurred**.
+- **(fix) False alarm on a genuine BPI receipt.** The 2024 receipt scored **High**: "Confirmation No." wasn't read as the reference, and the recipient under "Transfer to" wasn't found, so the app claimed the receipt "names NO recipient". It is now **Low**, with every field read.
+- **(fix)** On the 2026 layout, the headline "Transfer successful!" was taken as the recipient's name.
+- **Reading BPI receipts:** "Confirmation No." is the reference. The "Transfer to" block is read: the nickname "Juan (QR Code)", the bank's masked legal name "V•• JE•••O …" (OCR dots are read as mask bullets), and the masked account `xxxxxxxxxxx627`.
+- **New check — confirmation number ↔ time.** A BPI confirmation number is the moment of the transfer in milliseconds since 1970. On both genuine receipts it decodes to 2–3 seconds before the time shown (1710966602347 → Mar 21 2024 04:30:02, shown 04:30:05). Editing the date, the time or the number breaks this, which makes the result at least **High**. Only applied to BPI numbers that decode to a plausible date.
+- **New check — weekday ↔ date.** "Monday, Jun 29 2026" must really be a Monday. It applies to any receipt that prints a weekday. A mismatch makes the result at least **High**.
+- **New hint — text colour consistency.** A number typed over by an editor is usually a slightly different tint from the app's own text. The amount and long-reference lines are compared with the receipt's other text of the same size and darkness, with an allowance that adapts to each image's noise. A tint that recurs elsewhere is treated as a design colour. A suspicious line is outlined, and the result is at least **Medium** (a hint, not proof).
+- Hidden-detail wording now says "blurred or pixelated": blur is caught too, as on the blurred BPI copy.
+- After hidden details are found, a time read without its date (usually from the blurred date line) is no longer shown.
+
+**Measured (real BPI receipts plus edited copies made for this test; not a held-out set):**
+
+| Receipt | V8.5 | V8.6 |
+|---|---|---|
+| BPI 2024, genuine | **High** (false alarm) | Low |
+| BPI 2026, genuine | Low (wrong recipient) | Low (all fields right) |
+| BPI 2026, blurred copy | High | High: details hidden |
+| BPI 2026 with the date edited | Low | **High**: weekday + confirmation time |
+| BPI 2026 with the confirmation no. edited | Low | **High**: confirmation time |
+| BPI 2026 with the amount edited | Low | **Medium**: colour hint, line outlined |
+
+The colour hint raised **no false alarm on any of 43 clean / genuine images** (34 synthetic screenshots incl. busy app UI, 2 real BPI, 1 real GCash, 6 others).
+
+### Welcome screen
+- **(fix) The welcome / privacy-notice screen was shown only once.** After that, the app always opened on the dashboard. The notice now has a version: when it changes, which it did in V8.5–V8.6 (training labels, 30-day expiry), everyone sees it once more. It can also be opened any time from the footer ("Welcome screen") or the Privacy page, or by adding `#welcome` to the address (handy for a demo). "Back to FraudSentry" returns without re-accepting.
+
+Tests: 231 → **252** (`bpiReceipts.test.ts` with redacted real BPI OCR, `inkConsistency.test.ts`).
+
 ## V8.5 — 2026-10-18
 
 ### Train the Random Forest on real receipts

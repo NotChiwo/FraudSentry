@@ -15,7 +15,7 @@ import { useAppStore } from '../store/useAppStore';
 import CameraScanner from '../components/CameraScanner';
 import TrainingLabel from '../components/training/TrainingLabel';
 import { ImageScanResult, ExtractedTransactionData, OcrResult, OcrWord, RiskLevel, VerificationFinding } from '../types';
-import { formatBytes, formatPHP, formatRelativeTime } from '../utils/helpers';
+import { formatBytes, formatPHP, formatRelativeTime, classificationOf, CLASSIFICATION_LABEL } from '../utils/helpers';
 
 // Plain-language verdicts. The technical label (legitimacyLabel) still goes in the PDF report.
 export const VERDICT: Record<RiskLevel, { title: string; level: string; Icon: typeof CheckCircle2 }> = {
@@ -393,6 +393,7 @@ function ResultView(props: {
   validation?.checks.forEach(c => { vmap[c.key] = c; });
   const boxes = useMemo(() => locateFields(result.ocr.words, result.extracted), [result]);
   const hiddenAreas = result.forensics.obscuredRegions ?? [];
+  const inkAreas = result.inkOutliers ?? [];
   const size = result.ocr.imageSize;
 
   return (
@@ -405,6 +406,11 @@ function ResultView(props: {
             <div className="verdict-level">{v.level}</div>
             <h1 id="verdict-title" className="verdict-title">{v.title}</h1>
             <p className="verdict-reason">{oneLineReason(result)}</p>
+            <p className="verdict-class">
+              <span className={`cls-chip ${result.classification ?? classificationOf(result.riskLevel)}`}>{CLASSIFICATION_LABEL[result.classification ?? classificationOf(result.riskLevel)]}</span>
+              {result.transactionType && result.transactionType !== 'Other' && <span className="muted small">{result.transactionType}</span>}
+              {result.forestAnalysis?.modelName && <span className="muted small">Scored with {result.forestAnalysis.modelName}</span>}
+            </p>
           </div>
         </div>
         <div className="level-meter" aria-hidden="true">
@@ -468,7 +474,7 @@ function ResultView(props: {
         <section className="card pad">
           <div className="row-between">
             <h2 className="section-title"><Eye size={18} /> Where we read it</h2>
-            {(boxes.length > 0 || hiddenAreas.length > 0) && (
+            {(boxes.length > 0 || hiddenAreas.length > 0 || inkAreas.length > 0) && (
               <label className="toggle"><input type="checkbox" checked={showBoxes} onChange={e => setShowBoxes(e.target.checked)} /> Highlights</label>
             )}
           </div>
@@ -484,10 +490,16 @@ function ResultView(props: {
               <span key={`hidden-${i}`} className="field-box fb-hidden" style={{
                 left: `${(r.x / size.w) * 100}%`, top: `${(r.y / size.h) * 100}%`,
                 width: `${(r.w / size.w) * 100}%`, height: `${(r.h / size.h) * 100}%`,
-              }}><span className="fb-tag">{r.kind === 'pixelated' ? 'Pixelated' : 'Covered'}</span></span>
+              }}><span className="fb-tag">{r.kind === 'pixelated' ? 'Blurred / pixelated' : 'Covered'}</span></span>
+            ))}
+            {showBoxes && size && inkAreas.map((r, i) => (
+              <span key={`ink-${i}`} className="field-box fb-hidden" style={{
+                left: `${(r.x0 / size.w) * 100}%`, top: `${(r.y0 / size.h) * 100}%`,
+                width: `${((r.x1 - r.x0) / size.w) * 100}%`, height: `${((r.y1 - r.y0) / size.h) * 100}%`,
+              }}>{i === 0 && <span className="fb-tag">Different colour</span>}</span>
             ))}
           </div>
-          <p className="muted small">{hiddenAreas.length ? 'Red dashed outline: an area that was pixelated or covered after the receipt was made. ' : ''}{boxes.length ? 'Outlined: where each detail was read on your screenshot.' : 'Details were read, but their exact position on the image could not be pinned down.'}</p>
+          <p className="muted small">{hiddenAreas.length ? 'Red dashed outline: an area that was blurred, pixelated or covered after the receipt was made. ' : ''}{inkAreas.length ? 'Red dashed outline “Different colour”: text printed in a slightly different colour than the rest. ' : ''}{boxes.length ? 'Outlined: where each detail was read on your screenshot.' : 'Details were read, but their exact position on the image could not be pinned down.'}</p>
         </section>
       </div>
 
@@ -567,6 +579,9 @@ function HowDecided({ result, preview }: { result: ImageScanResult; preview: str
         <div className="trio-op" aria-hidden="true">=</div>
         <div className="trio strong"><div className="trio-v mono">{pct(result.riskScore)}</div><div className="trio-l">Final risk (½ + ½)</div></div>
       </div>
+      {!!result.scoreFloor && result.riskScore <= result.scoreFloor + 1e-9 && (
+        <p className="note">A definitive finding sets a minimum of {pct(result.scoreFloor)}: the average is never allowed to hide it.</p>
+      )}
       {fa?.datasetSource === 'demo' && (
         <p className="note">The forest is currently trained on a seeded <b>demonstration</b> dataset, not on real collected evidence. It shows how the method works; its vote is not a measured accuracy.</p>
       )}

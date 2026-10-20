@@ -19,12 +19,12 @@
 // ============================================================
 
 import { EvidenceSource, ImageScanResult, OcrResult, ForensicReport, VerificationFinding, RiskLevel, ExtractedTransactionData } from '../types';
-import { generateId, scoreToRiskLevel, clamp } from '../utils/helpers';
+import { generateId, scoreToRiskLevel, clamp, classificationOf, blendScore } from '../utils/helpers';
 import { runOcr, OcrCancelled } from '../services/ocr';
 import type { OcrProgress } from '../services/ocr';
-import { analyzeForensics } from '../services/imageForensics';
-import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction } from '../services/receiptParser';
-import { reconcileAmounts, checkReceiptDate } from '../services/consistencyChecks';
+import { analyzeForensics, inkCheckForFile } from '../services/imageForensics';
+import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf } from '../services/receiptParser';
+import { reconcileAmounts, checkReceiptDate, checkWeekday, checkConfirmationTime } from '../services/consistencyChecks';
 import { assessHiddenFields } from '../services/hiddenFields';
 import { matchAgainstHistory, PriorScan } from '../services/historyMatch';
 import { buildFeatureVector } from '../services/sampleDataset';
@@ -127,6 +127,8 @@ export async function analyzeTransactionImage(
   const detailsHidden = hidden.regions.length > 0 || hidden.referenceUnreadable;
   // A number read through a mosaic is made up from the noise ("…0449"): don't show it.
   if (hidden.regionOnPhone && !opts?.extractedOverride) extracted = { ...extracted, receiverContact: null };
+  // A time read without its date on an edited receipt is usually read from the blurred date line: don't show it.
+  if (detailsHidden && !extracted.date && extracted.time && !opts?.extractedOverride) extracted = { ...extracted, time: null };
   if (detailsHidden) {
     findings.push(finding('forensic', 'Hidden or Blocked-Out Details', hidden.detail, 'high', false, 0.45));
   }
@@ -208,6 +210,29 @@ export async function analyzeTransactionImage(
     findings.push(finding('timestamp', 'Receipt Date Plausibility', dateCheck.detail, 'medium', false, 0.15));
   }
 
+  // ── Weekday must match the date ("Monday, Jun 29 2026") ──
+  const weekday = checkWeekday(ocrTexts);
+  if (weekday.status === 'consistent') {
+    findings.push(finding('timestamp', 'Weekday Matches Date', weekday.detail, 'low', true, 0.45));
+  } else if (weekday.status === 'mismatch') {
+    findings.push(finding('timestamp', 'Weekday Matches Date', weekday.detail, 'high', false, 0.45));
+  }
+
+  // ── Repainted number? Ink tint of the amount / reference line vs the rest ──
+  let ink: Awaited<ReturnType<typeof inkCheckForFile>> = { status: 'unknown', outliers: [], detail: '' };
+  try { ink = await inkCheckForFile(file, ocr.words); } catch { /* no canvas: skip */ }
+  if (ink.status === 'suspicious') {
+    findings.push(finding('forensic', 'Text Colour Consistency', ink.detail, 'medium', false, 0.30));
+  }
+
+  // ── BPI: the confirmation number encodes the transfer time ──
+  const confTime = checkConfirmationTime(source, extracted.referenceNo, extracted.date, extracted.time);
+  if (confTime.status === 'consistent') {
+    findings.push(finding('reference', 'Confirmation Number Timing', confTime.detail, 'low', true, 0.50));
+  } else if (confTime.status === 'mismatch') {
+    findings.push(finding('reference', 'Confirmation Number Timing', confTime.detail, 'high', false, 0.50));
+  }
+
   // ── Earlier scans: reused receipt / edited copy ──
   const hist = matchAgainstHistory(extracted, opts?.history ?? []);
   if (hist.kind === 'edited-copy') {
@@ -222,15 +247,21 @@ export async function analyzeTransactionImage(
   const forestAnalysis = scoreWithSharedModel(
     buildFeatureVector(forensics, ocr, extracted, source, failed.length),
   );
-  let riskScore = clamp(0.5 * heuristicScore + 0.5 * forestAnalysis.probability, 0, 1);
-  // A definitive structural fact (no transfer exists yet) is not a
-  // probability — never let the blend dilute it below Critical.
-  if (unconfirmed) riskScore = Math.max(riskScore, 0.7);
+  // Definitive findings set a floor the blend can never dilute (kept as
+  // scoreFloor, so the evaluation can replay exactly how a result was scored).
+  let scoreFloor = 0;
+  // A definitive structural fact (no transfer exists yet) is not a probability: never below Critical.
+  if (unconfirmed) scoreFloor = Math.max(scoreFloor, 0.7);
   // Same for a future date or totals that don't add up: never below High.
   // (Both are read from stable multi-pass OCR, so a lone misread can't trigger them.)
-  if (dateCheck.status === 'future' || recon.status === 'mismatch' || hist.kind === 'edited-copy') riskScore = Math.max(riskScore, 0.45);
+  if (dateCheck.status === 'future' || recon.status === 'mismatch' || hist.kind === 'edited-copy') scoreFloor = Math.max(scoreFloor, 0.45);
+  // The app generates the weekday and (on BPI) the confirmation number from the time itself.
+  if (weekday.status === 'mismatch' || confTime.status === 'mismatch') scoreFloor = Math.max(scoreFloor, 0.45);
+  // a repaint hint is not proof, but never shows as Low
+  if (ink.status === 'suspicious') scoreFloor = Math.max(scoreFloor, 0.22);
   // Hidden details make the receipt unverifiable: never below High.
-  if (detailsHidden) riskScore = Math.max(riskScore, 0.45);
+  if (detailsHidden) scoreFloor = Math.max(scoreFloor, 0.45);
+  const riskScore = blendScore(heuristicScore, forestAnalysis.probability, scoreFloor);
   const riskLevel: RiskLevel = scoreToRiskLevel(riskScore);
 
   const legitimacyLabel =
@@ -269,7 +300,12 @@ export async function analyzeTransactionImage(
     recommendedAction,
     actionPlan,
     heuristicScore,
+    scoreFloor,
+    classification: classificationOf(riskLevel),
+    transactionType: transactionTypeOf(ocr.passes?.length ? ocr.passes.join('\n') : ocr.text, source),
+    txStatus: 'pending',
     forestAnalysis,
+    inkOutliers: ink.outliers.map(({ text, x0, y0, x1, y1 }) => ({ text, x0, y0, x1, y1 })),
     previewDataUrl: opts?.previewDataUrl,
     scannedAt: new Date().toISOString(),
   };
@@ -302,11 +338,13 @@ function buildActionPlan(
       : `Ask the sender for the transaction reference number, then look it up inside your own ${app} app.`);
     if (reused) plan.push('This exact receipt was submitted before — ask why the same proof is being used twice before going any further.');
     if (failed.some(f => f.label === 'Earlier Scan Comparison')) plan.push('You scanned a receipt with the same details before, but the figures differ. Put both screenshots side by side, and trust only the amount that actually arrived in your own account.');
+    if (failed.some(f => f.label === 'Confirmation Number Timing' || f.label === 'Weekday Matches Date')) plan.push('The date on this receipt disagrees with details the bank app generates from the real time (the weekday, or the BPI confirmation number). Look for the transfer in your own account history by amount — don’t trust the date shown on the screenshot.');
     if (failed.some(f => f.label === 'Amount Reconciliation')) plan.push('The amount, fee and total on this receipt do not add up. Compare the amount that actually arrived in your account with BOTH figures — an edited amount is the most common fake.');
     if (failed.some(f => f.label === 'Receipt Date Plausibility' && f.weight >= 0.4)) plan.push('The receipt is dated in the future. Ask the sender to show the transaction live inside their app, and check the date and time in your own history.');
     if (failedLabel('No Recipient Identified')) plan.push('A genuine transfer receipt always names its recipient. Ask the sender to show the transaction inside their app on a live video call.');
     plan.push('If money was already lost, keep the screenshot and chat as evidence and report to your platform and local authorities (PNP-ACG hotline or nearest station).');
   } else if (riskLevel === 'medium') {
+    if (failedLabel('Text Colour Consistency')) plan.push('The amount or reference line is printed in a slightly different colour than the rest of the receipt — a sign it may have been typed over. Check the exact amount that arrived in your own account before releasing anything.');
     plan.push(`Confirm the amount${extracted.amount == null ? '' : ` (₱${extracted.amount.toLocaleString()})`} actually arrived in your own ${app} account before releasing anything.`);
     if (ref) plan.push(`Match reference ${ref} against your received-funds history — the number must appear on YOUR side.`);
     if (reused) plan.push('This reference number was already used in an earlier scan — make sure you are not being shown the same receipt twice.');

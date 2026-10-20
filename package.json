@@ -1,7 +1,7 @@
 {
   "name": "fraudsentry",
   "private": true,
-  "version": "8.5.0",
+  "version": "10.0.0",
   "type": "module",
   "description": "FraudSentry: An Online Transaction Fraud Detection System Using Random Forest Algorithm (single-file, no backend)",
   "scripts": {
@@ -11,9 +11,20 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:offline": "vite build --mode offline"
+    "build:offline": "vite build --mode offline",
+    "android:sync": "npm run build:offline && cap sync android",
+    "android:open": "cap open android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "desktop:start": "npm run build:offline && npm --prefix desktop ci && npm --prefix desktop start",
+    "desktop:dist": "npm run build:offline && npm --prefix desktop ci && npm --prefix desktop run dist",
+    "icons": "node tools/make-icons.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/filesystem": "8.1.4",
+    "@capacitor/share": "8.0.3",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.18.0",
     "papaparse": "^5.5.3",
@@ -22,6 +33,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
     "@tailwindcss/vite": "^4.1.17",
     "@tesseract.js-data/eng": "1.0.0",
     "@tesseract.js-data/fil": "1.0.0",

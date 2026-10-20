@@ -1,0 +1,16 @@
+{
+  "appId": "com.fraudsentry.app",
+  "appName": "FraudSentry",
+  "webDir": "dist-offline",
+  "backgroundColor": "#0b1020",
+  "android": {
+    "backgroundColor": "#0b1020",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
+}
