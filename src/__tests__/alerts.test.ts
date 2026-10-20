@@ -29,8 +29,8 @@ function cross(id: string, combinedRiskLevel: RiskLevel): CrossEvidenceResult {
 describe('generating an alert', () => {
   it('a High receipt gives an alert with the ERD fields, unread, dated when the check ran', () => {
     const a = alertForReceipt(receipt('scan-1', 'high'))!;
-    expect(a).toMatchObject({ id: 'alert-scan-1', resultId: 'scan-1', resultKind: 'receipt', userId: null, riskLevel: 'high', status: 'unread', dateGenerated: NOW, title: 'Suspicious receipt' });
-    expect(Object.keys(a).sort()).toEqual(['dateGenerated', 'id', 'message', 'resultId', 'resultKind', 'riskLevel', 'status', 'title', 'userId']);
+    expect(a).toMatchObject({ id: 'alert-scan-1', resultId: 'scan-1', resultKind: 'receipt', riskLevel: 'high', status: 'unread', dateGenerated: NOW, title: 'Suspicious receipt' });
+    expect(Object.keys(a).sort()).toEqual(['dateGenerated', 'id', 'message', 'resultId', 'resultKind', 'riskLevel', 'status', 'title']);
   });
   it('the message names the receipt and its strongest failed checks, then what to do', () => {
     const m = alertForReceipt(receipt('scan-1', 'critical'))!.message;

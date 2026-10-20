@@ -37,7 +37,7 @@ export default function FraudReportsPage() {
     setBusy(true); setError(null);
     try {
       const mine = useAppStore.getState() as UserData;
-      const r = buildReport([{ username: 'this device', data: mine }], { type, scope: 'me', from, to, userId: null, username: null });
+      const r = buildReport(mine, { type, from, to });
       addReport(r); setViewing(r);
     } catch (e) {
       console.error(e); setError('The report could not be generated.');
@@ -162,7 +162,6 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
         {s.byType.length > 0 && <Breakdown title="By transaction type" head={['Type', 'Checks', 'Flagged']} rows={s.byType.map(x => [x.type, x.checks, x.fraudulent])} />}
         {s.topReasons.length > 0 && <Breakdown title="Most common warning signs" head={['Check that failed', 'Times']} rows={s.topReasons.map(x => [x.label, x.count])} />}
         {s.models.length > 0 && <Breakdown title="Models that scored the receipts" head={['Model', 'Receipts']} rows={s.models.map(x => [x.name, x.checks])} />}
-        {s.users && <Breakdown title="By user" head={['User', 'Checks', 'Flagged']} rows={s.users.map(x => [x.username, x.checks, x.fraudulent])} />}
       </div>
 
       {r.rows && (
@@ -170,7 +169,7 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
           <h3 className="how-h">Every check ({r.rows.length})</h3>
           <div className="table-wrap">
             <table className="admin-table">
-              <thead><tr><th>When</th><th>Kind</th><th>App</th><th>Type</th><th>Amount</th><th>Reference</th><th>Risk</th><th>Classification</th><th>Outcome</th>{r.scope === 'all' && <th>User</th>}</tr></thead>
+              <thead><tr><th>When</th><th>Kind</th><th>App</th><th>Type</th><th>Amount</th><th>Reference</th><th>Risk</th><th>Classification</th><th>Outcome</th></tr></thead>
               <tbody>
                 {r.rows.map((x, i) => (
                   <tr key={i}>
@@ -178,7 +177,6 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
                     <td className="mono">{x.reference ?? '—'}</td><td><span className={`sev-chip sev-${x.riskLevel === 'low' ? 'ok' : x.riskLevel}`}>{x.riskLevel}</span></td>
                     <td>{x.classification === 'fraudulent' ? 'Possibly fraudulent' : 'Legitimate'}</td>
                     <td>{x.outcome === 'received' ? 'Received' : x.outcome === 'not-received' ? 'Not received' : x.outcome === 'pending' ? 'Not confirmed' : '—'}</td>
-                    {r.scope === 'all' && <td>{x.user}</td>}
                   </tr>
                 ))}
               </tbody>

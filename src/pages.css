@@ -150,9 +150,7 @@
 .history-row.highlighted { outline: 3px solid var(--accent-light); outline-offset: 2px; }
 .history-row:focus { outline: 3px solid var(--accent-light); outline-offset: 2px; }
 
-/* ── Administration & account (V9.0) ────────────────────────── */
-.admin-tabs { margin-bottom: 14px; }
-.admin-tabs .filter-btn { display: inline-flex; align-items: center; gap: 6px; }
+/* ── cards, stats & tables ──────────────────────────────────── */
 .admin-card { padding: 18px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 12px; }
 .admin-card .section-title { display: flex; align-items: center; gap: 8px; margin: 0; }
 .admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
@@ -163,33 +161,16 @@
 .admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .admin-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); padding: 8px 10px; border-bottom: 1px solid var(--border-default); white-space: nowrap; }
 .admin-table td { padding: 9px 10px; border-bottom: 1px solid var(--border-default); color: var(--text-secondary); vertical-align: top; }
-.admin-table tr.sec td { color: var(--risk-critical); }
 .admin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end; }
-.admin-form.one-col { grid-template-columns: 1fr; max-width: 420px; }
-.admin-form label, .admin-field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.admin-temp { display: flex; gap: 6px; align-items: center; }
+.admin-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
 .admin-msg { margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; color: var(--text-primary); background: var(--bg-accent-tint); border: 1px solid var(--border-accent);
   display: flex; flex-direction: column; gap: 8px; }
 .admin-msg.bad { color: var(--risk-critical); background: var(--risk-critical-bg); border-color: color-mix(in srgb, var(--risk-critical) 35%, transparent); }
-.admin-pw { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.admin-pw code { font-size: 17px; font-weight: 700; padding: 6px 10px; border-radius: 8px; background: var(--bg-input); border: 1px solid var(--border-input); }
 .admin-users { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .admin-user { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border-radius: 12px; background: var(--bg-subtle); border: 1px solid var(--border-default); }
 .admin-user-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .admin-user-main .muted { flex-basis: 100%; }
 .admin-user-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.admin-toggle { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
-.admin-toggle input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); flex-shrink: 0; }
-.admin-field { max-width: 420px; }
-.admin-drawer { max-width: 900px; width: min(900px, calc(100vw - 24px)); max-height: 86vh; overflow-y: auto; }
-.account-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 0; }
-.account-facts dt { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
-.account-facts dd { margin: 4px 0 0; font-size: 16px; font-weight: 700; color: var(--text-primary); }
-.sheet-backdrop:has(.admin-drawer) { justify-content: center; }
-@media (min-width: 860px) {
-  .sheet-backdrop:has(.admin-drawer) { align-items: center; }
-  .admin-drawer { border-radius: 18px; border: 1px solid var(--border-default); }
-}
 
 /* ── Transactions (V9.1) ────────────────────────────────────── */
 .tx-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
