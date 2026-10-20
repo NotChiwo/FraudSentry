@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**292 / 292 passing** (V10.1).
+**291 / 291 passing** (V10.1).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -337,6 +337,8 @@ Run in the built app (Chromium), starting from a V8.7 device with one saved scam
 
 ## 3h. Reports in the built app (V9.2)
 
+Run with V9.2 accounts. Since V10.1 there are no accounts, so the cashier, "all users" and per-user parts no longer apply; a report now always covers this device (see 3j).
+
 | Step | Result |
 |---|---|
 | Cashier enters a ₱1,500 GCash payment and marks it received | stored in the cashier's vault |
@@ -347,6 +349,8 @@ Run in the built app (Chromium), starting from a V8.7 device with one saved scam
 | Activity log | report generation and typed transactions logged |
 
 ## 3i. The apps (V10)
+
+Run with V10.0, which still had the administrator sign-in. The V10.1 apps open straight to Home (see 3j).
 
 **Desktop (Electron 43, run on Linux under a virtual display with Playwright):**
 
@@ -370,6 +374,17 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 - Emulator: Android 14 with its WebView (Chrome 113). The page loaded from inside the app (without the INTERNET permission), was a secure context with Web Crypto, and showed "Welcome to FraudSentry". The administrator was created and signed in.
 
 **Not yet tested on a physical phone:** do that before the defense, especially the camera and the share sheet.
+
+## 3j. No login (V10.1)
+
+| Step | Result |
+|---|---|
+| Open the built file, accept the privacy notice | opens on Home; no sign-in, password or setup screen |
+| Check a phishing message | alert toast; listed in Alerts; still there after reload |
+| Reports → Generate a summary report (Playwright, Chromium) | "Summary report · <period>", no scope or user columns; no page errors |
+| Android emulator (Apps workflow, tag `v10.1.0`, run 39514746001) | the page loads inside the app and opens on Home |
+| Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
+| Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

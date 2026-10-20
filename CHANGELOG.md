@@ -1,5 +1,13 @@
 # Changelog
 
+## V10.1.1 — 2026-10-21
+
+### Ready for the defense
+- **Intel Macs:** the release now has a macOS build for Intel (`…-x64.dmg`) next to the Apple-chip one (`…-arm64.dmg`).
+- **How to open it:** new [docs/OPENING-THE-APP.md](docs/OPENING-THE-APP.md) with step-by-step instructions for Windows, macOS, Linux, Android and iPhone (hosted page at fraudsentry-bscs.netlify.app), including how to get past the warnings for unsigned apps. The README points to the release downloads instead of the 30-day Actions artifacts.
+- **TESTING.md:** new section 3j for the no-login version; the V9.2 and V10.0 sections that used accounts are marked as such.
+- No change to detection, alerts or the app's screens.
+
 ## V10.1 — 2026-10-21
 
 ### Login and administration removed
