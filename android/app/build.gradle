@@ -7,9 +7,9 @@ android {
         applicationId "com.fraudsentry.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // keep in step with package.json ("10.0.0" → 100000)
-        versionCode 100000
-        versionName "10.0.0"
+        // keep in step with package.json ("10.1.0" → 100100)
+        versionCode 100100
+        versionName "10.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

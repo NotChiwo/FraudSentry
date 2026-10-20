@@ -8,8 +8,7 @@
 // outcome users confirmed in their own accounts (received / not received).
 //   • summary  — the numbers and the breakdowns
 //   • detailed — the same, plus every check in the period
-// Administrators can report on all users of the device.
-// Reports are saved in the generating user's encrypted vault, so they can be
+// Reports are saved in the local history, so they can be
 // reopened later; like the history, they expire after 30 days.
 // Pure functions.
 // ============================================================
@@ -192,7 +191,7 @@ export function buildReport(
   const range = opts.from === opts.to ? opts.from : `${opts.from} to ${opts.to}`;
   return {
     id: generateId('report'), userId: opts.userId, username: opts.username, reportType: opts.type, scope: opts.scope,
-    title: `${opts.type === 'summary' ? 'Summary' : 'Detailed'} report · ${opts.scope === 'all' ? 'all users' : opts.username ?? 'me'} · ${range}`,
+    title: `${opts.type === 'summary' ? 'Summary' : 'Detailed'} report · ${opts.scope === 'all' ? 'all users · ' : ''}${range}`,
     description: describeReport(stats), periodFrom: opts.from, periodTo: opts.to, generatedAt: now.toISOString(), stats,
     ...(opts.type === 'detailed' ? { rows: reportRows(sources, opts.from, opts.to) } : {}),
   };

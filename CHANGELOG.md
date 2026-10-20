@@ -1,5 +1,16 @@
 # Changelog
 
+## V10.1 — 2026-10-21
+
+### Login and administration removed
+FraudSentry is a one-person tool again: it opens straight to Home after the privacy notice. No sign-in, no accounts, no admin.
+- **Removed:** sign-in and setup screens, administrator / user roles, lock-out, auto sign-out, the Administration page (users, activity log, settings), the Your account page, per-user encrypted vaults, and "all users" reports.
+- **Kept:** alerts, Transactions (with "did the money arrive?"), Reports, the Model page extras (registry, ROC-AUC, McNemar test), and the Android and desktop apps.
+- **Storage:** the history (checks, typed transactions, alerts, reports) is saved in this browser / app again, still with the 30-day expiry. History that V9.0–V10.0 had held back for a first administrator is loaded again. History that was already moved into an encrypted account vault in V9.0–V10.0 cannot be opened without that account, and is left untouched.
+- The privacy notice says "No account, no tracking" again, and is shown once more (notice version 4).
+
+Tests: 306 → **292** (the account and session tests were removed with the feature).
+
 ## V10.0 — 2026-10-20
 
 ### FraudSentry as installable apps

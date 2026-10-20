@@ -64,7 +64,7 @@ describe('reports', () => {
     const sum = buildReport([{ username: 'owner', data: d }], { ...opts, type: 'summary' });
     expect(sum.rows).toBeUndefined();
     expect(sum.stats.byKind['Typed details']).toBe(1);
-    expect(sum.title).toBe('Summary report · owner · 2026-10-02 to 2026-10-15');
+    expect(sum.title).toBe('Summary report · 2026-10-02 to 2026-10-15');
     const det = buildReport([{ username: 'owner', data: d }], { ...opts, type: 'detailed' });
     expect(det.rows).toHaveLength(7);
     expect(det.rows!.map(r => r.when)).toEqual([...det.rows!.map(r => r.when)].sort().reverse());

@@ -25,7 +25,7 @@ export interface FraudAlert {
   /** the check (fraud result) this alert was generated for */
   resultId: string;
   resultKind: AlertKind;
-  /** the user it belongs to; null until user accounts exist */
+  /** ALERT.user_id — always null: FraudSentry has no user accounts (one user per device) */
   userId: string | null;
   title: string;
   message: string;

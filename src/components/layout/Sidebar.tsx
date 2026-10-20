@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
   Home, ScanLine, MessageSquareWarning, GitCompareArrows, BookOpen, History, Info, Lock,
-  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X, Bell, UserCog, ReceiptText, FileBarChart,
+  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X, Bell, ReceiptText, FileBarChart,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { unreadCount } from '../../services/alerts';
-import { useSession } from '../../store/useSession';
 
-export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'reports' | 'alerts' | 'privacy' | 'about' | 'admin' | 'account' | 'transactions' | 'fraudreports';
+export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'reports' | 'alerts' | 'privacy' | 'about' | 'transactions' | 'fraudreports';
 
-interface NavItem { id: PageId; label: string; icon: LucideIcon; sub: string; adminOnly?: boolean }
+interface NavItem { id: PageId; label: string; icon: LucideIcon; sub: string }
 interface NavGroup { title: string; items: NavItem[]; note?: string }
 
 // Everyday tools first; thesis/research tools in their own, clearly labelled group.
@@ -31,19 +30,9 @@ export const NAV_GROUPS: NavGroup[] = [
   ] },
   { title: 'Research tools', note: 'Thesis demo', items: [
     { id: 'cross', label: 'Cross-Evidence',  icon: GitCompareArrows, sub: 'Receipt vs. conversation' },
-    { id: 'model', label: 'Detection Model', icon: Trees,            sub: 'Random Forest & metrics', adminOnly: true },
-  ] },
-  { title: 'Admin', items: [
-    { id: 'admin', label: 'Administration', icon: UserCog, sub: 'Users, activity log, settings', adminOnly: true },
+    { id: 'model', label: 'Detection Model', icon: Trees,            sub: 'Random Forest & metrics' },
   ] },
 ];
-/** Pages not in the menu (opened from the top bar) */
-export const EXTRA_PAGE_TITLES: Partial<Record<PageId, string>> = { account: 'Your account' };
-
-/** The menu for this role: administrator-only pages are hidden from standard users. */
-export function navFor(isAdmin: boolean): NavGroup[] {
-  return NAV_GROUPS.map(g => ({ ...g, items: g.items.filter(it => isAdmin || !it.adminOnly) })).filter(g => g.items.length);
-}
 
 const MOBILE_TABS: NavItem[] = [
   NAV_GROUPS[0].items[0], NAV_GROUPS[0].items[1], NAV_GROUPS[0].items[2], NAV_GROUPS[0].items[3],
@@ -93,7 +82,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const unread = useAppStore(s => unreadCount(s.alerts));
-  const groups = navFor(useSession(s => s.session?.role === 'admin'));
+  const groups = NAV_GROUPS;
 
   useEffect(() => { if (!isMobile) setMoreOpen(false); }, [isMobile]);
   useEffect(() => {

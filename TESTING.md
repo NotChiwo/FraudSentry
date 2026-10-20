@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**306 / 306 passing** (V9.2).
+**292 / 292 passing** (V10.1).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -35,8 +35,6 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `fraudReports.test.ts` | 7 | V9.2: period-only counts by kind, classification, risk and outcome; classification vs confirmed outcome (TP / FP / TN / FN, accuracy, precision, recall); breakdowns by app, type, warning sign, model, alerts; plain-language description (and "no checks"); summary vs detailed with typed transactions and CSV; all-users report with per-user counts; saved reports expire after 30 days |
 | `evaluation.test.ts` | 12 | V9.1: ROC-AUC (perfect, guessing, reversed, ties, one class), ROC curve area = AUC, demo forest AUC > 0.85; McNemar exact binomial (hand-computed p), no or balanced disagreement, χ² with continuity correction; rules vs forest vs combined on the same held-out receipts with a significant improvement, rows without a rule score left out; a labelled scan keeps its rule score and floor; blend and classification threshold; model versions, names and which models can be reactivated |
 | `transactions.test.ts` | 8 | V9.1: typed details (consistent → Low; wrong-shape or missing reference; future date ≥ High; edited copy of an earlier check; BPI confirmation time); transaction type from receipt wording; "received / not received" sets a receipt's training label and pending removes it; typed-details transactions never train the model and raise an alert that is removed with them |
-| `accounts.test.ts` | 11 | V9.0 accounts: first account is the administrator and no password is stored; sign-in (username case-insensitive), wrong password, unknown user; lock-out after 5 wrong passwords (even the right password is refused while locked), 5 → 10 minutes, reset on success; username / password rules; admin-created user must change the temporary password; standard users cannot administer; sign-up only when allowed; password reset keeps the user's data; roles, disable, unlock, delete, always one administrator; a vault is unreadable to another user but readable by an administrator; the activity log records events without passwords and its hash chain detects an edited or removed entry |
-| `session.test.ts` | 3 | V9.0 sessions: signing in loads only that user's data, work is saved encrypted (no plain reference numbers), signing out clears memory, another user sees nothing; the first administrator inherits pre-accounts history; checks, clearing history and signing out are logged |
 | `alerts.test.ts` | 13 | V8.7 alerts: a High receipt gives an alert with exactly the ERD fields, unread, dated when the check ran; the message names app, amount, reference and the strongest failed checks; the alert level (Low never; Medium only when chosen; Critical only); message and cross-evidence wording; one alert per check, newest first, capped at 100; store: risky checks create alerts and clean ones don't, read / unread / mark all / delete, deleting a check (or it leaving the 40-item history) deletes its alert, a Cross-Evidence run raises one alert, saved and reopened alerts keep their status and expired ones are dropped |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
@@ -305,7 +303,7 @@ Run in the built app (Chromium, desktop 1280×900 and phone 390×844):
 
 Page errors: none.
 
-## 3f. Accounts in the built app (V9.0)
+## 3f. Accounts in the built app (V9.0; removed in V10.1, kept for the record)
 
 Run in the built app (Chromium), starting from a V8.7 device with one saved scam-message check:
 
