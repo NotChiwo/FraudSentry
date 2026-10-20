@@ -365,7 +365,13 @@ Run in the built app (Chromium), starting from a V8.7 device with one saved scam
 - through the WebView debugging socket, the check confirms the page loaded from `https://localhost` inside the app with Web Crypto available;
 - it then accepts the notice and creates the administrator.
 
-The same check was run against headless Chromium here: "Welcome to FraudSentry", secure context, signed in as owner. **Not yet tested on a physical phone:** do that before the defense, especially the camera and the share sheet.
+The same check was run against headless Chromium here: "Welcome to FraudSentry", secure context, signed in as owner.
+
+**First CI run (2026-10-20, run 39460539320): all jobs passed.**
+- APK 11 MB, Windows installer + portable exe, macOS dmg, Linux AppImage.
+- Emulator: Android 14 with its WebView (Chrome 113). The page loaded from inside the app (without the INTERNET permission), was a secure context with Web Crypto, and showed "Welcome to FraudSentry". The administrator was created and signed in.
+
+**Not yet tested on a physical phone:** do that before the defense, especially the camera and the share sheet.
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.
