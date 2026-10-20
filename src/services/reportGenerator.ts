@@ -9,6 +9,12 @@ import { jsPDF } from 'jspdf';
 import { ImageScanResult, MessageScanResult } from '../types';
 import { RISK_META, CLASSIFICATION_LABEL, classificationOf } from '../utils/helpers';
 import type { FraudReport } from './fraudReports';
+import { saveFile } from '../platform/native';
+
+// doc.save() only works in a browser; saveFile also covers the Android app
+function savePdf(doc: jsPDF, filename: string) {
+  void saveFile(filename, doc.output('blob'), 'application/pdf').catch(e => console.error('FraudSentry: could not save the PDF', e));
+}
 
 const NAVY = '#0f172a';
 const BLUE = '#2563eb';
@@ -169,7 +175,7 @@ export function generateImageReport(scan: ImageScanResult) {
   }
 
   footer(doc);
-  doc.save(`${caseId}-transaction-report.pdf`);
+  savePdf(doc, `${caseId}-transaction-report.pdf`);
 }
 
 export function generateMessageReport(scan: MessageScanResult) {
@@ -224,7 +230,7 @@ export function generateMessageReport(scan: MessageScanResult) {
   }
 
   footer(doc);
-  doc.save(`${caseId}-message-report.pdf`);
+  savePdf(doc, `${caseId}-message-report.pdf`);
 }
 
 // ── period reports (REPORT table, V9.2) ──────────────────────
@@ -297,5 +303,5 @@ export function generateFraudReportPdf(r: FraudReport) {
       r.scope === 'all' ? [20, 22, 20, 20, 32, 16, 14, 20, 18] : [22, 24, 22, 22, 36, 18, 16, 22]);
   }
   footer(doc);
-  doc.save(`${id}-${r.reportType}-${r.periodFrom}-${r.periodTo}.pdf`);
+  savePdf(doc, `${id}-${r.reportType}-${r.periodFrom}-${r.periodTo}.pdf`);
 }

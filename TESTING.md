@@ -348,9 +348,29 @@ Run in the built app (Chromium), starting from a V8.7 device with one saved scam
 | Sign out, reload, sign in | the saved report is still listed |
 | Activity log | report generation and typed transactions logged |
 
+## 3i. The apps (V10)
+
+**Desktop (Electron 43, run on Linux under a virtual display with Playwright):**
+
+| Step | Result |
+|---|---|
+| Opens `app://fraudsentry/index.html` | secure context; `require` is undefined (no Node.js in the page) |
+| `fetch('https://example.com')` from the page | blocked |
+| Privacy notice → create administrator → scan the blurred BPI receipt | OCR from the built-in engine; High · Possibly fraudulent · alert |
+| Close and reopen the app | accounts and encrypted vault kept; sign-in required |
+| `electron-builder --linux AppImage` | `FraudSentry-10.0.0-x86_64.AppImage` (136 MB) built |
+
+**Android:** the SDK cannot be downloaded in the development sandbox, so the APK is built and tested by the GitHub Actions **Apps** workflow:
+- the APK is installed on an Android 14 emulator;
+- through the WebView debugging socket, the check confirms the page loaded from `https://localhost` inside the app with Web Crypto available;
+- it then accepts the notice and creates the administrator.
+
+The same check was run against headless Chromium here: "Welcome to FraudSentry", secure context, signed in as owner. **Not yet tested on a physical phone:** do that before the defense, especially the camera and the share sheet.
+
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.
-- `npm audit --omit=dev` (shipped dependencies) → **0 vulnerabilities** on 2026-10-07; CI now runs it on every push.
+- `npm audit --omit=dev` (shipped dependencies) → **0 vulnerabilities** on 2026-10-07; CI now runs it on every push. Re-checked 2026-10-20 with the Capacitor runtime packages added: 0.
+- Build-time only (never shipped): `@capacitor/cli → xcode → uuid` (moderate) and, in `desktop/`, `electron-builder → … → sprintf-js` (moderate). Both are used only while building.
 - `npm audit` → 0 vulnerabilities on 2026-10-01. On 2026-10-05 a new advisory (GHSA-vfj7-8cjw-p6xm, `braces`, "high") reports 3 findings via `vite-plugin-singlefile → micromatch → braces`. No patched `braces` exists yet. It is a **build-time only** dependency: it matches file-name globs from our own build config, and none of it is shipped in the built app. Re-check when a fixed version is released.
 - Tesseract SRI hash recomputed from the npm tarball → matches.
 

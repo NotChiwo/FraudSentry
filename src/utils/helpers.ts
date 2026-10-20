@@ -2,6 +2,7 @@
 // FraudSentry — Utility Helpers
 // ============================================================
 import { RiskLevel, Classification } from '../types';
+import { saveFile } from '../platform/native';
 
 export function formatPHP(amount: number): string {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 }).format(amount);
@@ -62,12 +63,9 @@ export function blendScore(ruleScore: number, forestProbability: number, floor =
 export function generateId(prefix = 'id'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
+/** Save a generated file: a download in browsers and the desktop app, the share sheet in the Android app. */
 export function downloadBlob(content: BlobPart, filename: string, mime: string): void {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  void saveFile(filename, content, mime).catch(e => console.error('FraudSentry: could not save the file', e));
 }
 export const CHART_COLORS = {
   primary: '#2563eb', secondary: '#6366f1', success: '#10b981',

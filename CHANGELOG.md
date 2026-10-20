@@ -1,5 +1,24 @@
 # Changelog
 
+## V10.0 — 2026-10-20
+
+### FraudSentry as installable apps
+Both apps wrap the offline single-file build (OCR built in), so they work with no internet. See README → "Installable apps".
+- **Android app** (Capacitor 8, `com.fraudsentry.app`):
+  - No INTERNET permission: Android guarantees nothing can be sent anywhere.
+  - Camera permission only, for the live receipt camera; `allowBackup` off.
+  - Edge-to-edge layout with safe areas.
+  - Hardware back button: closes an open panel, then returns to Home, then leaves the app.
+  - PDFs and CSVs go to the share sheet, because a WebView cannot download. All saving now goes through `src/platform/native.ts`.
+  - New launcher icon (adaptive, brand gradient) and splash screens.
+- **Desktop app** (Electron 43, Windows / macOS / Linux):
+  - Every http(s) request is blocked; sandboxed, with context isolation and no Node.js in the page.
+  - No navigation away and no new windows; https links open in the browser.
+  - Only camera permission; a single instance.
+  - Served from an `app://` secure origin, so the data persists and Web Crypto works.
+- **GitHub Actions "Apps" workflow** builds the APK, the Windows installer and portable exe, the macOS dmg and the Linux AppImage on every push. It smoke-tests the APK on an Android 14 emulator: the page must load inside the app, Web Crypto must be available, and creating the administrator must work. A `v*` tag publishes everything to a GitHub Release.
+- Dependencies are pinned to releases at least two weeks old: Capacitor 8.5.2 / app 8.1.2 / filesystem 8.1.4 / share 8.0.3, Electron 43.7.7, electron-builder 26.15.3.
+
 ## V9.2 — 2026-10-20
 
 ### Fraud detection reports (thesis Module 5, REPORT table)

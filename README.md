@@ -55,10 +55,47 @@ Plain `npm audit` currently also lists a build-time-only advisory (`vite-plugin-
 - `xlsx` and `react-router-dom` were removed as unused (they caused most of an earlier audit's high-severity findings). Do not re-add without a real need.
 
 ### Offline build (use this on defense day)
-`npm run build:offline` (released as `releases/FraudSentry-V9.2-offline.html`) embeds the Tesseract engine, its WebAssembly core and the English + Filipino language data, and drops Google Fonts. It was verified with **all network access blocked**: receipts read the same as online and no request is made. It is ~11 MB because of the embedded engine.
+`npm run build:offline` (released as `releases/FraudSentry-V10.0-offline.html`) embeds the Tesseract engine, its WebAssembly core and the English + Filipino language data, and drops Google Fonts. It was verified with **all network access blocked**: receipts read the same as online and no request is made. It is ~11 MB because of the embedded engine.
 - The page's CSP adds `blob:` to `script-src` in this build only: the embedded engine is started from `blob:` URLs. The build fails if the embedded `tesseract.min.js` does not match `TESSERACT_SRI`.
 - A page opened from disk (`file://`) can't let a worker load other `blob:` URLs, so the worker's own source carries the fetch shim (serving the language data), the core and the worker script. Language data can't be handed to `createWorker` directly, because tesseract.js 5.1.1's `initialize` joins the data instead of the language codes.
 - Only the SIMD core is embedded (every current Chrome, Edge, Firefox and Safari 16.4+ has SIMD). Without SIMD, the core is fetched from jsDelivr as in the normal build.
+
+## Installable apps (V10)
+
+Both apps wrap the **offline build**, so OCR is built in and nothing needs the internet.
+
+| App | How to get it | Built by |
+|---|---|---|
+| **Android** (`.apk`) | GitHub → Actions → **Apps** → latest run → Artifacts → `FraudSentry-android-apk`. Copy it to the phone and open it; allow "Install unknown apps" for the file manager or browser you open it with. | Capacitor 8 (`android/`, `capacitor.config.json`) |
+| **Windows** (installer and portable `.exe`) | Artifacts → `FraudSentry-desktop-Windows` | Electron 43 (`desktop/`) |
+| **macOS** (`.dmg`) | Artifacts → `FraudSentry-desktop-macOS`. It is unsigned: right-click → Open the first time. | Electron |
+| **Linux** (`.AppImage`) | Artifacts → `FraudSentry-desktop-Linux`. Make it executable (`chmod +x`) and run it. | Electron |
+
+Pushing a tag like `v10.0.0` also attaches all of them, plus the offline HTML, to a GitHub Release.
+
+**Android app**
+- It has **no INTERNET permission**, so Android itself guarantees the app cannot send anything anywhere.
+- It requests only the **camera** (for the live receipt camera).
+- `allowBackup` is off, so accounts and vaults never go into cloud or adb backups.
+- The hardware back button closes an open panel, then returns to Home, then leaves the app.
+- PDFs and CSVs open the Android **share sheet** ("Save to Files", Drive, Messenger …), because a WebView cannot download.
+- CI installs the APK on an Android 14 emulator and drives the app's WebView: the page must load from inside the app, Web Crypto must be available, and creating the administrator must work (`tools/android-smoke.sh`).
+
+**Desktop app**
+- Every http(s) request is blocked, and the page runs sandboxed without Node.js.
+- It cannot navigate away or open windows; https links open in the normal browser.
+- Only the camera may be requested.
+- Data lives in the app's own profile folder.
+- PDFs and CSVs open a normal Save dialog.
+
+Build locally:
+```bash
+npm run android:sync     # offline build → android/ (then open in Android Studio: npm run android:open)
+npm run android:apk      # needs the Android SDK (ANDROID_HOME) and JDK 21
+npm run desktop:start    # run the desktop app
+npm run desktop:dist     # installers for the current OS → desktop/dist/
+npm run icons            # re-render the launcher / splash / desktop icons from assets/icon.svg
+```
 
 ### Tesseract (the only runtime dependency loaded from the network in the normal build)
 `src/services/ocr.ts` loads `tesseract.js@5.1.1` from jsDelivr with a pinned **Subresource Integrity** hash (`TESSERACT_SRI`). If the version or URL ever changes, recompute it from the real package:

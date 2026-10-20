@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FraudSentry</string>
+    <string name="title_activity_main">FraudSentry</string>
+    <string name="package_name">com.fraudsentry.app</string>
+    <string name="custom_url_scheme">com.fraudsentry.app</string>
+</resources>

@@ -21,6 +21,8 @@ import TransactionsPage from './pages/TransactionsPage';
 import FraudReportsPage from './pages/FraudReportsPage';
 import { useSession, sessionKV } from './store/useSession';
 import { accountSettings } from './services/accounts';
+import { App as NativeApp } from '@capacitor/app';
+import { isAndroidApp } from './platform/native';
 import { useAppStore } from './store/useAppStore';
 import { warmUpSharedModel } from './engine/sharedModel';
 import { restoreLabelledModel } from './services/trainingData';
@@ -92,6 +94,20 @@ export default function App() {
   useEffect(() => { setPage('home'); }, [session?.userId]);
   const allowed = (p: PageId) => p === 'account' || navFor(isAdmin).some(g => g.items.some(i => i.id === p));
   const shown: PageId = allowed(page) ? page : 'home';
+
+  // Android back button: close an open sheet or dialog first (they close on Escape), then go
+  // back to Home, then leave the app
+  const shownRef = useRef<PageId>('home');
+  shownRef.current = shown;
+  useEffect(() => {
+    if (!isAndroidApp()) return;
+    const sub = NativeApp.addListener('backButton', () => {
+      if (document.querySelector('.sheet-backdrop, [role="dialog"]')) { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return; }
+      if (shownRef.current !== 'home') { setPage('home'); return; }
+      void NativeApp.minimizeApp();
+    });
+    return () => { void sub.then(h => h.remove()); };
+  }, []);
 
   const navigate = (p: string) => {
     setPage(p as PageId);
