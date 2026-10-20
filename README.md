@@ -64,12 +64,15 @@ Both apps wrap the **offline build**, so OCR is built in and nothing needs the i
 
 | App | How to get it | Built by |
 |---|---|---|
-| **Android** (`.apk`) | GitHub → Actions → **Apps** → latest run → Artifacts → `FraudSentry-android-apk`. Copy it to the phone and open it; allow "Install unknown apps" for the file manager or browser you open it with. | Capacitor 8 (`android/`, `capacitor.config.json`) |
-| **Windows** (installer and portable `.exe`) | Artifacts → `FraudSentry-desktop-Windows` | Electron 43 (`desktop/`) |
-| **macOS** (`.dmg`) | Artifacts → `FraudSentry-desktop-macOS`. It is unsigned: right-click → Open the first time. | Electron |
-| **Linux** (`.AppImage`) | Artifacts → `FraudSentry-desktop-Linux`. Make it executable (`chmod +x`) and run it. | Electron |
+| **Android** (`.apk`) | [Latest release](https://github.com/NotChiwo/FraudSentry/releases/latest) → `FraudSentry-android.apk`. Copy it to the phone and open it; allow "Install unknown apps" for the file manager or browser you open it with. | Capacitor 8 (`android/`, `capacitor.config.json`) |
+| **Windows** (installer and portable `.exe`) | Release → `FraudSentry-Setup-….exe` or `FraudSentry-Portable-….exe`. It is unsigned: SmartScreen → More info → Run anyway. | Electron 43 (`desktop/`) |
+| **macOS** (`.dmg`) | Release → `…-arm64.dmg` (Apple chip) or `…-x64.dmg` (Intel). It is unsigned: right-click → Open the first time. | Electron |
+| **Linux** (`.AppImage`) | Release → `FraudSentry-…-x86_64.AppImage`. Make it executable (`chmod +x`) and run it. | Electron |
+| **iPhone / iPad** | No app: open the hosted page in Safari, then Share → Add to Home Screen. | the offline HTML, hosted on Netlify |
 
-Pushing a tag like `v10.0.0` also attaches all of them, plus the offline HTML, to a GitHub Release.
+Step-by-step instructions for every device: [docs/OPENING-THE-APP.md](docs/OPENING-THE-APP.md).
+
+Every push also builds them under Actions → **Apps** → Artifacts (kept 30 days). Publishing a GitHub Release with a new tag like `v10.1.1` attaches all of them, plus the offline HTML, to that release permanently.
 
 **Android app**
 - It has **no INTERNET permission**, so Android itself guarantees the app cannot send anything anywhere.
