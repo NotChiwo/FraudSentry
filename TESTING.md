@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**252 / 252 passing** (V8.6).
+**264 / 264 passing** (V8.7).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -32,6 +32,7 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
 | `bpiReceipts.test.ts` | 16 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; confirmation number ↔ time and weekday ↔ date are consistent on both genuine receipts, and an edited date, time or confirmation number is caught; the blurred copy's reference reads as hidden; privacy-notice versioning |
 | `inkConsistency.test.ts` | 5 | V8.6 repaint hint on receipts drawn in code: one ink → consistent; amount line in a bluer ink → reported; a recurring design tint → not reported; non-amount lines never judged; too few words → unknown |
+| `alerts.test.ts` | 12 | V8.7 alerts: a High receipt gives an alert with exactly the ERD fields, unread, dated when the check ran; the message names app, amount, reference and the strongest failed checks; the alert level (Low never; Medium only when chosen; Critical only); message and cross-evidence wording; one alert per check, newest first, capped at 100; store: risky checks create alerts and clean ones don't, read / unread / mark all / delete, deleting a check (or it leaving the 40-item history) deletes its alert, a Cross-Evidence run raises one alert, saved and reopened alerts keep their status and expired ones are dropped |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
@@ -280,6 +281,24 @@ Text-colour hint false alarms: **0 of 43** clean / genuine images (34 synthetic 
 - The confirmation-time rule rests on two real BPI receipts. It is applied only to BPI numbers that decode to a plausible date.
 - An amount retyped in exactly the app's own colour and font is not caught by any pixel check. Only the user's own account proves the amount.
 - These numbers come from 3 real receipts and 3 hand-made edits, not a held-out set. Run `tools/compare-versions.mjs` on your own BPI receipts and fakes.
+
+## 3e. Alerts in the built app (V8.7)
+
+Run in the built app (Chromium, desktop 1280×900 and phone 390×844):
+
+| Step | Result |
+|---|---|
+| Genuine BPI receipt (2026) | Low; **no alert**, no pop-up, bell "none unread" |
+| Blurred BPI copy | High; **1 alert** + pop-up "High risk: Suspicious receipt"; bell "1 unread" |
+| Scam SMS (fake GCash link + OTP request) | Critical; 2 alerts, bell "2 unread" |
+| Alerts page | 2 rows, "2 unread · 2 total" |
+| Mark one read / unread / mark all read | the bell count follows (1 → 2 → 0) |
+| "View check" | opens History with that receipt highlighted; the alert becomes read |
+| Reload | alerts and their status kept; old alerts don't pop up again |
+| Delete the receipt check in History | its alert is deleted; the message alert stays |
+| Phone layout | Alerts reachable from "More" and from the bell |
+
+Page errors: none.
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

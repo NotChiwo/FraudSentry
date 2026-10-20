@@ -13,6 +13,7 @@ FraudSentry lets Filipino users check whether a GCash / Maya / GoTyme / MariBank
 | **Check Receipt** — upload a receipt → OCR → field parsing → image forensics → risk score | `src/pages/ScannerPage.tsx` | `src/services/ocr.ts`, `receiptParser.ts`, `imageForensics.ts`, `fieldValidation.ts`, `src/engine/imageVerification.ts` |
 | **Check Message** — PH scam-language & phishing-link detection | `src/pages/MessageAnalyzerPage.tsx` | `src/engine/messageAnalysis.ts` |
 | **Cross-Evidence** — is this receipt really about this conversation? | `src/pages/CrossEvidencePage.tsx` | `correlateEvidence()` in `messageAnalysis.ts` |
+| **Alerts** — an alert for every High / Critical check (level adjustable), unread / read, alert history; fields follow the ERD's ALERT table | `src/pages/AlertsPage.tsx`, `src/components/alerts/AlertToast.tsx` | `src/services/alerts.ts`, stored by `src/store/useAppStore.ts` |
 | **Detection Model** — train / evaluate the Random Forest live | `src/pages/ModelPage.tsx` | `src/engine/randomForest.ts` (from scratch), `src/engine/sharedModel.ts` |
 
 ### How a receipt is scored
@@ -50,7 +51,7 @@ Plain `npm audit` currently also lists a build-time-only advisory (`vite-plugin-
 - `xlsx` and `react-router-dom` were removed as unused (they caused most of an earlier audit's high-severity findings). Do not re-add without a real need.
 
 ### Offline build (use this on defense day)
-`npm run build:offline` (released as `releases/FraudSentry-V8.6-offline.html`) embeds the Tesseract engine, its WebAssembly core and the English + Filipino language data, and drops Google Fonts. It was verified with **all network access blocked**: receipts read the same as online and no request is made. It is ~11 MB because of the embedded engine.
+`npm run build:offline` (released as `releases/FraudSentry-V8.7-offline.html`) embeds the Tesseract engine, its WebAssembly core and the English + Filipino language data, and drops Google Fonts. It was verified with **all network access blocked**: receipts read the same as online and no request is made. It is ~11 MB because of the embedded engine.
 - The page's CSP adds `blob:` to `script-src` in this build only: the embedded engine is started from `blob:` URLs. The build fails if the embedded `tesseract.min.js` does not match `TESSERACT_SRI`.
 - A page opened from disk (`file://`) can't let a worker load other `blob:` URLs, so the worker's own source carries the fetch shim (serving the language data), the core and the worker script. Language data can't be handed to `createWorker` directly, because tesseract.js 5.1.1's `initialize` joins the data instead of the language codes.
 - Only the SIMD core is embedded (every current Chrome, Edge, Firefox and Safari 16.4+ has SIMD). Without SIMD, the core is fetched from jsDelivr as in the normal build.

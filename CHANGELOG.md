@@ -1,5 +1,17 @@
 # Changelog
 
+## V8.7 — 2026-10-20
+
+### Alerts (thesis §9.5.1, Notification & Alert Management)
+- **Fraud alerts.** A check that comes back **High or Critical** (adjustable: Critical only / High and Critical / Medium and above) generates an alert. Its fields follow the ERD's ALERT table: `id` (alert_id), `resultId` (result_id), `userId` (user_id, empty until user accounts exist), `message`, `riskLevel` (risk_level), `status` (unread / read) and `dateGenerated` (date_generated).
+- **The message says why:** the app, amount and reference, the strongest failed checks, and what to do. For example: "BPI receipt for ₱15,000.00. Main reason: Hidden or Blocked-Out Details. Do not release goods or money until the payment shows in your own account."
+- **Notice when it happens.** A pop-up names the risk level and opens the Alerts page. The topbar bell and the sidebar show the unread count. This replaces the old "high-risk" pill, which counted results and couldn't be cleared.
+- **Alerts page:** filter All / Unread / Read, mark one read or unread, "Mark all as read", "View check" (opens History at that check, highlighted, and marks the alert read), delete one, delete all.
+- **Alert history follows the checks.** Alerts are saved with the history on this device. An alert is removed together with its check: deleting it, "Delete all", or the 30-day expiry. A Cross-Evidence run saves three records but raises **one** alert (for the combined result).
+- No email or SMS: those need a server, and nothing leaves the device. Alerts are in-app only.
+
+Tests: 252 → **264** (`alerts.test.ts`).
+
 ## V8.6 — 2026-10-18
 
 ### BPI online-banking receipts

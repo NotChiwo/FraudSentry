@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { History, Download, Trash2, Inbox, ScanLine, MessageSquareWarning, GitCompareArrows, Search, HardDrive, X, Trees } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
@@ -42,6 +42,21 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
   const trainingRows = useAppStore(s => s.trainingRows);
   const clearTrainingRows = useAppStore(s => s.clearTrainingRows);
   const [confirmClearTraining, setConfirmClearTraining] = useState(false);
+  // "View check" on an alert opens History at that check
+  const focusResultId = useAppStore(s => s.focusResultId);
+  const setFocusResultId = useAppStore(s => s.setFocusResultId);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusResultId) return;
+    setHighlight(focusResultId);
+    setFocusResultId(null);
+    const t = setTimeout(() => {
+      const el = document.getElementById(`hist-${focusResultId}`);
+      el?.scrollIntoView({ block: 'center' });
+      el?.focus({ preventScroll: true });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [focusResultId, setFocusResultId]);
 
   const rows: Row[] = useMemo(() => {
     const r: Row[] = [
@@ -128,7 +143,7 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
 
           <p className="muted small" aria-live="polite">{shown.length} of {rows.length} shown</p>
           <ul className="history-list">
-            {shown.map(r => <HistoryRow key={r.id} row={r} />)}
+            {shown.map(r => <HistoryRow key={r.id} row={r} highlighted={r.id === highlight} />)}
           </ul>
           {shown.length === 0 && <p className="muted" style={{ textAlign: 'center', padding: 24 }}>Nothing matches these filters.</p>}
 
@@ -136,11 +151,11 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
             <HardDrive size={20} aria-hidden="true" />
             <div>
               <b>Your data stays on this device.</b>
-              <p>History lives in this browser's local storage (up to the last 40 receipts and 40 messages). Clearing your browser data also removes it. Receipt images are not kept, only the details read from them. Training labels are kept separately (numbers only) and are not removed by “Delete all”.</p>
+              <p>History lives in this browser's local storage (up to the last 40 receipts and 40 messages). Clearing your browser data also removes it. Deleting a check also deletes its alert. Receipt images are not kept, only the details read from them. Training labels are kept separately (numbers only) and are not removed by “Delete all”.</p>
             </div>
             {confirmClear ? (
               <div className="confirm-row">
-                <span>Delete all {rows.length} records?</span>
+                <span>Delete all {rows.length} records and their alerts?</span>
                 <button type="button" className="btn-ghost danger" onClick={() => { clearHistory(); setConfirmClear(false); }}>Yes, delete all</button>
                 <button type="button" className="btn-ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
               </div>
@@ -154,11 +169,11 @@ export default function ReportsPage({ onNavigate }: { onNavigate?: (p: string) =
   );
 }
 
-function HistoryRow({ row }: { row: Row }) {
+function HistoryRow({ row, highlighted }: { row: Row; highlighted?: boolean }) {
   const [confirm, setConfirm] = useState(false);
   const K = KIND[row.kind];
   return (
-    <li className={`history-row sev-${row.level === 'low' ? 'ok' : row.level}`}>
+    <li id={`hist-${row.id}`} tabIndex={-1} className={`history-row sev-${row.level === 'low' ? 'ok' : row.level}${highlighted ? ' highlighted' : ''}`}>
       <span className="hr-ico" aria-hidden="true"><K.icon size={18} /></span>
       <div className="hr-main">
         <div className="hr-top">

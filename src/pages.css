@@ -136,3 +136,16 @@
 .training-card .tc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .training-card .tc-counts { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
 .training-card .tc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Alerts (V8.7) ───────────────────────────────────────────── */
+.alerts-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.alerts-bar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.alert-row.unread { background: color-mix(in srgb, var(--sev) 7%, var(--bg-card)); }
+.alert-row.unread .hr-title { font-weight: 800; }
+.alert-status { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; color: var(--text-muted); border: 1px solid var(--border-default); }
+.alert-status.unread { color: var(--accent-light); border-color: var(--border-accent); background: var(--bg-accent-tint); }
+.alert-date { margin-top: 4px; font-size: 13px; color: var(--text-muted); }
+.alert-row .hr-actions { flex-wrap: wrap; justify-content: flex-end; }
+.alert-settings { display: flex; flex-direction: column; gap: 12px; padding: 18px; margin-top: 18px; }
+.history-row.highlighted { outline: 3px solid var(--accent-light); outline-offset: 2px; }
+.history-row:focus { outline: 3px solid var(--accent-light); outline-offset: 2px; }

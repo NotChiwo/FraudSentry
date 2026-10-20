@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import {
   Home, ScanLine, MessageSquareWarning, GitCompareArrows, BookOpen, History, Info, Lock,
-  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X,
+  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X, Bell,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { unreadCount } from '../../services/alerts';
 
-export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'reports' | 'privacy' | 'about';
+export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'reports' | 'alerts' | 'privacy' | 'about';
 
 interface NavItem { id: PageId; label: string; icon: LucideIcon; sub: string }
 interface NavGroup { title: string; items: NavItem[]; note?: string }
@@ -18,6 +19,7 @@ export const NAV_GROUPS: NavGroup[] = [
     { id: 'scanner',  label: 'Check Receipt',  icon: ScanLine,             sub: 'Is this payment proof real?' },
     { id: 'analyzer', label: 'Check Message',  icon: MessageSquareWarning, sub: 'Spot scam texts & links' },
     { id: 'reports',  label: 'History',        icon: History,              sub: 'Your checks, on this device' },
+    { id: 'alerts',   label: 'Alerts',         icon: Bell,                 sub: 'Warnings from your checks' },
   ] },
   { title: 'Learn', items: [
     { id: 'knowledge', label: 'Scam Knowledge Base', icon: BookOpen, sub: 'Common PH scams' },
@@ -77,6 +79,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const unread = useAppStore(s => unreadCount(s.alerts));
 
   useEffect(() => { if (!isMobile) setMoreOpen(false); }, [isMobile]);
   useEffect(() => {
@@ -114,7 +117,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
                 <Brand />
                 <button type="button" className="icon-btn" aria-label="Close" onClick={() => setMoreOpen(false)}><X size={18} /></button>
               </div>
-              {NAV_GROUPS.slice(1).map(g => (
+              {NAV_GROUPS.map(g => ({ ...g, items: g.items.filter(it => !MOBILE_TABS.includes(it)) })).filter(g => g.items.length).map(g => (
                 <div key={g.title} className="sheet-group">
                   <div className="nav-group-title">{g.title}{g.note && <span className="nav-group-note">{g.note}</span>}</div>
                   {g.items.map(it => {
@@ -123,6 +126,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
                       <button key={it.id} type="button" className={`sheet-item${activePage === it.id ? ' active' : ''}`} onClick={() => go(it.id)}>
                         <Icon size={18} />
                         <span><span className="sheet-item-label">{it.label}</span><span className="sheet-item-sub">{it.sub}</span></span>
+                        {it.id === 'alerts' && unread > 0 && <span className="nav-badge" aria-label={`${unread} unread`}>{unread}</span>}
                       </button>
                     );
                   })}
@@ -153,9 +157,10 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
               const active = activePage === it.id;
               return (
                 <button key={it.id} type="button" className={`nav-item${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}
-                  title={collapsed ? it.label : undefined} aria-label={collapsed ? it.label : undefined} onClick={() => onNavigate(it.id)}>
+                  title={collapsed ? it.label : undefined} aria-label={collapsed ? (it.id === 'alerts' && unread > 0 ? `${it.label}, ${unread} unread` : it.label) : undefined} onClick={() => onNavigate(it.id)}>
                   <Icon size={18} className="nav-ico" />
                   {!collapsed && <span className="nav-text"><span className="nav-label">{it.label}</span><span className="nav-sub">{it.sub}</span></span>}
+                  {it.id === 'alerts' && unread > 0 && <span className={`nav-badge${collapsed ? ' dot' : ''}`} aria-hidden={collapsed || undefined}>{unread > 99 ? '99+' : unread}<span className="sr-only"> unread</span></span>}
                 </button>
               );
             })}

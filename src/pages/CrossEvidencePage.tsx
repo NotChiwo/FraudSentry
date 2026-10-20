@@ -12,9 +12,7 @@ import { RISK_META } from '../utils/helpers';
 import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../services/uploadValidation';
 
 export default function CrossEvidencePage() {
-  const addCrossCheck = useAppStore(s => s.addCrossCheck);
-  const addImageScan = useAppStore(s => s.addImageScan);
-  const addMessageScan = useAppStore(s => s.addMessageScan);
+  const addCrossEvidence = useAppStore(s => s.addCrossEvidence);
 
   const [txFile, setTxFile] = useState<File | null>(null);
   const [txPreview, setTxPreview] = useState('');
@@ -67,7 +65,7 @@ export default function CrossEvidencePage() {
       const msg = analyzeMessageText(convRaw, 'Unknown', ocrConf);
       const cross = correlateEvidence(tx, msg);
 
-      addImageScan(tx); addMessageScan(msg); addCrossCheck(cross);
+      addCrossEvidence(tx, msg, cross);
       setResult({ cross, tx, msg });
       setBusy(false);
     } catch (e: unknown) {

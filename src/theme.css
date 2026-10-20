@@ -195,3 +195,22 @@ textarea.input-field { min-height: 120px; }
 .section-title svg { color: var(--accent-light); flex-shrink: 0; }
 .muted { color: var(--text-muted); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* ── alerts: topbar bell, sidebar badge, new-alert notice (V8.7) ── */
+.bell-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 99px; cursor: pointer;
+  color: var(--text-secondary); background: var(--bg-input); border: 1px solid var(--border-input); }
+.bell-btn:hover { color: var(--text-primary); border-color: var(--border-accent); }
+.bell-btn.has-unread { color: var(--risk-critical); background: var(--risk-critical-bg); border-color: color-mix(in srgb, var(--risk-critical) 35%, transparent); }
+.bell-count { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center;
+  font: 800 11px/1 inherit; font-family: inherit; color: #fff; background: var(--risk-critical); border: 2px solid var(--bg-base, #0b1020); }
+.nav-badge { margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: #fff; background: var(--risk-critical); flex-shrink: 0; }
+.nav-badge.dot { position: absolute; top: 6px; right: 10px; min-width: 18px; height: 18px; font-size: 10px; padding: 0 4px; }
+.alert-toast { position: fixed; z-index: 60; right: 20px; bottom: 20px; width: min(380px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 12px 14px 16px; border-radius: 16px; background: var(--bg-card); border: 1px solid var(--border-default); border-left: 5px solid var(--sev);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35); animation: fade-up .25s ease both; }
+.alert-toast-ico { color: var(--sev); flex-shrink: 0; margin-top: 2px; }
+.alert-toast-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.alert-toast-title { font-size: 15px; font-weight: 800; color: var(--text-primary); }
+.alert-toast-text { font-size: 14px; color: var(--text-secondary); margin-bottom: 6px; }
+@media (max-width: 859px) { .alert-toast { left: 16px; right: 16px; width: auto; bottom: calc(76px + env(safe-area-inset-bottom)); } }

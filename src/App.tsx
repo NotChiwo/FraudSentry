@@ -11,10 +11,13 @@ import KnowledgeBasePage from './pages/KnowledgeBasePage';
 import ReportsPage from './pages/ReportsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import AboutPage from './pages/AboutPage';
+import AlertsPage from './pages/AlertsPage';
+import AlertToast from './components/alerts/AlertToast';
+import { unreadCount } from './services/alerts';
 import { useAppStore } from './store/useAppStore';
 import { warmUpSharedModel } from './engine/sharedModel';
 import { restoreLabelledModel } from './services/trainingData';
-import { ShieldCheck, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Bell } from 'lucide-react';
 
 const PAGE_TITLE: Record<PageId, string> = Object.fromEntries(
   NAV_GROUPS.flatMap(g => g.items.map(i => [i.id, i.label])),
@@ -24,8 +27,7 @@ export default function App() {
   const [page, setPage] = useState<PageId>('home');
   const theme = useAppStore(s => s.theme);
   const hasConsented = useAppStore(s => s.hasConsented);
-  const imageScans = useAppStore(s => s.imageScans);
-  const messageScans = useAppStore(s => s.messageScans);
+  const unread = useAppStore(s => unreadCount(s.alerts));
   const contentRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isMobile = useIsMobile();
@@ -68,11 +70,6 @@ export default function App() {
 
   if (!hasConsented || welcomeOpen) return <ConsentGate onClose={hasConsented ? closeWelcome : undefined} />;
 
-  const highRiskCount = [...imageScans, ...messageScans].filter(s =>
-    'riskLevel' in s ? (s.riskLevel === 'critical' || s.riskLevel === 'high')
-    : (s.threatLevel === 'critical' || s.threatLevel === 'high'),
-  ).length;
-
   return (
     <div className="app-shell">
       <a href="#main" className="skip-link" onClick={e => { e.preventDefault(); mainRef.current?.focus(); }}>Skip to content</a>
@@ -86,11 +83,11 @@ export default function App() {
             <span className="topbar-date">{new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
           )}
           <div className="topbar-right">
-            {highRiskCount > 0 && (
-              <button type="button" className="risk-pill" onClick={() => navigate('reports')} aria-label={`${highRiskCount} high-risk results in your history`}>
-                <AlertTriangle size={14} aria-hidden="true" /><span>{highRiskCount}<span className="hide-sm"> high-risk</span></span>
-              </button>
-            )}
+            <button type="button" className={`bell-btn${unread > 0 ? ' has-unread' : ''}`} onClick={() => navigate('alerts')}
+              aria-label={unread > 0 ? `Alerts: ${unread} unread` : 'Alerts: none unread'} aria-current={page === 'alerts' ? 'page' : undefined}>
+              <Bell size={17} aria-hidden="true" />
+              {unread > 0 && <span className="bell-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
+            </button>
             <span className="chip-quiet"><span className="dot-live" aria-hidden="true" /> On-device</span>
           </div>
         </header>
@@ -105,11 +102,14 @@ export default function App() {
             {page === 'model'     && <ModelPage />}
             {page === 'knowledge' && <KnowledgeBasePage onNavigate={navigate} />}
             {page === 'reports'   && <ReportsPage onNavigate={navigate} />}
+            {page === 'alerts'    && <AlertsPage onNavigate={navigate} />}
             {page === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {page === 'about'     && <AboutPage />}
           </div>
           </ErrorBoundary>
         </main>
+
+        <AlertToast onOpen={() => navigate('alerts')} />
 
         <footer className="site-footer">
           <div className="footer-row">
