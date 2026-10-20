@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Trees, Play, RefreshCw, Upload, Database, Target, Crosshair,
-  Activity, BarChart3, Info, CheckCircle2, AlertTriangle, FlaskConical, Cpu, Link2, Unlink,
+  Activity, BarChart3, Info, CheckCircle2, AlertTriangle, FlaskConical, Cpu, Link2, Unlink, Gauge,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  RandomForest, trainTestSplit, computeMetrics, Metrics, Dataset,
+  RandomForest, trainTestSplit, Metrics, Dataset,
 } from '../engine/randomForest';
+import type { RocPoint } from '../engine/evaluation';
+import { RocChart, ModelRegistryCard, ComparisonCard } from '../components/model/ModelCards';
+import { nextVersion, defaultModelName, type ModelRecord } from '../services/modelRegistry';
 import {
   generateDemoDataset, parseCsvDataset, FEATURE_SPECS, CLASS_NAMES, isEvidenceSchema,
 } from '../services/sampleDataset';
@@ -15,7 +18,7 @@ import { formatDateTime } from '../utils/helpers';
 import { useAppStore } from '../store/useAppStore';
 import { useSession, sessionKV } from '../store/useSession';
 import { appendLog } from '../services/auditLog';
-import { datasetFromRows, readiness } from '../services/trainingData';
+import { datasetFromRows, readiness, evaluateForest } from '../services/trainingData';
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -58,6 +61,10 @@ export default function ModelPage() {
   const [model, setModel] = useState<RandomForest | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [importances, setImportances] = useState<number[]>([]);
+  const [roc, setRoc] = useState<{ points: RocPoint[]; area: number | null }>({ points: [], area: null });
+  const models = useAppStore(s => s.models);
+  const addModel = useAppStore(s => s.addModel);
+  const [modelName, setModelName] = useState('');
   const [trainSize, setTrainSize] = useState(0);
   const [testSize, setTestSize] = useState(0);
   const [error, setError] = useState('');
@@ -97,22 +104,35 @@ export default function ModelPage() {
     await wait(120); setProgress(0.78);
     setStage('Evaluating on the held-out test set');
     await wait(450);
-    const yPred = rf.predictBatch(test.X);
-    const m = computeMetrics(test.y, yPred);
+    const ev = evaluateForest(rf, test);
+    const m = ev.metrics;
     setProgress(1); await wait(280);
-    setModel(rf); setMetrics(m); setImportances(rf.importances);
+    setModel(rf); setMetrics(m); setImportances(rf.importances); setRoc({ points: ev.roc, area: ev.rocAuc });
+    // record it in the model registry (RF_MODEL) with a name and version
+    const source = datasetSource === 'demo' ? 'demo' : datasetSource === 'labelled' ? 'labelled' : 'csv';
+    const version = nextVersion(models);
+    const trainedAt = new Date().toISOString();
+    const rec: ModelRecord = {
+      id: `rf-${Date.parse(trainedAt).toString(36)}`, name: modelName.trim() || defaultModelName(version, source, dataset.y.length), version,
+      datasetSource: source, nTrees, maxDepth, trainRows: train.y.length, testRows: test.y.length,
+      accuracy: m.accuracy, precision: m.precision, recall: m.recall, f1: m.f1, rocAuc: ev.rocAuc,
+      confusion: { tp: m.tp, fp: m.fp, tn: m.tn, fn: m.fn }, importances: rf.importances, featureNames: dataset.featureNames,
+      trainedAt, trainedBy: useSession.getState().session?.username ?? null, usableByScans: evidenceSchema,
+      ...(source === 'labelled' ? { rowIds: labelledIds.current } : {}),
+    };
+    addModel(rec);
+    setModelName('');
     // Connect this forest to every FUTURE scan — only possible when it was
     // trained on the same 10 evidence features the scanner produces.
     const connected = setSharedModel(rf, dataset.featureNames, {
-      datasetSource: datasetSource === 'demo' ? 'demo' : datasetSource === 'labelled' ? 'labelled' : 'csv',
-      nTrees, maxDepth, trainRows: train.y.length,
-    });
+      datasetSource: source, nTrees, maxDepth, trainRows: train.y.length, modelId: rec.id, modelName: rec.name,
+    }, trainedAt);
     setWired(connected);
     // Only a model trained on your labelled scans is kept across app restarts
     // (rebuilt from the same rows with the same seeded split).
-    if (connected) setLabelledModel(datasetSource === 'labelled' ? { nTrees, maxDepth, rowIds: labelledIds.current } : null);
+    if (connected) setLabelledModel(source === 'labelled' ? { nTrees, maxDepth, rowIds: labelledIds.current, modelId: rec.id, modelName: rec.name, trainedAt } : null);
     void appendLog(sessionKV(), 'model-trained', useSession.getState().session?.username ?? null,
-      `${datasetSource} data, ${nTrees} trees, depth ${maxDepth}, accuracy ${(m.accuracy * 100).toFixed(1)}%${connected ? ', now used by scans' : ''}`);
+      `${rec.name}: ${nTrees} trees, depth ${maxDepth}, accuracy ${(m.accuracy * 100).toFixed(1)}%, ROC-AUC ${ev.rocAuc?.toFixed(3) ?? 'n/a'}${connected ? ', now used by scans' : ''}`);
     setPhase('done');
   }
 
@@ -174,8 +194,8 @@ export default function ModelPage() {
       <div className="fade-up" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '11px 14px', background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', borderRadius: 10, marginBottom: 18, fontSize: 12.5, color: 'var(--text-secondary)' }}>
         <Link2 size={15} color="var(--accent-light)" style={{ flexShrink: 0 }} />
         <span>
-          <strong style={{ color: 'var(--text-primary)' }}>Model used by live Transaction Checks:</strong>{' '}
-          {liveMeta.datasetSource === 'demo' ? 'demonstration-trained' : liveMeta.datasetSource === 'labelled' ? 'trained on your labelled receipts (kept after restart)' : 'trained on your uploaded evidence CSV'} · {liveMeta.nTrees} trees · depth {liveMeta.maxDepth} · {liveMeta.trainRows} training rows · since {formatDateTime(liveMeta.trainedAt)}
+          <strong style={{ color: 'var(--text-primary)' }}>Model used by live checks:</strong>{' '}
+          <b>{liveMeta.modelName}</b> · {liveMeta.datasetSource === 'demo' ? 'demonstration-trained' : liveMeta.datasetSource === 'labelled' ? 'trained on your labelled receipts (kept after restart)' : 'trained on your uploaded evidence CSV'} · {liveMeta.nTrees} trees · depth {liveMeta.maxDepth} · {liveMeta.trainRows} training rows · since {formatDateTime(liveMeta.trainedAt)}
         </span>
       </div>
 
@@ -225,6 +245,11 @@ export default function ModelPage() {
           </div>
           <Slider label="Number of trees" value={nTrees} min={10} max={80} step={5} onChange={setNTrees} disabled={phase === 'training'} />
           <Slider label="Max tree depth" value={maxDepth} min={4} max={12} step={1} onChange={setMaxDepth} disabled={phase === 'training'} />
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+            Model name (optional)
+            <input className="input-field" value={modelName} onChange={e => setModelName(e.target.value)} disabled={phase === 'training'}
+              placeholder={defaultModelName(nextVersion(models), datasetSource === 'uploaded' ? 'csv' : datasetSource, dataset.y.length)} />
+          </label>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
             Each tree trains on a bootstrap sample and considers √{featNames.length} ≈ {Math.ceil(Math.sqrt(featNames.length))} random features per split. Seed is fixed (42) for reproducible results.
           </div>
@@ -274,6 +299,7 @@ export default function ModelPage() {
             <MetricCard icon={Crosshair} label="Precision" value={metrics.precision * 100} hint="Of flagged fraud, how many were right" color="var(--accent)" />
             <MetricCard icon={Activity} label="Recall" value={metrics.recall * 100} hint="Of real fraud, how much we caught" color="var(--accent-indigo)" />
             <MetricCard icon={BarChart3} label="F1-Score" value={metrics.f1 * 100} hint="Balance of precision & recall" color="var(--accent-orange)" />
+            {roc.area != null && <MetricCard icon={Gauge} label="ROC-AUC" value={roc.area} hint="Separation of fake vs genuine across all thresholds (1 = perfect)" color="var(--accent-light)" ratio />}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16, marginBottom: 18 }}>
@@ -325,6 +351,10 @@ export default function ModelPage() {
             </div>
           </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16, marginBottom: 18 }}>
+            <RocChart points={roc.points} area={roc.area} />
+          </div>
+
           {/* Live classifier — its sliders ARE the 10 evidence features, so it only
               makes sense for a model trained on those features */}
           {!evidenceSchema ? (
@@ -370,6 +400,9 @@ export default function ModelPage() {
           )}
         </div>
       )}
+
+      <ComparisonCard nTrees={nTrees} maxDepth={maxDepth} />
+      <ModelRegistryCard live={liveMeta} />
     </div>
   );
 }
@@ -398,7 +431,7 @@ function Slider({ label, value, min, max, step, onChange, disabled }: { label: s
   );
 }
 
-function MetricCard({ icon: Icon, label, value, hint, color }: { icon: LucideIcon; label: string; value: number; hint: string; color: string }) {
+function MetricCard({ icon: Icon, label, value, hint, color, ratio }: { icon: LucideIcon; label: string; value: number; hint: string; color: string; ratio?: boolean }) {
   return (
     <div className="kpi-card scale-in" style={{ borderTop: `2px solid ${color}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
@@ -406,7 +439,7 @@ function MetricCard({ icon: Icon, label, value, hint, color }: { icon: LucideIco
         <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>{label}</span>
       </div>
       <div className="mono" style={{ fontSize: 30, fontWeight: 800, color, lineHeight: 1 }}>
-        <CountUp value={value} suffix="%" decimals={2} />
+        {ratio ? <CountUp value={value} decimals={3} /> : <CountUp value={value} suffix="%" decimals={2} />}
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.45 }}>{hint}</div>
     </div>

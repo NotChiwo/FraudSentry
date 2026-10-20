@@ -12,9 +12,10 @@
 // Pure functions only — the store (useAppStore) keeps the records.
 // ============================================================
 import type { RiskLevel, ImageScanResult, MessageScanResult, CrossEvidenceResult } from '../types';
+import type { ManualTransaction } from '../engine/transactionCheck';
 import { RISK_RANK, formatPHP } from '../utils/helpers';
 
-export type AlertKind = 'receipt' | 'message' | 'cross';
+export type AlertKind = 'receipt' | 'message' | 'cross' | 'transaction';
 export type AlertStatus = 'unread' | 'read';
 /** the lowest risk level that generates an alert */
 export type AlertLevel = Exclude<RiskLevel, 'low'>;
@@ -47,7 +48,8 @@ export const meetsAlertLevel = (level: RiskLevel, min: AlertLevel) => RISK_RANK[
 const RECEIPT_TITLE: Record<RiskLevel, string> = {
   low: 'Receipt checked', medium: "Receipt details don't add up", high: 'Suspicious receipt', critical: 'Likely fake receipt',
 };
-const ADVICE = {
+const ADVICE: Record<AlertKind, string> = {
+  transaction: 'Do not release goods or money until the payment shows in your own account.',
   receipt: 'Do not release goods or money until the payment shows in your own account.',
   message: 'Do not reply, click links, or share codes. Contact the company through its official app or hotline.',
   cross: 'Do not release goods or money until the payment shows in your own account.',
@@ -99,6 +101,18 @@ export function alertForCross(cross: CrossEvidenceResult, min: AlertLevel = DEFA
   if (!meetsAlertLevel(cross.combinedRiskLevel, min)) return null;
   const body = cross.rationale[0] ?? `Receipt risk ${cross.transactionRiskLevel}, conversation risk ${cross.conversationRiskLevel}`;
   return make('cross', cross.id, cross.combinedRiskLevel, cross.verdict, body, cross.scannedAt, userId);
+}
+
+export function alertForTransaction(t: ManualTransaction, min: AlertLevel = DEFAULT_ALERT_LEVEL, userId: string | null = null): FraudAlert | null {
+  if (!meetsAlertLevel(t.riskLevel, min)) return null;
+  const what = [
+    t.input.institution !== 'Unknown' ? `${t.input.institution} ${t.input.type.toLowerCase()}` : t.input.type,
+    t.input.amount != null ? `for ${formatPHP(t.input.amount)}` : null,
+    t.input.referenceNo ? `(ref ${t.input.referenceNo})` : null,
+  ].filter(Boolean).join(' ');
+  const reasons = t.findings.filter(f => !f.passed).sort((a, b) => RISK_RANK[b.severity] - RISK_RANK[a.severity] || b.weight - a.weight).slice(0, 2).map(f => f.label);
+  return make('transaction', t.id, t.riskLevel, t.riskLevel === 'critical' ? 'Likely fake payment claim' : 'Suspicious payment details',
+    reasons.length ? `${what}. Main reason${reasons.length > 1 ? 's' : ''}: ${reasons.join('; ')}` : what, t.scannedAt, userId);
 }
 
 /** Add an alert (newest first, one per check). */

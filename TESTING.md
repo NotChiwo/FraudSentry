@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**279 / 279 passing** (V9.0).
+**299 / 299 passing** (V9.1).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -32,6 +32,8 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
 | `bpiReceipts.test.ts` | 16 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; confirmation number ↔ time and weekday ↔ date are consistent on both genuine receipts, and an edited date, time or confirmation number is caught; the blurred copy's reference reads as hidden; privacy-notice versioning |
 | `inkConsistency.test.ts` | 5 | V8.6 repaint hint on receipts drawn in code: one ink → consistent; amount line in a bluer ink → reported; a recurring design tint → not reported; non-amount lines never judged; too few words → unknown |
+| `evaluation.test.ts` | 12 | V9.1: ROC-AUC (perfect, guessing, reversed, ties, one class), ROC curve area = AUC, demo forest AUC > 0.85; McNemar exact binomial (hand-computed p), no or balanced disagreement, χ² with continuity correction; rules vs forest vs combined on the same held-out receipts with a significant improvement, rows without a rule score left out; a labelled scan keeps its rule score and floor; blend and classification threshold; model versions, names and which models can be reactivated |
+| `transactions.test.ts` | 8 | V9.1: typed details (consistent → Low; wrong-shape or missing reference; future date ≥ High; edited copy of an earlier check; BPI confirmation time); transaction type from receipt wording; "received / not received" sets a receipt's training label and pending removes it; typed-details transactions never train the model and raise an alert that is removed with them |
 | `accounts.test.ts` | 11 | V9.0 accounts: first account is the administrator and no password is stored; sign-in (username case-insensitive), wrong password, unknown user; lock-out after 5 wrong passwords (even the right password is refused while locked), 5 → 10 minutes, reset on success; username / password rules; admin-created user must change the temporary password; standard users cannot administer; sign-up only when allowed; password reset keeps the user's data; roles, disable, unlock, delete, always one administrator; a vault is unreadable to another user but readable by an administrator; the activity log records events without passwords and its hash chain detects an edited or removed entry |
 | `session.test.ts` | 3 | V9.0 sessions: signing in loads only that user's data, work is saved encrypted (no plain reference numbers), signing out clears memory, another user sees nothing; the first administrator inherits pre-accounts history; checks, clearing history and signing out are logged |
 | `alerts.test.ts` | 13 | V8.7 alerts: a High receipt gives an alert with exactly the ERD fields, unread, dated when the check ran; the message names app, amount, reference and the strongest failed checks; the alert level (Low never; Medium only when chosen; Critical only); message and cross-evidence wording; one alert per check, newest first, capped at 100; store: risky checks create alerts and clean ones don't, read / unread / mark all / delete, deleting a check (or it leaving the 40-item history) deletes its alert, a Cross-Evidence run raises one alert, saved and reopened alerts keep their status and expired ones are dropped |
@@ -321,6 +323,18 @@ Run in the built app (Chromium), starting from a V8.7 device with one saved scam
 | Admin overview / records | 2 users, 2 checks, 2 alerts; the cashier's check listed read-only |
 | Reload | signed out (keys exist only in memory) |
 | `tools/compare-versions.mjs` V8.7 vs V9.0 on the 6 BPI receipts | identical results (detection unchanged) |
+
+## 3g. Transactions and model evaluation in the built app (V9.1)
+
+| Step | Result |
+|---|---|
+| Blurred BPI receipt | High · **Possibly fraudulent** · Bank Transfer · "Scored with RF v0 · demonstration (built-in)" |
+| Mark "Not received" | saved with time; becomes a fake-labelled training row |
+| Typed details: BPI ₱15,000, ref 1782743489365, Jun 29 2026 9:00 AM | High · Possibly fraudulent · main reason Confirmation Number Timing (the number encodes 10:31 PM) · alert raised |
+| Transactions page | 2 transactions, 1 not confirmed, 1 not received; survives sign-out and reload |
+| Train on 61 labelled receipts | registered as "RF v1 · labelled receipts (61 rows)", ROC-AUC and ROC curve shown, now used by scans |
+| Rules vs forest vs combined (seeded synthetic labels) | McNemar exact p = 0.031 → H₀ rejected (the test data was made to differ; this checks the mechanics, not a finding) |
+| Switch back to the demonstration model | scans use RF v0 again |
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

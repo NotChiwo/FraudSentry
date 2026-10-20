@@ -27,7 +27,7 @@ let kv: KV = browserKV;
 export function setSessionKV(k: KV) { kv = k; }
 export const sessionKV = () => kv;
 
-const pick = (s: UserData): UserData => ({ imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, alerts: s.alerts, alertLevel: s.alertLevel });
+const pick = (s: UserData): UserData => ({ imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, manualTransactions: s.manualTransactions, alerts: s.alerts, alertLevel: s.alertLevel });
 
 // ── saving ───────────────────────────────────────────────────
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -63,6 +63,7 @@ export const useSession = create<SessionState>()((set, get) => ({
         imageScans: [...data.imageScans, ...legacy.imageScans],
         messageScans: [...data.messageScans, ...legacy.messageScans],
         crossChecks: [...data.crossChecks, ...legacy.crossChecks],
+        manualTransactions: data.manualTransactions,
         alerts: [...data.alerts, ...legacy.alerts],
         alertLevel: saved?.alertLevel ?? legacy.alertLevel,
       });
@@ -98,8 +99,9 @@ useAppStore.subscribe((now, before) => {
       newIds(now.imageScans, before.imageScans).forEach(r => log('receipt-checked', `${r.id} ${r.riskLevel}`));
       newIds(now.messageScans, before.messageScans).forEach(m => log('message-checked', `${m.id} ${m.threatLevel}`));
     }
-    const had = before.imageScans.length + before.messageScans.length + before.crossChecks.length;
-    if (had > 0 && !now.imageScans.length && !now.messageScans.length && !now.crossChecks.length) log('history-cleared', `${had} records`);
+    newIds(now.manualTransactions, before.manualTransactions).forEach(t => log('transaction-entered', `${t.id} ${t.riskLevel}`));
+    const had = before.imageScans.length + before.messageScans.length + before.crossChecks.length + before.manualTransactions.length;
+    if (had > 0 && !now.imageScans.length && !now.messageScans.length && !now.crossChecks.length && !now.manualTransactions.length) log('history-cleared', `${had} records`);
     else if (before.alerts.length > 0 && now.alerts.length === 0) log('alerts-cleared', `${before.alerts.length} alerts`);
   }
   if (before.trainingRows.length > 0 && now.trainingRows.length === 0) log('labels-cleared', `${before.trainingRows.length} labels`);

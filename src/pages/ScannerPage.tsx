@@ -15,7 +15,7 @@ import { useAppStore } from '../store/useAppStore';
 import CameraScanner from '../components/CameraScanner';
 import TrainingLabel from '../components/training/TrainingLabel';
 import { ImageScanResult, ExtractedTransactionData, OcrResult, OcrWord, RiskLevel, VerificationFinding } from '../types';
-import { formatBytes, formatPHP, formatRelativeTime } from '../utils/helpers';
+import { formatBytes, formatPHP, formatRelativeTime, classificationOf, CLASSIFICATION_LABEL } from '../utils/helpers';
 
 // Plain-language verdicts. The technical label (legitimacyLabel) still goes in the PDF report.
 export const VERDICT: Record<RiskLevel, { title: string; level: string; Icon: typeof CheckCircle2 }> = {
@@ -406,6 +406,11 @@ function ResultView(props: {
             <div className="verdict-level">{v.level}</div>
             <h1 id="verdict-title" className="verdict-title">{v.title}</h1>
             <p className="verdict-reason">{oneLineReason(result)}</p>
+            <p className="verdict-class">
+              <span className={`cls-chip ${result.classification ?? classificationOf(result.riskLevel)}`}>{CLASSIFICATION_LABEL[result.classification ?? classificationOf(result.riskLevel)]}</span>
+              {result.transactionType && result.transactionType !== 'Other' && <span className="muted small">{result.transactionType}</span>}
+              {result.forestAnalysis?.modelName && <span className="muted small">Scored with {result.forestAnalysis.modelName}</span>}
+            </p>
           </div>
         </div>
         <div className="level-meter" aria-hidden="true">
@@ -574,6 +579,9 @@ function HowDecided({ result, preview }: { result: ImageScanResult; preview: str
         <div className="trio-op" aria-hidden="true">=</div>
         <div className="trio strong"><div className="trio-v mono">{pct(result.riskScore)}</div><div className="trio-l">Final risk (½ + ½)</div></div>
       </div>
+      {!!result.scoreFloor && result.riskScore <= result.scoreFloor + 1e-9 && (
+        <p className="note">A definitive finding sets a minimum of {pct(result.scoreFloor)}: the average is never allowed to hide it.</p>
+      )}
       {fa?.datasetSource === 'demo' && (
         <p className="note">The forest is currently trained on a seeded <b>demonstration</b> dataset, not on real collected evidence. It shows how the method works; its vote is not a measured accuracy.</p>
       )}

@@ -216,7 +216,7 @@ function TrainingCard(props: {
         <h2 id="training-title" className="section-title" style={{ margin: 0 }}>Training data for the Random Forest</h2>
       </div>
       <p className="muted small" style={{ margin: 0 }}>
-        Mark each checked receipt <b>Genuine</b> or <b>Fake</b> (what it really is, not what the app said). The forest then learns from real evidence instead of the demonstration data.
+        After checking your own account, mark each receipt <b>Received</b> or <b>Not received</b> (what really happened, not what the app said). That real outcome becomes its training label, so the forest learns from real evidence instead of the demonstration data.
         Only the 10 evidence numbers and your label are kept — no names, account numbers or amounts — and they stay on this device even after history is cleared.
       </p>
       <div className="tc-counts" aria-live="polite">

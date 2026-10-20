@@ -17,6 +17,7 @@ import { unreadCount } from './services/alerts';
 import AuthGate, { ForcePasswordChange } from './components/auth/AuthGate';
 import AdminPage from './pages/AdminPage';
 import AccountPage from './pages/AccountPage';
+import TransactionsPage from './pages/TransactionsPage';
 import { useSession, sessionKV } from './store/useSession';
 import { accountSettings } from './services/accounts';
 import { useAppStore } from './store/useAppStore';
@@ -138,6 +139,7 @@ export default function App() {
             {shown === 'knowledge' && <KnowledgeBasePage onNavigate={navigate} />}
             {shown === 'reports'   && <ReportsPage onNavigate={navigate} />}
             {shown === 'alerts'    && <AlertsPage onNavigate={navigate} />}
+            {shown === 'transactions' && <TransactionsPage onNavigate={navigate} />}
             {shown === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {shown === 'about'     && <AboutPage />}
             {shown === 'admin'     && <AdminPage />}

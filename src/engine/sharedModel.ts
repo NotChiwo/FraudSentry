@@ -26,6 +26,9 @@ import { FEATURE_SPECS, generateDemoDataset, isEvidenceSchema } from '../service
 export type ModelDatasetSource = 'demo' | 'csv' | 'labelled';
 
 export interface SharedModelMeta {
+  /** RF_MODEL.model_id and model_name (V9.1) */
+  modelId: string;
+  modelName: string;
   datasetSource: ModelDatasetSource;
   nTrees: number;
   maxDepth: number;
@@ -36,6 +39,8 @@ export interface SharedModelMeta {
 
 const DEFAULT_TREES = 40;
 const DEFAULT_DEPTH = 9;
+export const DEMO_MODEL_ID = 'rf-demo';
+export const DEMO_MODEL_NAME = 'RF v0 · demonstration (built-in)';
 
 let forest: RandomForest | null = null;
 let meta: SharedModelMeta | null = null;
@@ -46,6 +51,7 @@ let warming: Promise<void> | null = null;
 function install(rf: RandomForest, rows: number) {
   forest = rf;
   meta = {
+    modelId: DEMO_MODEL_ID, modelName: DEMO_MODEL_NAME,
     datasetSource: 'demo',
     nTrees: DEFAULT_TREES,
     maxDepth: DEFAULT_DEPTH,
@@ -59,6 +65,15 @@ function trainDefault() {
   const rf = new RandomForest({ nTrees: DEFAULT_TREES, maxDepth: DEFAULT_DEPTH, seed: 42 });
   rf.fit(ds.X, ds.y);
   install(rf, ds.X.length);
+}
+
+/** Go back to the built-in demonstration model for all future scans. */
+export async function switchToDemoModel(): Promise<void> {
+  const ds = generateDemoDataset();
+  const rf = new RandomForest({ nTrees: DEFAULT_TREES, maxDepth: DEFAULT_DEPTH, seed: 42 });
+  await rf.fitAsync(ds.X, ds.y);
+  install(rf, ds.X.length);
+  listeners.forEach(l => l(meta!));
 }
 
 /**
@@ -85,9 +100,9 @@ export async function warmUpSharedModel(): Promise<void> {
 // rebuilt when the app opens (same rows + seeded split ⇒ the identical forest).
 // Scans wait for it via warmUpSharedModel, so none is scored by the demo model meanwhile.
 let restoring: Promise<void> | null = null;
-export function restoreSharedModel(build: () => Promise<{ rf: RandomForest; featureNames: string[]; info: Omit<SharedModelMeta, 'trainedAt'> } | null>): Promise<void> {
+export function restoreSharedModel(build: () => Promise<{ rf: RandomForest; featureNames: string[]; info: ModelInfo; trainedAt?: string } | null>): Promise<void> {
   restoring = build()
-    .then(r => { if (r) setSharedModel(r.rf, r.featureNames, r.info); })
+    .then(r => { if (r) setSharedModel(r.rf, r.featureNames, r.info, r.trainedAt); })
     .catch(() => { /* keep whatever model is in place */ })
     .finally(() => { restoring = null; });
   return restoring;
@@ -103,14 +118,16 @@ function ensure(): { forest: RandomForest; meta: SharedModelMeta } {
  * Returns false (and leaves the current model in place) when the training
  * data does not use the scanner's evidence features.
  */
+export type ModelInfo = Omit<SharedModelMeta, 'trainedAt' | 'modelId' | 'modelName'> & Partial<Pick<SharedModelMeta, 'modelId' | 'modelName'>>;
 export function setSharedModel(
   rf: RandomForest,
   featureNames: string[],
-  info: Omit<SharedModelMeta, 'trainedAt'>,
+  info: ModelInfo,
+  trainedAt = new Date().toISOString(),
 ): boolean {
   if (!isEvidenceSchema(featureNames) || rf.treeCount === 0) return false;
   forest = rf;
-  meta = { ...info, trainedAt: new Date().toISOString() };
+  meta = { modelId: `rf-${Date.parse(trainedAt).toString(36)}`, modelName: `RF · ${info.datasetSource}`, ...info, trainedAt };
   listeners.forEach(l => l(meta!));
   return true;
 }
@@ -134,6 +151,8 @@ export function scoreWithSharedModel(features: number[]): ForestAnalysis {
     totalTrees: rf.treeCount,
     datasetSource: m.datasetSource,
     trainedAt: m.trainedAt,
+    modelId: m.modelId,
+    modelName: m.modelName,
     featureNames: FEATURE_SPECS.map(f => f.label),
     features: features.slice(),
   };

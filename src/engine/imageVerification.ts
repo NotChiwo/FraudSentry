@@ -19,11 +19,11 @@
 // ============================================================
 
 import { EvidenceSource, ImageScanResult, OcrResult, ForensicReport, VerificationFinding, RiskLevel, ExtractedTransactionData } from '../types';
-import { generateId, scoreToRiskLevel, clamp } from '../utils/helpers';
+import { generateId, scoreToRiskLevel, clamp, classificationOf, blendScore } from '../utils/helpers';
 import { runOcr, OcrCancelled } from '../services/ocr';
 import type { OcrProgress } from '../services/ocr';
 import { analyzeForensics, inkCheckForFile } from '../services/imageForensics';
-import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction } from '../services/receiptParser';
+import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf } from '../services/receiptParser';
 import { reconcileAmounts, checkReceiptDate, checkWeekday, checkConfirmationTime } from '../services/consistencyChecks';
 import { assessHiddenFields } from '../services/hiddenFields';
 import { matchAgainstHistory, PriorScan } from '../services/historyMatch';
@@ -247,19 +247,21 @@ export async function analyzeTransactionImage(
   const forestAnalysis = scoreWithSharedModel(
     buildFeatureVector(forensics, ocr, extracted, source, failed.length),
   );
-  let riskScore = clamp(0.5 * heuristicScore + 0.5 * forestAnalysis.probability, 0, 1);
-  // A definitive structural fact (no transfer exists yet) is not a
-  // probability — never let the blend dilute it below Critical.
-  if (unconfirmed) riskScore = Math.max(riskScore, 0.7);
+  // Definitive findings set a floor the blend can never dilute (kept as
+  // scoreFloor, so the evaluation can replay exactly how a result was scored).
+  let scoreFloor = 0;
+  // A definitive structural fact (no transfer exists yet) is not a probability: never below Critical.
+  if (unconfirmed) scoreFloor = Math.max(scoreFloor, 0.7);
   // Same for a future date or totals that don't add up: never below High.
   // (Both are read from stable multi-pass OCR, so a lone misread can't trigger them.)
-  if (dateCheck.status === 'future' || recon.status === 'mismatch' || hist.kind === 'edited-copy') riskScore = Math.max(riskScore, 0.45);
+  if (dateCheck.status === 'future' || recon.status === 'mismatch' || hist.kind === 'edited-copy') scoreFloor = Math.max(scoreFloor, 0.45);
   // The app generates the weekday and (on BPI) the confirmation number from the time itself.
-  if (weekday.status === 'mismatch' || confTime.status === 'mismatch') riskScore = Math.max(riskScore, 0.45);
+  if (weekday.status === 'mismatch' || confTime.status === 'mismatch') scoreFloor = Math.max(scoreFloor, 0.45);
   // a repaint hint is not proof, but never shows as Low
-  if (ink.status === 'suspicious') riskScore = Math.max(riskScore, 0.22);
+  if (ink.status === 'suspicious') scoreFloor = Math.max(scoreFloor, 0.22);
   // Hidden details make the receipt unverifiable: never below High.
-  if (detailsHidden) riskScore = Math.max(riskScore, 0.45);
+  if (detailsHidden) scoreFloor = Math.max(scoreFloor, 0.45);
+  const riskScore = blendScore(heuristicScore, forestAnalysis.probability, scoreFloor);
   const riskLevel: RiskLevel = scoreToRiskLevel(riskScore);
 
   const legitimacyLabel =
@@ -298,6 +300,10 @@ export async function analyzeTransactionImage(
     recommendedAction,
     actionPlan,
     heuristicScore,
+    scoreFloor,
+    classification: classificationOf(riskLevel),
+    transactionType: transactionTypeOf(ocr.passes?.length ? ocr.passes.join('\n') : ocr.text, source),
+    txStatus: 'pending',
     forestAnalysis,
     inkOutliers: ink.outliers.map(({ text, x0, y0, x1, y1 }) => ({ text, x0, y0, x1, y1 })),
     previewDataUrl: opts?.previewDataUrl,

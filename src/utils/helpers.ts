@@ -1,7 +1,7 @@
 // ============================================================
 // FraudSentry — Utility Helpers
 // ============================================================
-import { RiskLevel } from '../types';
+import { RiskLevel, Classification } from '../types';
 
 export function formatPHP(amount: number): string {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 }).format(amount);
@@ -44,12 +44,20 @@ export function scoreToRiskLevel(score: number): RiskLevel {
   return 'low';
 }
 export const RISK_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+/** Risk score at and above which a result is classified "possibly fraudulent" (= High). */
+export const FRAUD_THRESHOLD = 0.45;
+export const classificationOf = (level: RiskLevel): Classification => (level === 'high' || level === 'critical' ? 'fraudulent' : 'legitimate');
+export const CLASSIFICATION_LABEL: Record<Classification, string> = { fraudulent: 'Possibly fraudulent', legitimate: 'Legitimate' };
 export function maxRisk(a: RiskLevel, b: RiskLevel): RiskLevel {
   return RISK_RANK[a] >= RISK_RANK[b] ? a : b;
 }
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+/** The final risk score: rules and forest blended 50/50, never below the floor set by definitive findings. */
+export function blendScore(ruleScore: number, forestProbability: number, floor = 0): number {
+  return Math.max(clamp(0.5 * ruleScore + 0.5 * forestProbability, 0, 1), floor);
 }
 export function generateId(prefix = 'id'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

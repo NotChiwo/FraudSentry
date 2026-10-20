@@ -1,5 +1,46 @@
 # Changelog
 
+## V9.1 — 2026-10-20
+
+### Transactions (thesis Module 2)
+- **New Transactions page.** It lists every payment checked on this device, from a screenshot or from typed details, with:
+  - amount, app or bank, transaction type, reference, recipient and transaction date;
+  - risk level and classification;
+  - outcome (see below).
+
+  You can filter by outcome, classification, app/bank, type and date range, search, and export the filtered list as CSV.
+- **Did the money arrive?** After checking their own account, the user marks each receipt **Received** or **Not received** (TRANSACTION.status: pending / received / not received, with the time it was marked). On a receipt, that real outcome **is its training label**: received = genuine, not received = fake. This replaces the separate "Genuine / Fake" buttons, so labelling happens as part of normal use.
+- **Check typed details.** For when the buyer only sends "sent na po, ref …", with no screenshot. The details are checked:
+  - the reference is present and has that app's format;
+  - the date is real and not in the future;
+  - for BPI, the confirmation number matches the stated time;
+  - the reference is compared with earlier checks: a reused reference, or the same reference with another amount (an edited copy).
+
+  It is clearly marked rules-only, because image forensics and the Random Forest need an image. Risky results raise an alert.
+- **Transaction type** is read from each receipt's wording: Send Money, Bank Transfer (including OCR's "instaFay" for InstaPay), QR Payment, Bill Payment, Purchase, Cash In, Cash Out. It is correct on all 16 real receipts in the test fixtures.
+
+### Fraud results (FRAUD_RESULT)
+- Every result now has a **classification**: *Possibly fraudulent* (High or Critical, risk ≥ 0.45) or *Legitimate*, shown on the result page and in Transactions.
+- Every scan records **which model scored it** (`model_id`, `model_name`).
+- The score floors set by definitive findings (hidden details, future date, BPI timing …) are now kept as `scoreFloor`, so an evaluation can replay exactly how a result was scored.
+
+### Model management (RF_MODEL)
+- **Model registry.** Every forest trained on the Model page is recorded with:
+  - name and version (auto "RF v3 · labelled receipts (61 rows)" or your own name);
+  - data source, trees / depth, train / test rows;
+  - accuracy, precision, recall, F1, **ROC-AUC** and the confusion matrix;
+  - feature importance, date and who trained it.
+
+  The page shows the model in use. You can switch back to an earlier labelled-receipt model (rebuilt exactly from the same rows) or to the built-in demonstration model.
+- **ROC-AUC and ROC curve** on the Model page, computed from the forest's probabilities on the held-out 30 %.
+- **Hypothesis test: does the Random Forest improve detection?**
+  - On labelled receipts, the same held-out 30 % is classified by the rules alone, by the forest alone, and by FraudSentry's combination.
+  - Each approach gets accuracy, precision, recall, F1, ROC-AUC and TP / FP / TN / FN.
+  - **McNemar's test** (exact binomial for fewer than 25 disagreements, χ² with continuity correction otherwise) reports whether H₀ (no difference) is rejected at α = 0.05.
+  - It uses receipts whose outcome was marked from V9.1 on, because they keep their rule score.
+
+Tests: 279 → **299** (`evaluation.test.ts`, `transactions.test.ts`).
+
 ## V9.0 — 2026-10-20
 
 ### Local accounts (thesis Module 1) and administration (Module 7)

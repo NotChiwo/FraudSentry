@@ -14,10 +14,12 @@
 // ============================================================
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ThemeMode, ImageScanResult, MessageScanResult, CrossEvidenceResult } from '../types';
+import { ThemeMode, ImageScanResult, MessageScanResult, CrossEvidenceResult, TransactionStatus } from '../types';
+import type { ManualTransaction } from '../engine/transactionCheck';
+import { withModel, type ModelRecord } from '../services/modelRegistry';
 import { rowFromScan, type TrainingRow, type LabelledModelOptions } from '../services/trainingData';
 import {
-  alertForReceipt, alertForMessage, alertForCross, withAlert, alertsForResults,
+  alertForReceipt, alertForMessage, alertForCross, alertForTransaction, withAlert, alertsForResults,
   DEFAULT_ALERT_LEVEL, type FraudAlert, type AlertLevel,
 } from '../services/alerts';
 
@@ -61,6 +63,16 @@ interface AppState {
   markAllAlertsRead: () => void;
   removeAlert: (id: string) => void;
   clearAlerts: () => void;
+  /** transactions checked from typed details (no screenshot) */
+  manualTransactions: ManualTransaction[];
+  addManualTransaction: (t: ManualTransaction) => void;
+  removeManualTransaction: (id: string) => void;
+  /** did the money arrive? On a receipt this also sets its training label (received = genuine, not received = fake). */
+  setTxStatus: (kind: 'receipt' | 'manual', id: string, status: TransactionStatus) => void;
+  /** RF_MODEL: every forest trained on this device (numbers only) */
+  models: ModelRecord[];
+  addModel: (m: ModelRecord) => void;
+  removeModel: (id: string) => void;
   /** History row to scroll to and highlight on the next visit (never persisted) */
   focusResultId: string | null;
   setFocusResultId: (id: string | null) => void;
@@ -76,10 +88,11 @@ export interface UserData {
   imageScans: ImageScanResult[];
   messageScans: MessageScanResult[];
   crossChecks: CrossEvidenceResult[];
+  manualTransactions: ManualTransaction[];
   alerts: FraudAlert[];
   alertLevel: AlertLevel;
 }
-export const USER_DATA_KEYS = ['imageScans', 'messageScans', 'crossChecks', 'alerts', 'alertLevel'] as const;
+export const USER_DATA_KEYS = ['imageScans', 'messageScans', 'crossChecks', 'manualTransactions', 'alerts', 'alertLevel'] as const;
 
 // First visit follows the device's light/dark setting; after that the saved choice wins.
 const systemTheme = (): ThemeMode => {
@@ -104,11 +117,12 @@ export function withinRetention<T extends { scannedAt: string }>(items: T[], now
   return items.filter(i => { const t = Date.parse(i.scannedAt); return isNaN(t) || t >= cutoff; });
 }
 
-type History = Pick<AppState, 'imageScans' | 'messageScans' | 'crossChecks'>;
+type History = Pick<AppState, 'imageScans' | 'messageScans' | 'crossChecks' | 'manualTransactions'>;
 /** An alert lives only as long as the check it was generated for. */
 function keepLinkedAlerts(alerts: FraudAlert[], h: History): FraudAlert[] {
-  return alertsForResults(alerts, [...h.imageScans, ...h.messageScans, ...h.crossChecks].map(x => x.id));
+  return alertsForResults(alerts, [...h.imageScans, ...h.messageScans, ...h.crossChecks, ...h.manualTransactions].map(x => x.id));
 }
+export const MAX_MANUAL_TRANSACTIONS = 100;
 
 // Drop the heavy base64 fields so persisted history stays tiny.
 function stripHeavy(scan: ImageScanResult): ImageScanResult {
@@ -143,7 +157,10 @@ const safeStorage = {
 
 /** The user's data as it is saved: expired items dropped, heavy images stripped, alerts kept only with their check. */
 export function userDataToSave(s: UserData, now = Date.now()): UserData {
-  const h: History = { imageScans: withinRetention(s.imageScans, now), messageScans: withinRetention(s.messageScans, now), crossChecks: withinRetention(s.crossChecks, now) };
+  const h: History = {
+    imageScans: withinRetention(s.imageScans, now), messageScans: withinRetention(s.messageScans, now), crossChecks: withinRetention(s.crossChecks, now),
+    manualTransactions: withinRetention(s.manualTransactions, now),
+  };
   return { ...h, imageScans: h.imageScans.map(stripHeavy), alerts: keepLinkedAlerts(s.alerts, h), alertLevel: s.alertLevel };
 }
 /** Saved user data (possibly old or partial) → what the app loads. */
@@ -152,14 +169,15 @@ export function userDataFromSaved(p: Partial<UserData> | null | undefined, now =
     imageScans: withinRetention(Array.isArray(p?.imageScans) ? p!.imageScans : [], now),
     messageScans: withinRetention(Array.isArray(p?.messageScans) ? p!.messageScans : [], now),
     crossChecks: withinRetention(Array.isArray(p?.crossChecks) ? p!.crossChecks : [], now),
+    manualTransactions: withinRetention(Array.isArray(p?.manualTransactions) ? p!.manualTransactions : [], now),
   };
   return { ...h, alerts: keepLinkedAlerts(Array.isArray(p?.alerts) ? p!.alerts : [], h), alertLevel: p?.alertLevel ?? DEFAULT_ALERT_LEVEL };
 }
-export const EMPTY_USER_DATA: UserData = { imageScans: [], messageScans: [], crossChecks: [], alerts: [], alertLevel: DEFAULT_ALERT_LEVEL };
+export const EMPTY_USER_DATA: UserData = { imageScans: [], messageScans: [], crossChecks: [], manualTransactions: [], alerts: [], alertLevel: DEFAULT_ALERT_LEVEL };
 
 /** Apply a history change, add the new check's alert (if any), and drop alerts whose check is gone. */
 function withHistory(s: AppState, change: Partial<History>, alert: FraudAlert | null = null): Partial<AppState> {
-  const h: History = { imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, ...change };
+  const h: History = { imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, manualTransactions: s.manualTransactions, ...change };
   return { ...change, alerts: keepLinkedAlerts(withAlert(s.alerts, alert), h) };
 }
 
@@ -183,7 +201,7 @@ export const useAppStore = create<AppState>()(
         messageScans: [message, ...s.messageScans].slice(0, 40),
         crossChecks: [cross, ...s.crossChecks].slice(0, 20),
       }, alertForCross(cross, s.alertLevel))),
-      clearHistory: () => set({ imageScans: [], messageScans: [], crossChecks: [], alerts: [] }),
+      clearHistory: () => set({ imageScans: [], messageScans: [], crossChecks: [], manualTransactions: [], alerts: [] }),
       removeImageScan: (id) => set(s => withHistory(s, { imageScans: s.imageScans.filter(x => x.id !== id) })),
       removeMessageScan: (id) => set(s => withHistory(s, { messageScans: s.messageScans.filter(x => x.id !== id) })),
       removeCrossCheck: (id) => set(s => withHistory(s, { crossChecks: s.crossChecks.filter(x => x.id !== id) })),
@@ -204,6 +222,23 @@ export const useAppStore = create<AppState>()(
       markAllAlertsRead: () => set(s => ({ alerts: s.alerts.map(a => (a.status === 'read' ? a : { ...a, status: 'read' as const })) })),
       removeAlert: (id) => set(s => ({ alerts: s.alerts.filter(a => a.id !== id) })),
       clearAlerts: () => set({ alerts: [] }),
+      manualTransactions: [],
+      addManualTransaction: (t) => set(s => withHistory(s, { manualTransactions: [t, ...s.manualTransactions].slice(0, MAX_MANUAL_TRANSACTIONS) }, alertForTransaction(t, s.alertLevel))),
+      removeManualTransaction: (id) => set(s => withHistory(s, { manualTransactions: s.manualTransactions.filter(x => x.id !== id) })),
+      setTxStatus: (kind, id, status) => set(s => {
+        const at = new Date().toISOString();
+        if (kind === 'manual') return { manualTransactions: s.manualTransactions.map(t => (t.id === id ? { ...t, txStatus: status, txStatusAt: at } : t)) };
+        const scan = s.imageScans.find(x => x.id === id);
+        if (!scan) return {};
+        const updated = { ...scan, txStatus: status, txStatusAt: at };
+        // the real outcome is the best training label there is
+        const rest = s.trainingRows.filter(r => r.id !== id);
+        const trainingRows = status === 'pending' ? rest : [...rest, rowFromScan(updated, status === 'received' ? 0 : 1)].slice(-MAX_TRAINING_ROWS);
+        return { imageScans: s.imageScans.map(x => (x.id === id ? updated : x)), trainingRows };
+      }),
+      models: [],
+      addModel: (m) => set(s => ({ models: withModel(s.models, m) })),
+      removeModel: (id) => set(s => ({ models: s.models.filter(m => m.id !== id) })),
       focusResultId: null,
       setFocusResultId: (id) => set({ focusResultId: id }),
       loadUserData: (d) => set({ ...(d ?? EMPTY_USER_DATA), focusResultId: null, pendingExample: null }),
@@ -226,6 +261,7 @@ export const useAppStore = create<AppState>()(
         // belong to the device's model, not to one user
         trainingRows: s.trainingRows,
         labelledModel: s.labelledModel,
+        models: s.models,
         // kept (unchanged) only until the first administrator account takes it over
         ...(s.legacyUserData ? { legacyUserData: s.legacyUserData } : {}),
       }),
@@ -240,6 +276,7 @@ export const useAppStore = create<AppState>()(
           hasConsented: acceptedCurrentNotice(p), consentVersion: p.consentVersion,
           trainingRows: Array.isArray(p.trainingRows) ? p.trainingRows : [],
           labelledModel: p.labelledModel ?? null,
+          models: Array.isArray(p.models) ? p.models : [],
           legacyUserData: p.legacyUserData ?? (hasOldHistory ? userDataFromSaved(p as Partial<UserData>) : null),
         };
       },

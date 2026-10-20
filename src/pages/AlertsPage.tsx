@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Bell, BellOff, CheckCheck, Trash2, ScanLine, MessageSquareWarning, GitCompareArrows, ArrowRight, Mail, MailOpen, SlidersHorizontal } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Trash2, ScanLine, MessageSquareWarning, GitCompareArrows, ArrowRight, Mail, MailOpen, SlidersHorizontal, ReceiptText } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { formatDateTime, formatRelativeTime } from '../utils/helpers';
 import { ALERT_LEVEL_LABEL, unreadCount, type FraudAlert, type AlertKind, type AlertLevel } from '../services/alerts';
@@ -12,6 +12,7 @@ const KIND: Record<AlertKind, { label: string; icon: LucideIcon }> = {
   receipt: { label: 'Receipt', icon: ScanLine },
   message: { label: 'Message', icon: MessageSquareWarning },
   cross: { label: 'Cross-Evidence', icon: GitCompareArrows },
+  transaction: { label: 'Transaction', icon: ReceiptText },
 };
 
 export default function AlertsPage({ onNavigate }: { onNavigate?: (p: string) => void }) {
@@ -33,7 +34,7 @@ export default function AlertsPage({ onNavigate }: { onNavigate?: (p: string) =>
   const viewCheck = (a: FraudAlert) => {
     setAlertStatus(a.id, 'read');
     setFocusResultId(a.resultId);
-    onNavigate?.('reports');
+    onNavigate?.(a.resultKind === 'transaction' ? 'transactions' : 'reports');
   };
 
   return (

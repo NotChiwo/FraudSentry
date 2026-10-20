@@ -604,3 +604,25 @@ export function amountFormattingSignal(texts: string[]): { suspicious: boolean; 
   }
   return { suspicious: false, detail: '' };
 }
+
+// ── transaction type (TRANSACTION.transaction_type, V9.1) ─────
+export const TRANSACTION_TYPES = ['Send Money', 'Bank Transfer', 'QR Payment', 'Bill Payment', 'Purchase', 'Cash In', 'Cash Out', 'Other'] as const;
+export type TransactionType = typeof TRANSACTION_TYPES[number];
+
+/** The kind of payment a receipt shows, from its wording (first match wins). */
+export function transactionTypeOf(text: string, source?: string): TransactionType {
+  const t = text.replace(/\s+/g, ' ');
+  if (/\bpay\s*bills?\b|\bbills?\s*payment\b|\bbiller\b|\bmeralco\b|\bmaynilad\b|manila water|\bpldt\b|\bconverge\b|\bglobe at home\b|\bsss\b|pag-?ibig|philhealth/i.test(t)) return 'Bill Payment';
+  if (/\bcash[\s-]?in\b/i.test(t)) return 'Cash In';
+  if (/\bcash[\s-]?out\b|\bwithdraw(al|n)?\b/i.test(t)) return 'Cash Out';
+  if (/\bpurchas(e|ed)\b|\bpaid to\b|\bpayment to\b|\bmerchant\b|\border (no|id|number)\b/i.test(t)) return 'Purchase';
+  // OCR often reads "InstaPay" as "instaFay"
+  if (/\binsta\s*[pf]ay\b|\bpesonet\b|bank transfer|fund transfer|transfer to (another|other) bank|\btransfer(red)? (to|successful|amount|result)\b|\btransferred\b/i.test(t)) return 'Bank Transfer';
+  if (/\bqr\s*(ph|payment|pay)\b|scan to pay|pay(ment)? via qr/i.test(t)) return 'QR Payment';
+  if (/\bsend money\b|express send|\bmoney sent\b|\byou sent\b|\bsent via\b|\bsent to\b|(^|\n)\s*sent\s*(\n|$)/i.test(text)) return 'Send Money';
+  if (source && /gcash|maya|shopeepay|grabpay|coins|palawan/i.test(source)) return 'Send Money';
+  return 'Other';
+}
+
+/** Every bank / e-wallet FraudSentry recognises, for pickers. */
+export const KNOWN_SOURCES = Object.keys(SOURCE_KEYWORDS) as Exclude<EvidenceSource, 'Unknown'>[];

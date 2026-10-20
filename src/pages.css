@@ -190,3 +190,18 @@
   .sheet-backdrop:has(.admin-drawer) { align-items: center; }
   .admin-drawer { border-radius: 18px; border: 1px solid var(--border-default); }
 }
+
+/* ── Transactions (V9.1) ────────────────────────────────────── */
+.tx-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.tx-date { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.cls-chip { font-size: 12px; font-weight: 800; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--border-default); color: var(--text-secondary); }
+.cls-chip.fraudulent { color: var(--risk-critical); border-color: color-mix(in srgb, var(--risk-critical) 40%, transparent); background: var(--risk-critical-bg); }
+.cls-chip.legitimate { color: var(--risk-low); border-color: color-mix(in srgb, var(--risk-low) 40%, transparent); }
+.outcome { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.outcome-q { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-right: 4px; }
+.outcome .tl-btn { display: inline-flex; align-items: center; gap: 5px; }
+.tx-row .hr-main { min-width: 0; }
+.tx-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border-radius: 12px; font-size: 14px; color: var(--text-primary);
+  background: var(--bg-subtle); border: 1px solid var(--border-default); border-left: 4px solid var(--sev); }
+.tx-form label { font-size: 13px; }
+.admin-msg.neutral { background: var(--bg-subtle); border-color: var(--border-default); }
