@@ -261,8 +261,7 @@ export function generateFraudReportPdf(r: FraudReport) {
   header(doc, `Fraud Detection Report (${r.reportType === 'summary' ? 'Summary' : 'Detailed'})`, id);
   let y = 48;
   y = kv(doc, y, 'Period', `${r.periodFrom} to ${r.periodTo}`);
-  y = kv(doc, y, 'Scope', r.scope === 'all' ? 'all users of this device' : `records of ${r.username ?? 'this user'}`);
-  y = kv(doc, y, 'Generated', `${new Date(r.generatedAt).toLocaleString('en-PH')}${r.username ? ` by ${r.username}` : ''}`);
+  y = kv(doc, y, 'Generated', new Date(r.generatedAt).toLocaleString('en-PH'));
   y += 2;
   y = sectionTitle(doc, y, 'Findings');
   doc.setTextColor(NAVY); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
@@ -294,13 +293,12 @@ export function generateFraudReportPdf(r: FraudReport) {
   if (s.byType.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'By transaction type'); y = table(doc, y, ['Type', 'Checks', 'Possibly fraudulent'], s.byType.map(x => [x.type, x.checks, x.fraudulent]), [90, 40, 52]); }
   if (s.topReasons.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'Most common warning signs'); y = table(doc, y, ['Check that failed', 'Times'], s.topReasons.map(x => [x.label, x.count]), [150, 32]); }
   if (s.models.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'Models that scored the receipts'); y = table(doc, y, ['Model', 'Receipts'], s.models.map(x => [x.name, x.checks]), [150, 32]); }
-  if (s.users?.length) { if (y > 240) { doc.addPage(); y = 20; } y = sectionTitle(doc, y, 'By user'); y = table(doc, y, ['User', 'Checks', 'Possibly fraudulent'], s.users.map(x => [x.username, x.checks, x.fraudulent]), [90, 40, 52]); }
   if (r.rows?.length) {
     if (y > 230) { doc.addPage(); y = 20; }
     y = sectionTitle(doc, y, `Every check (${r.rows.length})`);
-    table(doc, y, ['When', 'Kind', 'App', 'Amount', 'Reference', 'Risk', 'Class', 'Outcome', ...(r.scope === 'all' ? ['User'] : [])],
-      r.rows.map(x => [new Date(x.when).toLocaleDateString('en-PH'), x.kind, x.app, x.amount != null ? x.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 }) : '-', x.reference ?? '-', x.riskLevel, x.classification === 'fraudulent' ? 'fraud?' : 'legit', x.outcome ?? '-', ...(r.scope === 'all' ? [x.user ?? ''] : [])]),
-      r.scope === 'all' ? [20, 22, 20, 20, 32, 16, 14, 20, 18] : [22, 24, 22, 22, 36, 18, 16, 22]);
+    table(doc, y, ['When', 'Kind', 'App', 'Amount', 'Reference', 'Risk', 'Class', 'Outcome'],
+      r.rows.map(x => [new Date(x.when).toLocaleDateString('en-PH'), x.kind, x.app, x.amount != null ? x.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 }) : '-', x.reference ?? '-', x.riskLevel, x.classification === 'fraudulent' ? 'fraud?' : 'legit', x.outcome ?? '-']),
+      [22, 24, 22, 22, 36, 18, 16, 22]);
   }
   footer(doc);
   savePdf(doc, `${id}-${r.reportType}-${r.periodFrom}-${r.periodTo}.pdf`);

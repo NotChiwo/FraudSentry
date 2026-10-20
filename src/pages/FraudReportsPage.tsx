@@ -1,12 +1,10 @@
 // Fraud detection reports (thesis Module 5): generate a summary or detailed
 // report for a period, view it, download it as PDF or CSV, and reopen saved
-// reports later. Administrators can report on every user of the device.
+// reports later.
 import { useState } from 'react';
-import { FileBarChart, Play, Loader2, Download, Trash2, FileText, Users, X } from 'lucide-react';
-import { useAppStore, userDataFromSaved, type UserData } from '../store/useAppStore';
-import { useSession, sessionKV } from '../store/useSession';
-import { listUsers, adminReadVault } from '../services/accounts';
-import { buildReport, reportToCsv, type FraudReport, type ReportType, type ReportScope, type ReportSource } from '../services/fraudReports';
+import { FileBarChart, Play, Loader2, Download, Trash2, FileText, X } from 'lucide-react';
+import { useAppStore, type UserData } from '../store/useAppStore';
+import { buildReport, reportToCsv, type FraudReport, type ReportType } from '../services/fraudReports';
 import { generateFraudReportPdf } from '../services/reportGenerator';
 import { formatDateTime, formatPHP, downloadBlob } from '../utils/helpers';
 
@@ -22,18 +20,15 @@ function presetRange(p: Preset): [string, string] {
 const pct = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
 
 export default function FraudReportsPage() {
-  const session = useSession(s => s.session)!;
   const reports = useAppStore(s => s.reports);
   const addReport = useAppStore(s => s.addReport);
   const removeReport = useAppStore(s => s.removeReport);
   const [type, setType] = useState<ReportType>('summary');
   const [preset, setPreset] = useState<Preset>('30');
   const [[from, to], setRange] = useState<[string, string]>(() => presetRange('30'));
-  const [scope, setScope] = useState<ReportScope>('me');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<FraudReport | null>(null);
-  const isAdmin = session.role === 'admin' && !!session.orgPrivate;
 
   const pickPreset = (p: Preset) => { setPreset(p); if (p !== 'custom') setRange(presetRange(p)); };
 
@@ -42,14 +37,7 @@ export default function FraudReportsPage() {
     setBusy(true); setError(null);
     try {
       const mine = useAppStore.getState() as UserData;
-      let sources: ReportSource[] = [{ username: session.username, data: mine }];
-      if (scope === 'all' && isAdmin) {
-        sources = await Promise.all(listUsers(sessionKV()).map(async u => ({
-          username: u.username,
-          data: u.id === session.userId ? mine : userDataFromSaved(await adminReadVault<Partial<UserData>>(sessionKV(), session, u.id).catch(() => null)),
-        })));
-      }
-      const r = buildReport(sources, { type, scope: scope === 'all' && isAdmin ? 'all' : 'me', from, to, userId: session.userId, username: session.username });
+      const r = buildReport(mine, { type, from, to });
       addReport(r); setViewing(r);
     } catch (e) {
       console.error(e); setError('The report could not be generated.');
@@ -62,7 +50,7 @@ export default function FraudReportsPage() {
         <div className="page-head-ico"><FileBarChart size={22} /></div>
         <div>
           <h1>Reports</h1>
-          <p>Fraud detection reports for a period: what was checked, how it was classified, and how often that matched what really happened to the payment. Saved reports stay on this device (encrypted) for 30 days.</p>
+          <p>Fraud detection reports for a period: what was checked, how it was classified, and how often that matched what really happened to the payment. Saved reports stay on this device for 30 days.</p>
         </div>
       </div>
 
@@ -93,15 +81,6 @@ export default function FraudReportsPage() {
               </div>
             )}
           </fieldset>
-          {isAdmin && (
-            <fieldset className="report-fs">
-              <legend>Whose checks</legend>
-              <div className="chip-row" role="radiogroup" aria-label="Report scope">
-                <button type="button" role="radio" aria-checked={scope === 'me'} className={`filter-btn${scope === 'me' ? ' active' : ''}`} onClick={() => setScope('me')}>Mine</button>
-                <button type="button" role="radio" aria-checked={scope === 'all'} className={`filter-btn${scope === 'all' ? ' active' : ''}`} onClick={() => setScope('all')}><Users size={14} /> All users</button>
-              </div>
-            </fieldset>
-          )}
         </div>
         <div className="chip-row">
           <button type="button" className="btn-primary" onClick={() => void generate()} disabled={busy}>{busy ? <Loader2 size={15} className="spin" /> : <FileBarChart size={15} />} Generate report</button>
@@ -150,7 +129,7 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
           <button type="button" className="icon-btn" aria-label="Close report" onClick={onClose}><X size={18} /></button>
         </div>
       </div>
-      <p className="muted small" style={{ margin: 0 }}>Generated {formatDateTime(r.generatedAt)}{r.username ? ` by ${r.username}` : ''} · {r.scope === 'all' ? 'all users' : 'own records'} · {r.periodFrom} to {r.periodTo}</p>
+      <p className="muted small" style={{ margin: 0 }}>Generated {formatDateTime(r.generatedAt)} · {r.periodFrom} to {r.periodTo}</p>
       <p className="report-desc">{r.description}</p>
 
       <div className="admin-stats">
@@ -183,7 +162,6 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
         {s.byType.length > 0 && <Breakdown title="By transaction type" head={['Type', 'Checks', 'Flagged']} rows={s.byType.map(x => [x.type, x.checks, x.fraudulent])} />}
         {s.topReasons.length > 0 && <Breakdown title="Most common warning signs" head={['Check that failed', 'Times']} rows={s.topReasons.map(x => [x.label, x.count])} />}
         {s.models.length > 0 && <Breakdown title="Models that scored the receipts" head={['Model', 'Receipts']} rows={s.models.map(x => [x.name, x.checks])} />}
-        {s.users && <Breakdown title="By user" head={['User', 'Checks', 'Flagged']} rows={s.users.map(x => [x.username, x.checks, x.fraudulent])} />}
       </div>
 
       {r.rows && (
@@ -191,7 +169,7 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
           <h3 className="how-h">Every check ({r.rows.length})</h3>
           <div className="table-wrap">
             <table className="admin-table">
-              <thead><tr><th>When</th><th>Kind</th><th>App</th><th>Type</th><th>Amount</th><th>Reference</th><th>Risk</th><th>Classification</th><th>Outcome</th>{r.scope === 'all' && <th>User</th>}</tr></thead>
+              <thead><tr><th>When</th><th>Kind</th><th>App</th><th>Type</th><th>Amount</th><th>Reference</th><th>Risk</th><th>Classification</th><th>Outcome</th></tr></thead>
               <tbody>
                 {r.rows.map((x, i) => (
                   <tr key={i}>
@@ -199,7 +177,6 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
                     <td className="mono">{x.reference ?? '—'}</td><td><span className={`sev-chip sev-${x.riskLevel === 'low' ? 'ok' : x.riskLevel}`}>{x.riskLevel}</span></td>
                     <td>{x.classification === 'fraudulent' ? 'Possibly fraudulent' : 'Legitimate'}</td>
                     <td>{x.outcome === 'received' ? 'Received' : x.outcome === 'not-received' ? 'Not received' : x.outcome === 'pending' ? 'Not confirmed' : '—'}</td>
-                    {r.scope === 'all' && <td>{x.user}</td>}
                   </tr>
                 ))}
               </tbody>

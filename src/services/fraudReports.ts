@@ -8,8 +8,7 @@
 // outcome users confirmed in their own accounts (received / not received).
 //   • summary  — the numbers and the breakdowns
 //   • detailed — the same, plus every check in the period
-// Administrators can report on all users of the device.
-// Reports are saved in the generating user's encrypted vault, so they can be
+// Reports are saved in the local history, so they can be
 // reopened later; like the history, they expire after 30 days.
 // Pure functions.
 // ============================================================
@@ -19,7 +18,6 @@ import { classificationOf, generateId, formatPHP } from '../utils/helpers';
 import { unreadCount } from './alerts';
 
 export type ReportType = 'summary' | 'detailed';
-export type ReportScope = 'me' | 'all';
 
 export interface ReportRow {
   when: string;
@@ -31,7 +29,6 @@ export interface ReportRow {
   riskLevel: RiskLevel;
   classification: Classification;
   outcome: TransactionStatus | null;
-  user?: string;
 }
 
 export interface Agreement { confirmed: number; tp: number; fp: number; tn: number; fn: number; accuracy: number | null; precision: number | null; recall: number | null }
@@ -51,15 +48,11 @@ export interface ReportStats {
   topReasons: { label: string; count: number }[];
   alerts: { total: number; unread: number };
   models: { name: string; checks: number }[];
-  users?: { username: string; checks: number; fraudulent: number }[];
 }
 
 export interface FraudReport {
   id: string;
-  userId: string | null;
-  username: string | null;
   reportType: ReportType;
-  scope: ReportScope;
   title: string;
   /** the findings in plain words (REPORT.description) */
   description: string;
@@ -73,35 +66,30 @@ export interface FraudReport {
 
 export const MAX_REPORTS = 50;
 
-export interface ReportSource { username: string; data: UserData }
-
 /** the Philippine calendar day of a timestamp (UTC+8, no DST) */
 export const phDay = (when: string) => { const t = Date.parse(when); return isNaN(t) ? when.slice(0, 10) : new Date(t + 8 * 3600_000).toISOString().slice(0, 10); };
 const inPeriod = (when: string, from: string, to: string) => { const d = phDay(when); return d >= from && d <= to; };
 const ratio = (a: number, b: number) => (b ? a / b : null);
 
-/** Every check of these users in the period, as report rows (newest first). */
-export function reportRows(sources: ReportSource[], from: string, to: string): ReportRow[] {
+/** Every check in the period, as report rows (newest first). */
+export function reportRows(data: UserData, from: string, to: string): ReportRow[] {
   const rows: ReportRow[] = [];
-  for (const { username, data } of sources) {
-    const user = sources.length > 1 ? username : undefined;
-    for (const s of data.imageScans) if (inPeriod(s.scannedAt, from, to)) rows.push({
-      when: s.scannedAt, kind: 'Receipt', app: s.source, type: s.transactionType ?? 'Other', amount: s.extracted.amount, reference: s.extracted.referenceNo,
-      riskLevel: s.riskLevel, classification: s.classification ?? classificationOf(s.riskLevel), outcome: s.txStatus ?? 'pending', user,
-    });
-    for (const t of data.manualTransactions) if (inPeriod(t.scannedAt, from, to)) rows.push({
-      when: t.scannedAt, kind: 'Typed details', app: t.input.institution, type: t.input.type, amount: t.input.amount, reference: t.input.referenceNo,
-      riskLevel: t.riskLevel, classification: t.classification, outcome: t.txStatus, user,
-    });
-    for (const m of data.messageScans) if (inPeriod(m.scannedAt, from, to)) rows.push({
-      when: m.scannedAt, kind: 'Message', app: m.platform, type: m.scamType, amount: null, reference: null,
-      riskLevel: m.threatLevel, classification: classificationOf(m.threatLevel), outcome: null, user,
-    });
-    for (const c of data.crossChecks) if (inPeriod(c.scannedAt, from, to)) rows.push({
-      when: c.scannedAt, kind: 'Cross-Evidence', app: '—', type: c.verdict, amount: null, reference: null,
-      riskLevel: c.combinedRiskLevel, classification: classificationOf(c.combinedRiskLevel), outcome: null, user,
-    });
-  }
+  for (const s of data.imageScans) if (inPeriod(s.scannedAt, from, to)) rows.push({
+    when: s.scannedAt, kind: 'Receipt', app: s.source, type: s.transactionType ?? 'Other', amount: s.extracted.amount, reference: s.extracted.referenceNo,
+    riskLevel: s.riskLevel, classification: s.classification ?? classificationOf(s.riskLevel), outcome: s.txStatus ?? 'pending',
+  });
+  for (const t of data.manualTransactions) if (inPeriod(t.scannedAt, from, to)) rows.push({
+    when: t.scannedAt, kind: 'Typed details', app: t.input.institution, type: t.input.type, amount: t.input.amount, reference: t.input.referenceNo,
+    riskLevel: t.riskLevel, classification: t.classification, outcome: t.txStatus,
+  });
+  for (const m of data.messageScans) if (inPeriod(m.scannedAt, from, to)) rows.push({
+    when: m.scannedAt, kind: 'Message', app: m.platform, type: m.scamType, amount: null, reference: null,
+    riskLevel: m.threatLevel, classification: classificationOf(m.threatLevel), outcome: null,
+  });
+  for (const c of data.crossChecks) if (inPeriod(c.scannedAt, from, to)) rows.push({
+    when: c.scannedAt, kind: 'Cross-Evidence', app: '—', type: c.verdict, amount: null, reference: null,
+    riskLevel: c.combinedRiskLevel, classification: classificationOf(c.combinedRiskLevel), outcome: null,
+  });
   return rows.sort((a, b) => b.when.localeCompare(a.when));
 }
 
@@ -111,8 +99,8 @@ function tally<K extends string>(items: K[]): Map<K, number> {
   return m;
 }
 
-export function reportStats(sources: ReportSource[], from: string, to: string): ReportStats {
-  const rows = reportRows(sources, from, to);
+export function reportStats(data: UserData, from: string, to: string): ReportStats {
+  const rows = reportRows(data, from, to);
   const pay = rows.filter(r => r.kind === 'Receipt' || r.kind === 'Typed details');
   const confirmed = pay.filter(r => r.outcome === 'received' || r.outcome === 'not-received');
   const tp = confirmed.filter(r => r.classification === 'fraudulent' && r.outcome === 'not-received').length;
@@ -128,16 +116,12 @@ export function reportStats(sources: ReportSource[], from: string, to: string): 
   const types = [...new Set(pay.map(r => r.type))];
   const reasons: string[] = [];
   const modelNames: string[] = [];
-  let alertsTotal = 0, alertsUnread = 0;
-  for (const { data } of sources) {
-    for (const s of data.imageScans) if (inPeriod(s.scannedAt, from, to)) {
-      s.findings.filter(f => !f.passed && f.weight > 0).forEach(f => reasons.push(f.label));
-      modelNames.push(s.forestAnalysis?.modelName ?? (s.forestAnalysis ? 'earlier model (not recorded)' : 'no model'));
-    }
-    for (const t of data.manualTransactions) if (inPeriod(t.scannedAt, from, to)) t.findings.filter(f => !f.passed && f.weight > 0).forEach(f => reasons.push(f.label));
-    const alerts = data.alerts.filter(a => inPeriod(a.dateGenerated, from, to));
-    alertsTotal += alerts.length; alertsUnread += unreadCount(alerts);
+  for (const s of data.imageScans) if (inPeriod(s.scannedAt, from, to)) {
+    s.findings.filter(f => !f.passed && f.weight > 0).forEach(f => reasons.push(f.label));
+    modelNames.push(s.forestAnalysis?.modelName ?? (s.forestAnalysis ? 'earlier model (not recorded)' : 'no model'));
   }
+  for (const t of data.manualTransactions) if (inPeriod(t.scannedAt, from, to)) t.findings.filter(f => !f.passed && f.weight > 0).forEach(f => reasons.push(f.label));
+  const alerts = data.alerts.filter(a => inPeriod(a.dateGenerated, from, to));
   return {
     checks: rows.length, byKind,
     fraudulent: rows.filter(r => r.classification === 'fraudulent').length,
@@ -155,14 +139,8 @@ export function reportStats(sources: ReportSource[], from: string, to: string): 
       return { type, checks: a.length, fraudulent: a.filter(r => r.classification === 'fraudulent').length };
     }).sort((x, y) => y.checks - x.checks),
     topReasons: [...tally(reasons).entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, 8),
-    alerts: { total: alertsTotal, unread: alertsUnread },
+    alerts: { total: alerts.length, unread: unreadCount(alerts) },
     models: [...tally(modelNames).entries()].map(([name, checks]) => ({ name, checks })).sort((a, b) => b.checks - a.checks),
-    ...(sources.length > 1 ? {
-      users: sources.map(({ username }) => {
-        const u = rows.filter(r => r.user === username);
-        return { username, checks: u.length, fraudulent: u.filter(r => r.classification === 'fraudulent').length };
-      }),
-    } : {}),
   };
 }
 
@@ -184,17 +162,17 @@ export function describeReport(s: ReportStats): string {
 }
 
 export function buildReport(
-  sources: ReportSource[],
-  opts: { type: ReportType; scope: ReportScope; from: string; to: string; userId: string | null; username: string | null },
+  data: UserData,
+  opts: { type: ReportType; from: string; to: string },
   now = new Date(),
 ): FraudReport {
-  const stats = reportStats(sources, opts.from, opts.to);
+  const stats = reportStats(data, opts.from, opts.to);
   const range = opts.from === opts.to ? opts.from : `${opts.from} to ${opts.to}`;
   return {
-    id: generateId('report'), userId: opts.userId, username: opts.username, reportType: opts.type, scope: opts.scope,
-    title: `${opts.type === 'summary' ? 'Summary' : 'Detailed'} report · ${opts.scope === 'all' ? 'all users' : opts.username ?? 'me'} · ${range}`,
+    id: generateId('report'), reportType: opts.type,
+    title: `${opts.type === 'summary' ? 'Summary' : 'Detailed'} report · ${range}`,
     description: describeReport(stats), periodFrom: opts.from, periodTo: opts.to, generatedAt: now.toISOString(), stats,
-    ...(opts.type === 'detailed' ? { rows: reportRows(sources, opts.from, opts.to) } : {}),
+    ...(opts.type === 'detailed' ? { rows: reportRows(data, opts.from, opts.to) } : {}),
   };
 }
 
@@ -202,8 +180,8 @@ export function buildReport(
 export function reportToCsv(r: FraudReport): string {
   const esc = (v: unknown) => (v == null ? '' : `"${String(v).replace(/"/g, '""')}"`);
   if (r.rows) {
-    const head = ['checked_at', 'kind', 'app_or_platform', 'type', 'amount', 'reference', 'risk_level', 'classification', 'outcome', ...(r.scope === 'all' ? ['user'] : [])];
-    return [head.join(','), ...r.rows.map(x => [x.when, x.kind, x.app, x.type, x.amount ?? '', x.reference, x.riskLevel, x.classification, x.outcome ?? '', ...(r.scope === 'all' ? [x.user] : [])].map(esc).join(','))].join('\n') + '\n';
+    const head = ['checked_at', 'kind', 'app_or_platform', 'type', 'amount', 'reference', 'risk_level', 'classification', 'outcome'];
+    return [head.join(','), ...r.rows.map(x => [x.when, x.kind, x.app, x.type, x.amount ?? '', x.reference, x.riskLevel, x.classification, x.outcome ?? ''].map(esc).join(','))].join('\n') + '\n';
   }
   const s = r.stats;
   const lines = [['measure', 'value'], ['checks', s.checks], ['possibly fraudulent', s.fraudulent], ['legitimate', s.legitimate],

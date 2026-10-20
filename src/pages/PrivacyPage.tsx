@@ -15,7 +15,7 @@ const SECTIONS = [
   },
   {
     icon: Eye, color: '#10b981', title: 'How results are used',
-    body: 'Analysis results exist only to help you assess fraud risk. We do not profile users, run advertising, sell data, or share your content with third parties. Accounts exist only on this device (a username, a role and a hashed password — no email or phone number), and nothing is linked to an identity outside it. Each user\u2019s history and alerts are encrypted with a key unlocked by their password; this device\u2019s administrator can open them for review, and sees an activity log of sign-ins and checks (without receipt or message contents).',
+    body: 'Analysis results exist only to help you assess fraud risk. We do not profile users, run advertising, sell data, or share your content with third parties. There is no account system, so your scans are not linked to an identity.',
   },
   {
     icon: AlertCircle, color: '#f59e0b', title: 'AI limitations disclaimer',
@@ -44,7 +44,7 @@ export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => v
 
       <div className="privacy-notice" style={{ marginBottom: 18 }}>
         <ShieldCheck size={15} color="var(--accent-light)" style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>In short: your uploads are processed in your browser, not on a server. Your account and history never leave this device; there is no tracking and no data resale. You stay in control and can clear everything at any time.</span>
+        <span>In short: your uploads are processed in your browser, not on a server. There is no login, no tracking, and no data resale. You stay in control and can clear everything at any time.</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>

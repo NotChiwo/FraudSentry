@@ -16,8 +16,6 @@ import {
 import { setSharedModel, getSharedModelMeta, onSharedModelChange, SharedModelMeta } from '../engine/sharedModel';
 import { formatDateTime } from '../utils/helpers';
 import { useAppStore } from '../store/useAppStore';
-import { useSession, sessionKV } from '../store/useSession';
-import { appendLog } from '../services/auditLog';
 import { datasetFromRows, readiness, evaluateForest } from '../services/trainingData';
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -117,7 +115,7 @@ export default function ModelPage() {
       datasetSource: source, nTrees, maxDepth, trainRows: train.y.length, testRows: test.y.length,
       accuracy: m.accuracy, precision: m.precision, recall: m.recall, f1: m.f1, rocAuc: ev.rocAuc,
       confusion: { tp: m.tp, fp: m.fp, tn: m.tn, fn: m.fn }, importances: rf.importances, featureNames: dataset.featureNames,
-      trainedAt, trainedBy: useSession.getState().session?.username ?? null, usableByScans: evidenceSchema,
+      trainedAt, trainedBy: null, usableByScans: evidenceSchema,
       ...(source === 'labelled' ? { rowIds: labelledIds.current } : {}),
     };
     addModel(rec);
@@ -131,8 +129,6 @@ export default function ModelPage() {
     // Only a model trained on your labelled scans is kept across app restarts
     // (rebuilt from the same rows with the same seeded split).
     if (connected) setLabelledModel(source === 'labelled' ? { nTrees, maxDepth, rowIds: labelledIds.current, modelId: rec.id, modelName: rec.name, trainedAt } : null);
-    void appendLog(sessionKV(), 'model-trained', useSession.getState().session?.username ?? null,
-      `${rec.name}: ${nTrees} trees, depth ${maxDepth}, accuracy ${(m.accuracy * 100).toFixed(1)}%, ROC-AUC ${ev.rocAuc?.toFixed(3) ?? 'n/a'}${connected ? ', now used by scans' : ''}`);
     setPhase('done');
   }
 

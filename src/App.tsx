@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import Sidebar, { PageId, useIsMobile, NAV_GROUPS, EXTRA_PAGE_TITLES, navFor } from './components/layout/Sidebar';
+import Sidebar, { PageId, useIsMobile, NAV_GROUPS } from './components/layout/Sidebar';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ConsentGate from './components/consent/ConsentGate';
 import HomePage from './pages/HomePage';
@@ -14,50 +14,25 @@ import AboutPage from './pages/AboutPage';
 import AlertsPage from './pages/AlertsPage';
 import AlertToast from './components/alerts/AlertToast';
 import { unreadCount } from './services/alerts';
-import AuthGate, { ForcePasswordChange } from './components/auth/AuthGate';
-import AdminPage from './pages/AdminPage';
-import AccountPage from './pages/AccountPage';
 import TransactionsPage from './pages/TransactionsPage';
 import FraudReportsPage from './pages/FraudReportsPage';
-import { useSession, sessionKV } from './store/useSession';
-import { accountSettings } from './services/accounts';
 import { App as NativeApp } from '@capacitor/app';
 import { isAndroidApp } from './platform/native';
 import { useAppStore } from './store/useAppStore';
 import { warmUpSharedModel } from './engine/sharedModel';
 import { restoreLabelledModel } from './services/trainingData';
-import { ShieldCheck, Bell, UserCircle2, LogOut } from 'lucide-react';
+import { ShieldCheck, Bell } from 'lucide-react';
 
 const PAGE_TITLE: Record<PageId, string> = {
   ...Object.fromEntries(NAV_GROUPS.flatMap(g => g.items.map(i => [i.id, i.label]))),
-  ...EXTRA_PAGE_TITLES,
 } as Record<PageId, string>;
 
-/** Sign out after the administrator's chosen minutes without any input. */
-function useAutoLock(active: boolean) {
-  const signOut = useSession(s => s.signOut);
-  useEffect(() => {
-    if (!active) return;
-    const minutes = accountSettings(sessionKV()).autoLockMinutes;
-    if (!minutes) return;
-    let last = Date.now();
-    const bump = () => { last = Date.now(); };
-    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
-    events.forEach(e => window.addEventListener(e, bump, { passive: true }));
-    const t = setInterval(() => { if (Date.now() - last > minutes * 60_000) void signOut('auto-lock'); }, 15_000);
-    return () => { events.forEach(e => window.removeEventListener(e, bump)); clearInterval(t); };
-  }, [active, signOut]);
-}
 
 export default function App() {
   const [page, setPage] = useState<PageId>('home');
   const theme = useAppStore(s => s.theme);
   const hasConsented = useAppStore(s => s.hasConsented);
   const unread = useAppStore(s => unreadCount(s.alerts));
-  const session = useSession(s => s.session);
-  const signOut = useSession(s => s.signOut);
-  const isAdmin = session?.role === 'admin';
-  useAutoLock(!!session);
   const contentRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isMobile = useIsMobile();
@@ -90,10 +65,7 @@ export default function App() {
   }, [hasConsented]);
 
   useEffect(() => { document.title = `${PAGE_TITLE[page]} · FraudSentry`; }, [page]);
-  // a new sign-in starts on Home; standard users never stay on an administrator page
-  useEffect(() => { setPage('home'); }, [session?.userId]);
-  const allowed = (p: PageId) => p === 'account' || navFor(isAdmin).some(g => g.items.some(i => i.id === p));
-  const shown: PageId = allowed(page) ? page : 'home';
+  const shown: PageId = page;
 
   // Android back button: close an open sheet or dialog first (they close on Escape), then go
   // back to Home, then leave the app
@@ -117,8 +89,6 @@ export default function App() {
   };
 
   if (!hasConsented || welcomeOpen) return <ConsentGate onClose={hasConsented ? closeWelcome : undefined} />;
-  if (!session) return <AuthGate />;
-  if (session.mustChangePassword) return <ForcePasswordChange />;
 
   return (
     <div className="app-shell">
@@ -138,10 +108,7 @@ export default function App() {
               <Bell size={17} aria-hidden="true" />
               {unread > 0 && <span className="bell-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
             </button>
-            <button type="button" className={`user-chip${shown === 'account' ? ' active' : ''}`} onClick={() => navigate('account')} aria-label={`Your account: ${session.username}, ${isAdmin ? 'administrator' : 'user'}`}>
-              <UserCircle2 size={17} aria-hidden="true" /><span className="hide-sm">{session.username}</span>{isAdmin && <span className="role-chip admin hide-sm">Admin</span>}
-            </button>
-            <button type="button" className="bell-btn" onClick={() => void signOut()} aria-label="Sign out" title="Sign out"><LogOut size={16} aria-hidden="true" /></button>
+            <span className="chip-quiet"><span className="dot-live" aria-hidden="true" /> On-device</span>
           </div>
         </header>
 
@@ -160,8 +127,6 @@ export default function App() {
             {shown === 'fraudreports' && <FraudReportsPage />}
             {shown === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {shown === 'about'     && <AboutPage />}
-            {shown === 'admin'     && <AdminPage />}
-            {shown === 'account'   && <AccountPage onNavigate={navigate} />}
           </div>
           </ErrorBoundary>
         </main>

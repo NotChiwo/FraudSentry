@@ -29,8 +29,8 @@ function cross(id: string, combinedRiskLevel: RiskLevel): CrossEvidenceResult {
 describe('generating an alert', () => {
   it('a High receipt gives an alert with the ERD fields, unread, dated when the check ran', () => {
     const a = alertForReceipt(receipt('scan-1', 'high'))!;
-    expect(a).toMatchObject({ id: 'alert-scan-1', resultId: 'scan-1', resultKind: 'receipt', userId: null, riskLevel: 'high', status: 'unread', dateGenerated: NOW, title: 'Suspicious receipt' });
-    expect(Object.keys(a).sort()).toEqual(['dateGenerated', 'id', 'message', 'resultId', 'resultKind', 'riskLevel', 'status', 'title', 'userId']);
+    expect(a).toMatchObject({ id: 'alert-scan-1', resultId: 'scan-1', resultKind: 'receipt', riskLevel: 'high', status: 'unread', dateGenerated: NOW, title: 'Suspicious receipt' });
+    expect(Object.keys(a).sort()).toEqual(['dateGenerated', 'id', 'message', 'resultId', 'resultKind', 'riskLevel', 'status', 'title']);
   });
   it('the message names the receipt and its strongest failed checks, then what to do', () => {
     const m = alertForReceipt(receipt('scan-1', 'critical'))!.message;
@@ -125,12 +125,14 @@ describe('alerts in the store', () => {
     const before = userDataFromSaved({ imageScans: [] });
     expect([before.alerts, before.alertLevel]).toEqual([[], 'high']);
   });
-  it('history saved in plain storage before accounts (V8.x) is held for the first administrator, not loaded', () => {
+  it('history is saved on the device and loaded back; history parked by V9.0–V10.0 comes back too', () => {
     const opts = useAppStore.persist.getOptions();
-    const merged = opts.merge!({ hasConsented: true, imageScans: [receipt('v8', 'high', new Date().toISOString())], alerts: [] }, st());
-    expect(merged.imageScans).toEqual([]);
-    expect(merged.legacyUserData!.imageScans.map(s => s.id)).toEqual(['v8']);
-    const persisted = opts.partialize!({ ...st(), imageScans: [receipt('x', 'high')] }) as Record<string, unknown>;
-    expect(Object.keys(persisted)).not.toContain('imageScans');     // a user's history never goes to plain storage
+    const fresh = new Date().toISOString();
+    const persisted = opts.partialize!({ ...st(), imageScans: [receipt('x', 'high', fresh)], alerts: [] }) as Record<string, unknown>;
+    expect((persisted.imageScans as { id: string }[]).map(s => s.id)).toEqual(['x']);
+    const merged = opts.merge!({ hasConsented: true, imageScans: [receipt('v8', 'high', fresh)], alerts: [] }, st());
+    expect(merged.imageScans.map(s => s.id)).toEqual(['v8']);
+    const parked = opts.merge!({ hasConsented: true, legacyUserData: { imageScans: [receipt('v9', 'high', fresh)] } }, st());
+    expect(parked.imageScans.map(s => s.id)).toEqual(['v9']);
   });
 });

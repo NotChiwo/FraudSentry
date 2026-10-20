@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # CI smoke test of the Android app on an emulator: install, launch, then drive
 # the WebView through its debugging socket (debug builds only) to check that
-# FraudSentry loaded from inside the app, Web Crypto works, and an
-# administrator account can be created. Usage: tools/android-smoke.sh app.apk
+# FraudSentry loaded from inside the app and opens to Home. Usage: tools/android-smoke.sh app.apk
 set -euo pipefail
 APK="$1"; PKG=com.fraudsentry.app
 adb install -r "$APK"

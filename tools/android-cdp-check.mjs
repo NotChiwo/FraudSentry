@@ -1,6 +1,6 @@
 // Drives the FraudSentry page inside the Android app's WebView over the
 // Chrome DevTools protocol (Node 22's built-in WebSocket): accept the privacy
-// notice, create the administrator, and expect to be signed in.
+// notice and expect the app to open straight to Home (no sign-in).
 const ws = new WebSocket(process.argv[2]);
 let id = 0; const pending = new Map();
 ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
@@ -21,17 +21,14 @@ ws.onopen = async () => {
   try {
     const env = await run(`${helpers} await until(() => document.querySelector('h1')); return { h1: document.querySelector('h1').textContent, secure: isSecureContext, subtle: typeof crypto.subtle, ua: navigator.userAgent };`);
     console.log('page:', JSON.stringify(env));
-    if (!env.secure || env.subtle !== 'object') throw new Error('not a secure context with Web Crypto');
+    if (!env.secure) throw new Error('not a secure context');
     const out = await run(`${helpers}
       const box = document.querySelector('input[type=checkbox]');
       if (box) { box.click(); await sleep(200); button(/continue to fraudsentry/i).click(); }
-      await until(() => /set up fraudsentry/i.test(document.querySelector('h1')?.textContent ?? ''));
-      fill('Username', 'owner'); fill('Password', 'kape-at-pandesal-7'); fill('Repeat password', 'kape-at-pandesal-7');
-      await sleep(200); button(/create administrator/i).click();
-      await until(() => document.querySelector('.user-chip'), 60000);
-      return document.querySelector('.user-chip').textContent;`);
-    console.log('signed in as:', out);
-    if (!/owner/.test(out)) throw new Error('administrator was not created');
+      await until(() => document.querySelector('.app-topbar'));
+      return { home: !!document.querySelector('.app-topbar'), login: !!document.querySelector('input[type=password]') };`);
+    console.log('after the notice:', JSON.stringify(out));
+    if (!out.home || out.login) throw new Error('the app did not open to Home');
     ws.close(); process.exit(0);
   } catch (e) { console.error('smoke check failed:', e.message); process.exit(1); }
 };
