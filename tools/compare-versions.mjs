@@ -185,25 +185,60 @@ const NAV = {
   message: [/^\s*check message/i, /message analy[sz]er/i],
 };
 
+// V9+ builds have local accounts: the tool uses its own account on each
+// build's (separate) browser storage, creating it as administrator first time.
+const TOOL_USER = 'compare-tool', TOOL_PASSWORD = 'same-evidence-both-builds-9';
+async function signInIfAsked(page) {
+  const user = page.getByRole('textbox', { name: 'Username', exact: true });
+  if (!await user.isVisible({ timeout: 1500 }).catch(() => false)) return;
+  const setup = await page.getByRole('button', { name: /create administrator/i }).isVisible().catch(() => false);
+  await user.fill(TOOL_USER);
+  await page.getByRole('textbox', { name: 'Password', exact: true }).fill(TOOL_PASSWORD);
+  if (setup) await page.getByRole('textbox', { name: 'Repeat password', exact: true }).fill(TOOL_PASSWORD);
+  await page.getByRole('button', { name: setup ? /create administrator/i : /^sign in/i }).click();
+  await page.locator('.user-chip').waitFor({ timeout: 30000 });
+}
+
 async function openPage(page, build, labels) {
   await page.goto(pathToFileURL(build.file).href);
   await acceptConsent(page);
+  await signInIfAsked(page);
   if (!await clickButton(page, labels)) throw new Error(`no navigation button matching ${labels.join(' / ')}`);
 }
 
 // The app's persisted history, wherever (and under whatever key) a build keeps it.
+// V9+ keeps it encrypted in the tool account's vault, which the tool opens
+// with its own password (PBKDF2 → AES-KW → AES-GCM, as services/vaultCrypto.ts).
 async function readHistory(page) {
-  return page.evaluate(() => {
+  return page.evaluate(async ([user, password]) => {
     const out = { imageScans: [], messageScans: [] };
+    const add = st => {
+      if (Array.isArray(st?.imageScans)) out.imageScans.push(...st.imageScans);
+      if (Array.isArray(st?.messageScans)) out.messageScans.push(...st.messageScans);
+    };
     for (let i = 0; i < localStorage.length; i++) {
-      try {
-        const st = JSON.parse(localStorage.getItem(localStorage.key(i)))?.state;
-        if (Array.isArray(st?.imageScans)) out.imageScans.push(...st.imageScans);
-        if (Array.isArray(st?.messageScans)) out.messageScans.push(...st.messageScans);
-      } catch { /* not ours */ }
+      try { add(JSON.parse(localStorage.getItem(localStorage.key(i)))?.state); } catch { /* not ours */ }
     }
+    try {
+      const dir = JSON.parse(localStorage.getItem('fraudsentry-accounts') || 'null');
+      const me = dir?.users?.find(u => u.username === user);
+      const vault = me && localStorage.getItem(`fraudsentry-vault-${me.id}`);
+      if (vault) {
+        const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+        // the key is derived once per page (PBKDF2 is deliberately slow)
+        if (globalThis.__fsCompare?.wrapped !== me.wrappedDek) {
+          const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+          const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b(me.salt), iterations: me.iterations }, base, 512));
+          const kek = await crypto.subtle.importKey('raw', bits.slice(0, 32), 'AES-KW', false, ['unwrapKey']);
+          globalThis.__fsCompare = { wrapped: me.wrappedDek, dek: await crypto.subtle.unwrapKey('raw', b(me.wrappedDek), kek, 'AES-KW', { name: 'AES-GCM', length: 256 }, false, ['decrypt']) };
+        }
+        const dek = globalThis.__fsCompare.dek;
+        const v = JSON.parse(vault);
+        add(JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b(v.iv) }, dek, b(v.ct)))));
+      }
+    } catch { /* no vault yet */ }
     return out;
-  });
+  }, [TOOL_USER, TOOL_PASSWORD]);
 }
 
 async function waitForNew(page, key, seen, timeoutMs) {

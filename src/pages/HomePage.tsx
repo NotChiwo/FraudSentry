@@ -31,7 +31,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: string) => vo
       {/* Hero */}
       <section className="home-hero">
         <div className="hh-text">
-          <span className="hh-eyebrow"><Lock size={14} aria-hidden="true" /> No account · nothing uploaded</span>
+          <span className="hh-eyebrow"><Lock size={14} aria-hidden="true" /> Encrypted on this device · nothing uploaded</span>
           <h1 className="hh-title">Got a payment screenshot?<br /><span className="grad">Check it before you hand anything over.</span></h1>
           <p className="hh-sub">FraudSentry reads the receipt, looks for signs of editing, and tells you in plain words what it found — and what to do next.</p>
           <div className="hh-cta">

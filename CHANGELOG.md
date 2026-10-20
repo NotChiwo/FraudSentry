@@ -1,5 +1,38 @@
 # Changelog
 
+## V9.0 — 2026-10-20
+
+### Local accounts (thesis Module 1) and administration (Module 7)
+Everything still runs on the device with no server. Accounts, keys and data never leave it.
+- **Sign-in.** The first account created on a device is the **administrator**. Administrators add users, with a temporary password that must be changed at first sign-in. They can also allow self sign-up, which is off by default.
+- **Passwords are never stored.** PBKDF2-SHA-256 with 600 000 iterations and a random salt produces a key that unlocks the user's data. The directory keeps only a verifier hash, the "hashed password" of the USER table.
+- **Each user's history is encrypted** (AES-GCM 256), using their own key. History, alerts and the alert setting live in that user's encrypted "vault", and nothing personal is left in plain browser storage.
+  - Users cannot see each other's checks.
+  - The administrator can open them for review. Every user's key is also sealed with the organisation's RSA-OAEP key, which only administrators can unlock.
+  - The same mechanism lets the administrator reset a forgotten password **without losing the user's data**.
+- **Lock-out:** 5 wrong passwords lock an account for 5 minutes, doubling for each further lock-out, up to 60 minutes. The sign-in screen shows a countdown. An administrator can unlock early.
+- **Automatic sign-out** after 15 minutes without activity (adjustable from 5 minutes up to never). Reloading the page also signs out, because the keys exist only in memory.
+- **Roles:** standard users get Home, Check Receipt, Check Message, History, Alerts, Cross-Evidence and the learning pages. Administrators additionally get the **Detection Model** and **Administration** pages, and every admin action is re-checked against the role. There is always at least one active administrator.
+- **Administration page:**
+  - **Overview:** users, checks, high/critical results and unread alerts, per user and in total, plus the model in use.
+  - Read-only **records** of any user.
+  - **Users:** create, reset password, make admin/user, disable/enable, unlock, delete.
+  - **Activity log.**
+  - **Settings:** sign-up and auto sign-out.
+- **Tamper-evident activity log.** It records:
+  - sign-ins, failed sign-ins, lock-outs and sign-outs;
+  - account and setting changes;
+  - every check, with its result id and risk level only;
+  - history and label deletions;
+  - model training.
+
+  Each entry stores the SHA-256 of the previous one. **Verify integrity** reports the first entry that was edited, removed or re-ordered outside the app. The log can be exported as CSV, and it holds no receipt or message contents.
+- **Upgrading from V8.x:** history saved in plain storage moves into the first administrator's vault, then is removed from plain storage.
+- The privacy notice was updated: it now explains local accounts and administrator review, and is shown once more (notice version 3).
+- `tools/compare-versions.mjs` signs in to V9+ builds with its own account, and reads results from that account's vault with its own password.
+
+Tests: 264 → **279** (`accounts.test.ts`, `session.test.ts`; alerts persistence tests rewritten for vaults).
+
 ## V8.7 — 2026-10-20
 
 ### Alerts (thesis §9.5.1, Notification & Alert Management)

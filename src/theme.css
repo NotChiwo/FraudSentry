@@ -214,3 +214,35 @@ textarea.input-field { min-height: 120px; }
 .alert-toast-title { font-size: 15px; font-weight: 800; color: var(--text-primary); }
 .alert-toast-text { font-size: 14px; color: var(--text-secondary); margin-bottom: 6px; }
 @media (max-width: 859px) { .alert-toast { left: 16px; right: 16px; width: auto; bottom: calc(76px + env(safe-area-inset-bottom)); } }
+
+/* ── accounts & administration (V9.0) ───────────────────────── */
+.spin { animation: spin .8s linear infinite; }
+.auth-shell { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
+.auth-box { width: 100%; max-width: 440px; }
+.auth-brand { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
+.auth-mark { width: 56px; height: 56px; border-radius: 16px; margin-bottom: 14px; }
+.auth-brand h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
+.auth-brand p { margin: 8px 0 0; font-size: 14px; line-height: 1.55; color: var(--text-secondary); max-width: 40ch; }
+.auth-card { padding: 22px; }
+.auth-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.auth-field label { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.auth-input-wrap { position: relative; }
+.auth-input-wrap .input-field { padding-right: 48px; }
+.auth-eye { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); }
+.auth-hint { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.45; }
+.auth-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px; margin-bottom: 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+  color: var(--text-secondary); background: var(--bg-accent-tint); border: 1px solid var(--border-accent); }
+.auth-note svg { flex-shrink: 0; margin-top: 2px; color: var(--accent-light); }
+.auth-error { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; font-size: 14px; color: var(--risk-critical); background: var(--risk-critical-bg);
+  border: 1px solid color-mix(in srgb, var(--risk-critical) 35%, transparent); }
+.auth-submit { width: 100%; justify-content: center; padding: 13px; }
+.auth-alt { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 14px; text-align: center; }
+.auth-foot { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; font-size: 12px; color: var(--text-muted); text-align: center; }
+.user-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 6px 12px; border-radius: 99px; cursor: pointer; font: 600 13px/1 inherit; font-family: inherit;
+  color: var(--text-secondary); background: var(--bg-input); border: 1px solid var(--border-input); }
+.user-chip:hover, .user-chip.active { color: var(--text-primary); border-color: var(--border-accent); }
+.role-chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px;
+  color: var(--text-muted); border: 1px solid var(--border-default); }
+.role-chip.admin { color: var(--accent-light); border-color: var(--border-accent); background: var(--bg-accent-tint); }
+.role-chip.off { color: var(--risk-critical); border-color: color-mix(in srgb, var(--risk-critical) 40%, transparent); }
+.tag-muted { font-size: 12px; color: var(--text-muted); font-weight: 600; }

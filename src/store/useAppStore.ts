@@ -1,7 +1,10 @@
 // ============================================================
 // FraudSentry — Application State
-// No authentication (yet). Tracks theme, consent, local scan history and the
-// fraud alerts generated from it. Persisted in the browser only, never transmitted.
+// Device-level state (theme, consent, training labels, the connected model)
+// is saved in plain localStorage. Each signed-in user's own data — history,
+// alerts and alert setting (UserData) — is NOT: it is loaded from and saved
+// to that user's encrypted vault by store/useSession.ts. Nothing is
+// transmitted anywhere.
 //
 // IMPORTANT: scan results carry large base64 blobs (the receipt preview
 // and the ELA heatmap). Those are kept in memory for the live result view
@@ -61,7 +64,22 @@ interface AppState {
   /** History row to scroll to and highlight on the next visit (never persisted) */
   focusResultId: string | null;
   setFocusResultId: (id: string | null) => void;
+  /** the signed-in user's data, from their vault (null clears it, e.g. on sign-out) */
+  loadUserData: (d: UserData | null) => void;
+  /** history saved by a version before accounts (V8.x), waiting to move into the first administrator's vault */
+  legacyUserData: UserData | null;
+  takeLegacyUserData: () => UserData | null;
 }
+
+/** What belongs to one user and is kept in their encrypted vault. */
+export interface UserData {
+  imageScans: ImageScanResult[];
+  messageScans: MessageScanResult[];
+  crossChecks: CrossEvidenceResult[];
+  alerts: FraudAlert[];
+  alertLevel: AlertLevel;
+}
+export const USER_DATA_KEYS = ['imageScans', 'messageScans', 'crossChecks', 'alerts', 'alertLevel'] as const;
 
 // First visit follows the device's light/dark setting; after that the saved choice wins.
 const systemTheme = (): ThemeMode => {
@@ -73,7 +91,8 @@ const systemTheme = (): ThemeMode => {
 // older than this is removed when the app loads and whenever history is saved.
 // Bump when the privacy notice changes, so everyone sees and accepts it again.
 // 2 = V8.6: training labels (numbers only) and the 30-day history expiry.
-export const CONSENT_VERSION = 2;
+// 3 = V9.0: local accounts; history encrypted per user; the administrator can review it.
+export const CONSENT_VERSION = 3;
 /** Was the CURRENT privacy notice accepted? (An older one is shown again.) */
 export function acceptedCurrentNotice(p: { hasConsented?: boolean; consentVersion?: number } | null | undefined): boolean {
   return !!p?.hasConsented && p.consentVersion === CONSENT_VERSION;
@@ -101,7 +120,7 @@ function stripHeavy(scan: ImageScanResult): ImageScanResult {
   };
 }
 
-// Quota-safe localStorage wrapper: if a write fails, retry without history.
+// Quota-safe localStorage wrapper: if a write fails, retry without the old (pre-accounts) history.
 const safeStorage = {
   getItem: (name: string) => {
     try { return localStorage.getItem(name); } catch { return null; }
@@ -112,11 +131,7 @@ const safeStorage = {
     } catch {
       try {
         const parsed = JSON.parse(value);
-        if (parsed?.state) {
-          parsed.state.imageScans = [];
-          parsed.state.messageScans = [];
-          parsed.state.crossChecks = [];
-        }
+        if (parsed?.state) delete parsed.state.legacyUserData;
         localStorage.setItem(name, JSON.stringify(parsed));
       } catch { /* settings couldn't be saved this time; app still works in-memory */ }
     }
@@ -126,6 +141,22 @@ const safeStorage = {
   },
 };
 
+/** The user's data as it is saved: expired items dropped, heavy images stripped, alerts kept only with their check. */
+export function userDataToSave(s: UserData, now = Date.now()): UserData {
+  const h: History = { imageScans: withinRetention(s.imageScans, now), messageScans: withinRetention(s.messageScans, now), crossChecks: withinRetention(s.crossChecks, now) };
+  return { ...h, imageScans: h.imageScans.map(stripHeavy), alerts: keepLinkedAlerts(s.alerts, h), alertLevel: s.alertLevel };
+}
+/** Saved user data (possibly old or partial) → what the app loads. */
+export function userDataFromSaved(p: Partial<UserData> | null | undefined, now = Date.now()): UserData {
+  const h: History = {
+    imageScans: withinRetention(Array.isArray(p?.imageScans) ? p!.imageScans : [], now),
+    messageScans: withinRetention(Array.isArray(p?.messageScans) ? p!.messageScans : [], now),
+    crossChecks: withinRetention(Array.isArray(p?.crossChecks) ? p!.crossChecks : [], now),
+  };
+  return { ...h, alerts: keepLinkedAlerts(Array.isArray(p?.alerts) ? p!.alerts : [], h), alertLevel: p?.alertLevel ?? DEFAULT_ALERT_LEVEL };
+}
+export const EMPTY_USER_DATA: UserData = { imageScans: [], messageScans: [], crossChecks: [], alerts: [], alertLevel: DEFAULT_ALERT_LEVEL };
+
 /** Apply a history change, add the new check's alert (if any), and drop alerts whose check is gone. */
 function withHistory(s: AppState, change: Partial<History>, alert: FraudAlert | null = null): Partial<AppState> {
   const h: History = { imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, ...change };
@@ -134,7 +165,7 @@ function withHistory(s: AppState, change: Partial<History>, alert: FraudAlert | 
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: systemTheme(),
       toggleTheme: () => set(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
       hasConsented: false,
@@ -175,6 +206,13 @@ export const useAppStore = create<AppState>()(
       clearAlerts: () => set({ alerts: [] }),
       focusResultId: null,
       setFocusResultId: (id) => set({ focusResultId: id }),
+      loadUserData: (d) => set({ ...(d ?? EMPTY_USER_DATA), focusResultId: null, pendingExample: null }),
+      legacyUserData: null,
+      takeLegacyUserData: () => {
+        const d = get().legacyUserData;
+        set({ legacyUserData: null });
+        return d;
+      },
     }),
     {
       name: 'fraudsentry-v5-store',
@@ -184,31 +222,25 @@ export const useAppStore = create<AppState>()(
       migrate: (persisted) => persisted as AppState,
       partialize: (s) => ({
         theme: s.theme, hasConsented: s.hasConsented, consentVersion: s.consentVersion,
-        imageScans: withinRetention(s.imageScans).map(stripHeavy),
-        // training rows are numbers + a label only (no personal data), so they
-        // are not subject to the history expiry
+        // training rows are numbers + a label only (no personal data); they
+        // belong to the device's model, not to one user
         trainingRows: s.trainingRows,
         labelledModel: s.labelledModel,
-        messageScans: withinRetention(s.messageScans),
-        crossChecks: withinRetention(s.crossChecks),
-        alerts: keepLinkedAlerts(s.alerts, {
-          imageScans: withinRetention(s.imageScans), messageScans: withinRetention(s.messageScans), crossChecks: withinRetention(s.crossChecks),
-        }),
-        alertLevel: s.alertLevel,
+        // kept (unchanged) only until the first administrator account takes it over
+        ...(s.legacyUserData ? { legacyUserData: s.legacyUserData } : {}),
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
-        const history: History = {
-          imageScans: withinRetention(p.imageScans ?? []),
-          messageScans: withinRetention(p.messageScans ?? []),
-          crossChecks: withinRetention(p.crossChecks ?? []),
-        };
+        // history saved in plain storage by V8.x (before accounts) waits for the first administrator
+        const hasOldHistory = USER_DATA_KEYS.some(k => k in p);
         return {
-          ...current, ...p, ...history,
+          ...current,
+          theme: p.theme ?? current.theme,
           // a changed privacy notice is shown (and accepted) again
-          hasConsented: acceptedCurrentNotice(p),
-          alerts: keepLinkedAlerts(Array.isArray(p.alerts) ? p.alerts : [], history),
-          alertLevel: p.alertLevel ?? DEFAULT_ALERT_LEVEL,
+          hasConsented: acceptedCurrentNotice(p), consentVersion: p.consentVersion,
+          trainingRows: Array.isArray(p.trainingRows) ? p.trainingRows : [],
+          labelledModel: p.labelledModel ?? null,
+          legacyUserData: p.legacyUserData ?? (hasOldHistory ? userDataFromSaved(p as Partial<UserData>) : null),
         };
       },
     }

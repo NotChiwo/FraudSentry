@@ -2,7 +2,7 @@
 // with read/unread status and a history that follows the checks it belongs to.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { alertForReceipt, alertForMessage, alertForCross, withAlert, unreadCount, MAX_ALERTS, type FraudAlert } from '../services/alerts';
-import { useAppStore, HISTORY_RETENTION_DAYS } from '../store/useAppStore';
+import { useAppStore, HISTORY_RETENTION_DAYS, userDataToSave, userDataFromSaved, type UserData } from '../store/useAppStore';
 import type { ImageScanResult, MessageScanResult, CrossEvidenceResult, RiskLevel, VerificationFinding } from '../types';
 
 const NOW = '2026-10-20T08:00:00.000Z';
@@ -108,21 +108,29 @@ describe('alerts in the store', () => {
     expect(st().messageScans.map(s => s.id)).toEqual(['cx-m']);
     expect(st().alerts.map(a => a.resultId)).toEqual(['cx']);
   });
-  it('saving and reopening the app keeps alerts of kept checks and drops expired ones', () => {
+  it('saving and reopening keeps alerts of kept checks (with their status) and drops expired ones', () => {
     const old = new Date(Date.now() - (HISTORY_RETENTION_DAYS + 1) * 864e5).toISOString();
     const fresh = new Date().toISOString();
     st().addImageScan(receipt('expired', 'high', old));
     st().addImageScan(receipt('kept', 'high', fresh));
     st().setAlertStatus('alert-kept', 'read');
-    const opts = useAppStore.persist.getOptions();
-    const saved = JSON.parse(JSON.stringify(opts.partialize!(st()))) as { alerts: FraudAlert[]; alertLevel: string };
+    // what goes into the user's encrypted vault
+    const saved = JSON.parse(JSON.stringify(userDataToSave(st()))) as UserData;
     expect(saved.alerts.map(a => a.resultId)).toEqual(['kept']);
     expect(saved.alertLevel).toBe('high');
     // reopened: the saved alerts come back; an alert whose check expired meanwhile is dropped
-    const reopened = opts.merge!({ ...saved, alerts: [...saved.alerts, { ...saved.alerts[0], id: 'alert-expired', resultId: 'expired' }] }, st());
+    const reopened = userDataFromSaved({ ...saved, alerts: [...saved.alerts, { ...saved.alerts[0], id: 'alert-expired', resultId: 'expired' }] });
     expect(reopened.alerts.map(a => [a.resultId, a.status])).toEqual([['kept', 'read']]);
     // older saved data (before V8.7) has no alerts: none, and the default level
-    const before = opts.merge!({ imageScans: [], hasConsented: true }, st());
+    const before = userDataFromSaved({ imageScans: [] });
     expect([before.alerts, before.alertLevel]).toEqual([[], 'high']);
+  });
+  it('history saved in plain storage before accounts (V8.x) is held for the first administrator, not loaded', () => {
+    const opts = useAppStore.persist.getOptions();
+    const merged = opts.merge!({ hasConsented: true, imageScans: [receipt('v8', 'high', new Date().toISOString())], alerts: [] }, st());
+    expect(merged.imageScans).toEqual([]);
+    expect(merged.legacyUserData!.imageScans.map(s => s.id)).toEqual(['v8']);
+    const persisted = opts.partialize!({ ...st(), imageScans: [receipt('x', 'high')] }) as Record<string, unknown>;
+    expect(Object.keys(persisted)).not.toContain('imageScans');     // a user's history never goes to plain storage
   });
 });

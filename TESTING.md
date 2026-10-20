@@ -4,7 +4,7 @@ Everything listed as **verified** below was actually executed on 2026-10-01 (V7)
 
 ## 1. Automated unit & regression tests — `npm test` (vitest)
 
-**264 / 264 passing** (V8.7).
+**279 / 279 passing** (V9.0).
 
 The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtures. It was **not** re-run on the 62-receipt set, which is not in the repository; run `tools/compare-versions.mjs` on it before quoting a figure.
 
@@ -32,7 +32,9 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
 | `bpiReceipts.test.ts` | 16 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; confirmation number ↔ time and weekday ↔ date are consistent on both genuine receipts, and an edited date, time or confirmation number is caught; the blurred copy's reference reads as hidden; privacy-notice versioning |
 | `inkConsistency.test.ts` | 5 | V8.6 repaint hint on receipts drawn in code: one ink → consistent; amount line in a bluer ink → reported; a recurring design tint → not reported; non-amount lines never judged; too few words → unknown |
-| `alerts.test.ts` | 12 | V8.7 alerts: a High receipt gives an alert with exactly the ERD fields, unread, dated when the check ran; the message names app, amount, reference and the strongest failed checks; the alert level (Low never; Medium only when chosen; Critical only); message and cross-evidence wording; one alert per check, newest first, capped at 100; store: risky checks create alerts and clean ones don't, read / unread / mark all / delete, deleting a check (or it leaving the 40-item history) deletes its alert, a Cross-Evidence run raises one alert, saved and reopened alerts keep their status and expired ones are dropped |
+| `accounts.test.ts` | 11 | V9.0 accounts: first account is the administrator and no password is stored; sign-in (username case-insensitive), wrong password, unknown user; lock-out after 5 wrong passwords (even the right password is refused while locked), 5 → 10 minutes, reset on success; username / password rules; admin-created user must change the temporary password; standard users cannot administer; sign-up only when allowed; password reset keeps the user's data; roles, disable, unlock, delete, always one administrator; a vault is unreadable to another user but readable by an administrator; the activity log records events without passwords and its hash chain detects an edited or removed entry |
+| `session.test.ts` | 3 | V9.0 sessions: signing in loads only that user's data, work is saved encrypted (no plain reference numbers), signing out clears memory, another user sees nothing; the first administrator inherits pre-accounts history; checks, clearing history and signing out are logged |
+| `alerts.test.ts` | 13 | V8.7 alerts: a High receipt gives an alert with exactly the ERD fields, unread, dated when the check ran; the message names app, amount, reference and the strongest failed checks; the alert level (Low never; Medium only when chosen; Critical only); message and cross-evidence wording; one alert per check, newest first, capped at 100; store: risky checks create alerts and clean ones don't, read / unread / mark all / delete, deleting a check (or it leaving the 40-item history) deletes its alert, a Cross-Evidence run raises one alert, saved and reopened alerts keep their status and expired ones are dropped |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
 
@@ -299,6 +301,26 @@ Run in the built app (Chromium, desktop 1280×900 and phone 390×844):
 | Phone layout | Alerts reachable from "More" and from the bell |
 
 Page errors: none.
+
+## 3f. Accounts in the built app (V9.0)
+
+Run in the built app (Chromium), starting from a V8.7 device with one saved scam-message check:
+
+| Step | Result |
+|---|---|
+| Open V9.0 | the updated privacy notice is shown again, then "Set up FraudSentry" says the existing check will move into the account |
+| Administrator password `owner123` for user `owner` | rejected: "must not contain the username" |
+| Create administrator | signed in after ~0.9–1.4 s of key derivation; the old alert is in Alerts |
+| Browser storage afterwards | old plain history removed; vault holds no readable text; the password appears nowhere |
+| Admin creates `Cashier1` | stored as `cashier1`, with a temporary password like `bayan-c26-bituin-32` |
+| 5 wrong passwords for `cashier1` | "locked … Try again in 4:59"; the countdown applies to that username only |
+| Admin unlocks; activity log "Verify integrity" | "All 10 entries are intact"; 5 failed sign-ins highlighted |
+| Cashier signs in with the temporary password | forced to choose a new one |
+| Cashier's menu | no Detection Model or Administration |
+| Cashier checks a phishing SMS | Critical alert for the cashier only; the owner does not see it |
+| Admin overview / records | 2 users, 2 checks, 2 alerts; the cashier's check listed read-only |
+| Reload | signed out (keys exist only in memory) |
+| `tools/compare-versions.mjs` V8.7 vs V9.0 on the 6 BPI receipts | identical results (detection unchanged) |
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

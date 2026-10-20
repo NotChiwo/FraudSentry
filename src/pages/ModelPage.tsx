@@ -13,6 +13,8 @@ import {
 import { setSharedModel, getSharedModelMeta, onSharedModelChange, SharedModelMeta } from '../engine/sharedModel';
 import { formatDateTime } from '../utils/helpers';
 import { useAppStore } from '../store/useAppStore';
+import { useSession, sessionKV } from '../store/useSession';
+import { appendLog } from '../services/auditLog';
 import { datasetFromRows, readiness } from '../services/trainingData';
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -109,6 +111,8 @@ export default function ModelPage() {
     // Only a model trained on your labelled scans is kept across app restarts
     // (rebuilt from the same rows with the same seeded split).
     if (connected) setLabelledModel(datasetSource === 'labelled' ? { nTrees, maxDepth, rowIds: labelledIds.current } : null);
+    void appendLog(sessionKV(), 'model-trained', useSession.getState().session?.username ?? null,
+      `${datasetSource} data, ${nTrees} trees, depth ${maxDepth}, accuracy ${(m.accuracy * 100).toFixed(1)}%${connected ? ', now used by scans' : ''}`);
     setPhase('done');
   }
 
