@@ -24,3 +24,4 @@ Thumbs.db
 
 # output of tools/compare-versions.mjs (holds text read from real receipts)
 compare-out/
+*.tsbuildinfo
