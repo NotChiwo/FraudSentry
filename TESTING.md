@@ -402,6 +402,8 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 
 Do not fill these in with estimated values.
 
+How to run the held-out receipt evaluation and train the forest on real data: [docs/EVALUATION.md](docs/EVALUATION.md) (`tools/make-edited-set.mjs` + `tools/compare-versions.mjs --fresh-per-receipt --features`).
+
 ## 6. Known limitations (open, by design)
 - The masked destination account number and asterisk-masked sender names on some GoTyme receipts OCR as different noise each time (e.g. `Deeeeee/803`). Not regex-patched on purpose — it needs better image preprocessing.
 - The built-in Random Forest is trained on a seeded **demonstration** dataset; real thesis metrics require a real labelled evidence CSV.
