@@ -1,5 +1,15 @@
 # Changelog
 
+## V10.1.2 — 2026-10-22
+
+### Genuine GCash receipts no longer flagged as "blurred or pixelated"
+- **The bug:** a genuine GCash Express Send receipt was rated HIGH risk, "7 parts of this receipt are blurred or pixelated". All 7 hits were app content, not edits: the photo ad banner GCash shows under the reference line, and the iOS battery icon.
+- **The fix:** a pixelated or covered area now only counts when the strip around it is flat app UI (its 3 commonest colours fill at least 60 % of it). A redaction is laid over text on a card; a photo or an icon is many colours. On the reported screenshot (828, 1179 and 1290 px wide) the false hits scored at most 0.49, while a pixelated name and reference on the same screenshot scored at least 0.75, so real mosaics are still caught.
+- GCash's own name masking (`JO•••••E O.`) was never the cause and is still not flagged.
+- **Regression tests:** two crops of that screenshot with no personal data (the ad banner and the battery icon) must give no hidden areas, and a pixelated reference next to the ad banner must still be found.
+
+Tests: 291 → **296**.
+
 ## V10.1.1 — 2026-10-21
 
 ### Ready for the defense

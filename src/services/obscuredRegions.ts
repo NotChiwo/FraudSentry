@@ -42,6 +42,14 @@ const RUN_TOL = 10;   // colour tolerance while measuring a tile's flat extent
 const SHARP = 18;     // colour step that ends a tile
 const MIN_OFF = 20;   // a tile shade must be this far from both bg and ink
 const T_MIN = 0.08;   // ...and sit between 8 % and 92 % of the way from bg to ink
+// A redaction is laid over text on the app's flat UI, so the strip around it
+// is a few colours (card background + ink). Photos (in-app ad banners) and
+// status-bar icons are many colours. Measured 2026-10-22 on a genuine GCash
+// Express Send screenshot with a photo ad, at 828/1179/1290 px wide: false
+// hits had ≤ 0.49 of the ring in its 3 commonest colours, real mosaics over
+// the name/reference of the same screenshot (6–14 px tiles, JPEG q85) ≥ 0.75.
+const RING = 16;      // width of the strip around a region (px)
+const RING_TOP3 = 0.6;
 
 /** Mean colour and max channel std. dev. of a w×h box, computed directly
  *  (boxes are tiny, so no whole-image sum tables — those cost ~100 MB on a
@@ -71,6 +79,21 @@ function topColours(data: ArrayLike<number>, W: number, x0: number, y0: number, 
     total++;
   }
   return [...h.values()].sort((a, b) => b.n - a.n).map(e => ({ c: [e.r / e.n, e.g / e.n, e.b / e.n] as RGB, share: e.n / total }));
+}
+
+/** Share of the strip around a rectangle taken by its 3 commonest colours. */
+function ringTop3(data: ArrayLike<number>, W: number, H: number, x: number, y: number, w: number, h: number): number {
+  const x0 = Math.max(0, x - RING), y0 = Math.max(0, y - RING), x1 = Math.min(W, x + w + RING), y1 = Math.min(H, y + h + RING);
+  const hist = new Map<number, number>(); let total = 0;
+  for (let yy = y0; yy < y1; yy += 2) for (let xx = x0; xx < x1; xx += 2) {
+    if (xx >= x && xx < x + w && yy >= y && yy < y + h) continue;
+    const i = (yy * W + xx) * 4;
+    const k = (data[i] >> 4) << 8 | (data[i + 1] >> 4) << 4 | (data[i + 2] >> 4);
+    hist.set(k, (hist.get(k) ?? 0) + 1); total++;
+  }
+  if (!total) return 1;
+  const top = [...hist.values()].sort((a, b) => b - a);
+  return ((top[0] ?? 0) + (top[1] ?? 0) + (top[2] ?? 0)) / total;
 }
 
 /** Group 8-px grid cells into rectangles (cells within `reach` cells join). */
@@ -207,5 +230,6 @@ export function findObscuredRegions(data: ArrayLike<number>, W: number, H: numbe
       regions.push({ kind: 'covered', x: c.x0 * C, y: c.y0 * C, w, h, tiles: 0 });
     }
   }
-  return regions;
+  // drop hits inside photos and icons: a redaction sits on flat UI
+  return regions.filter(r => ringTop3(data, W, H, r.x, r.y, r.w, r.h) >= RING_TOP3);
 }
