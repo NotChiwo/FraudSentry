@@ -200,3 +200,52 @@ describe('text check: the reference label is there but its number is blocked out
     expect(h.detail).toMatch(/mobile number/);
   });
 });
+
+describe('only a hidden KEY detail counts as "details hidden"', () => {
+  // A GCash-like layout read by OCR: name, +63 number, amount, Ref No.
+  const words = [
+    { text: 'Juan', x0: 300, y0: 200, x1: 380, y1: 240 }, { text: 'D.', x0: 390, y0: 200, x1: 430, y1: 240 },
+    { text: '+63', x0: 360, y0: 312, x1: 430, y1: 342 },
+    { text: 'Amount', x0: 80, y0: 520, x1: 220, y1: 554 }, { text: '215.00', x0: 800, y0: 520, x1: 940, y1: 554 },
+    { text: 'Ref', x0: 80, y0: 900, x1: 120, y1: 930 }, { text: 'No.', x0: 126, y0: 900, x1: 170, y1: 930 },
+  ];
+  const at = (y: number, h = 40) => ({ kind: 'pixelated' as const, x: 300, y, w: 400, h, tiles: 9 });
+
+  it('a blurred spot away from every key field (an ad photo, an icon) is not a hidden detail', () => {
+    for (const y of [20, 1200, 1600]) {
+      const h = assessHiddenFields([''], words, '8041241631871', [at(y)]);
+      expect(h.keyDetailHidden, `y=${y}`).toBe(false);
+      expect(h.detail).toMatch(/photo, ad or icon/);
+    }
+  });
+  it('a blurred amount is a hidden detail', () => {
+    const h = assessHiddenFields([''], words, '8041241631871', [at(516)]);
+    expect(h.regionOnAmount).toBe(true);
+    expect(h.keyDetailHidden).toBe(true);
+    expect(h.detail).toMatch(/including the amount/);
+  });
+  it('a blurred name just above the +63 number is a hidden detail', () => {
+    const h = assessHiddenFields([''], words, '8041241631871', [at(200)]);
+    expect(h.regionOnName).toBe(true);
+    expect(h.keyDetailHidden).toBe(true);
+    expect(h.detail).toMatch(/recipient name/);
+  });
+  it('a blurred name after a bank "Account name" label is a hidden detail', () => {
+    const bank = [{ text: 'Account', x0: 80, y0: 400, x1: 200, y1: 430 }, { text: 'name', x0: 210, y0: 400, x1: 280, y1: 430 },
+      { text: '1,000.00', x0: 800, y0: 700, x1: 940, y1: 730 }];
+    const h = assessHiddenFields([''], bank, null, [at(445)]);
+    expect(h.regionOnName).toBe(true);
+    expect(h.keyDetailHidden).toBe(true);
+  });
+  it('the blurred reference and the unreadable reference still count', () => {
+    expect(assessHiddenFields([''], words, null, [at(896)]).keyDetailHidden).toBe(true);
+    expect(assessHiddenFields(PIXELATED_PASSES, words, null, []).keyDetailHidden).toBe(true);
+  });
+  it('when OCR placed no key field, any blurred area still counts (cannot tell where it is)', () => {
+    expect(assessHiddenFields([''], [], null, [at(1200)]).keyDetailHidden).toBe(true);
+    expect(assessHiddenFields([''], undefined, null, [at(1200)]).keyDetailHidden).toBe(true);
+  });
+  it('no regions and a readable reference: nothing hidden', () => {
+    expect(assessHiddenFields([''], words, '8041241631871', []).keyDetailHidden).toBe(false);
+  });
+});

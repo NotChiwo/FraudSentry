@@ -21,6 +21,18 @@ export interface HiddenFields {
   regionOnReference: boolean;
   /** a pixelated/covered area overlaps the line with the +63 mobile number */
   regionOnPhone: boolean;
+  /** a pixelated/covered area overlaps an amount line (a "215.00" figure) */
+  regionOnAmount: boolean;
+  /** a pixelated/covered area overlaps the recipient name (above the +63 line, or after a "Sent to"/"Account name" label) */
+  regionOnName: boolean;
+  /** OCR placed at least one key field (reference, amount, mobile number), so a region elsewhere can be told apart */
+  keyFieldsLocated: boolean;
+  /**
+   * A key detail is hidden: a region sits on the reference, amount, name or
+   * number, or the reference reads as junk. Also true when regions were found
+   * but OCR could not place any key field (then we cannot tell, so assume the worst).
+   */
+  keyDetailHidden: boolean;
   /** the reference label was read but its value is unreadable junk */
   referenceUnreadable: boolean;
   /** what the user is told */
@@ -78,21 +90,61 @@ function phoneBand(words: OcrWord[] | undefined): { y0: number; y1: number; x: n
   return { y0: w.y0 - h * 0.6, y1: w.y1 + h * 0.6, x: w.x0 };
 }
 
-const onBand = (regions: ObscuredRegion[], band: { y0: number; y1: number; x: number } | null) =>
+type Band = { y0: number; y1: number; x: number };
+
+/** The y-bands of lines holding a peso figure ("215.00", "P215.00", "₱1,000.00"). */
+function amountBands(words: OcrWord[] | undefined): Band[] {
+  return (words ?? []).filter(w => /^(?:₱|php|p|£)?\d{1,3}(?:,\d{3})*\.\d{2}$/i.test(w.text.trim()))
+    .map(w => { const h = w.y1 - w.y0; return { y0: w.y0 - h * 0.6, y1: w.y1 + h * 0.6, x: 0 }; });
+}
+
+// "Sent to", "Send to", "Recipient", "Receiver", "Account name", "Transfer to", "Pay to"
+const NAME_LABEL = /^(?:sent|send|transfer(?:red)?|pay|paid)\s+to$|^(?:recipient|receiver|beneficiary)(?:'?s)?(?:\s+name)?$|^account\s+name$/i;
+
+/** Where the recipient name is: the line(s) just above the "+63" number (GCash, Maya), or a labelled line and the one below it (banks). */
+function nameBands(words: OcrWord[] | undefined, phone: Band | null): Band[] {
+  const out: Band[] = [];
+  if (phone) { const h = (phone.y1 - phone.y0) / 2.2; out.push({ y0: phone.y0 - h * 2.6, y1: phone.y0 + h * 0.3, x: 0 }); }
+  const ws = words ?? [];
+  for (let i = 0; i < ws.length; i++) {
+    const w = ws[i], next = ws[i + 1];
+    if (NAME_LABEL.test(w.text) || next && NAME_LABEL.test(`${w.text} ${next.text}`)) {
+      const h = w.y1 - w.y0;
+      out.push({ y0: w.y0 - h * 0.6, y1: w.y1 + h * 2.2, x: 0 });
+    }
+  }
+  return out;
+}
+
+const onBand = (regions: ObscuredRegion[], band: Band | null) =>
   !!band && regions.some(r => r.y < band.y1 && r.y + r.h > band.y0 && r.x + r.w > band.x);
+const onAnyBand = (regions: ObscuredRegion[], bands: Band[]) => bands.some(b => onBand(regions, b));
 
 export function assessHiddenFields(texts: string[], words: OcrWord[] | undefined, referenceNo: string | null, regions: ObscuredRegion[]): HiddenFields {
-  const regionOnReference = onBand(regions, referenceBand(words));
-  const regionOnPhone = onBand(regions, phoneBand(words));
+  const refBand = referenceBand(words), phone = phoneBand(words), amounts = amountBands(words);
+  const regionOnReference = onBand(regions, refBand);
+  const regionOnPhone = onBand(regions, phone);
+  const regionOnAmount = onAnyBand(regions, amounts);
+  const regionOnName = onAnyBand(regions, nameBands(words, phone));
+  const keyFieldsLocated = !!refBand || !!phone || amounts.length > 0;
   const referenceUnreadable = referenceLooksHidden(texts, referenceNo);
+  const keyDetailHidden = referenceUnreadable || regions.length > 0 &&
+    (!keyFieldsLocated || regionOnReference || regionOnPhone || regionOnAmount || regionOnName);
   const parts: string[] = [];
   if (regions.length) {
     const kinds = new Set(regions.map(r => r.kind));
     const what = kinds.has('pixelated') && kinds.has('covered') ? 'blurred/pixelated and covered' : kinds.has('pixelated') ? 'blurred or pixelated' : 'covered with a solid box';
-    const on = [regionOnReference ? 'the reference number' : '', regionOnPhone ? 'the mobile number' : ''].filter(Boolean).join(' and ');
+    const on = listOf([regionOnReference ? 'the reference number' : '', regionOnAmount ? 'the amount' : '', regionOnName ? 'the recipient name' : '', regionOnPhone ? 'the mobile number' : '']);
     parts.push(`${regions.length === 1 ? 'Part of this receipt is' : `${regions.length} parts of this receipt are`} ${what}${on ? `, including ${on}` : ''}.`);
   }
   if (referenceUnreadable && !regionOnReference) parts.push('The "Ref No." label is visible, but the number after it cannot be read — it looks blocked out or scribbled over.');
-  if (parts.length) parts.push('A bank or e-wallet app never hides details on its own receipt, so someone edited this image. Hidden details — above all the reference number — mean the payment cannot be checked. Do not accept this as proof of payment; ask for the full, unedited receipt and confirm the money in your own account.');
-  return { regions, regionOnReference, regionOnPhone, referenceUnreadable, detail: parts.join(' ') };
+  if (parts.length && !keyDetailHidden) {
+    parts.push('It is not on the reference number, amount, name or mobile number, so it may just be a photo, ad or icon in the app. Look at the highlighted area yourself, and confirm the payment in your own account.');
+  } else if (parts.length) parts.push('A bank or e-wallet app never hides details on its own receipt, so someone edited this image. Hidden details — above all the reference number — mean the payment cannot be checked. Do not accept this as proof of payment; ask for the full, unedited receipt and confirm the money in your own account.');
+  return { regions, regionOnReference, regionOnPhone, regionOnAmount, regionOnName, keyFieldsLocated, keyDetailHidden, referenceUnreadable, detail: parts.join(' ') };
+}
+
+function listOf(items: string[]): string {
+  const xs = items.filter(Boolean);
+  return xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0] ?? '';
 }

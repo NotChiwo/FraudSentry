@@ -1,5 +1,16 @@
 # Changelog
 
+## V10.1.3 — 2026-10-22
+
+### Fewer false alarms on genuine receipts
+- **A blurred spot only makes a receipt "unverifiable" when it covers a key detail.** Before, any pixelated or covered area anywhere raised the rating to at least High. That is how an ad photo and the battery icon turned a genuine GCash receipt into a High (V10.1.2). Now the High rating ("Hidden or Blocked-Out Details") applies only when the area covers the reference number, the amount, the recipient name or the mobile number, or the reference reads as junk. A blurred area anywhere else is shown as **"Blurred or Covered Area"** (Medium, small weight, no score floor) so the user can still look at it.
+- If OCR could not place any of those fields, a blurred area anywhere still counts as hidden: when we cannot tell where it is, we assume the worst.
+- The recipient name is found just above the "+63" number (GCash, Maya) or after a "Sent to" / "Account name" / "Recipient" label (banks). Amounts are lines with a peso figure such as `215.00`.
+- **Missing EXIF no longer leans the forest toward "fraud".** The rules already ignored it (screenshots never carry EXIF), but the built-in demonstration data gave fraud rows EXIF less often (25 % vs 40 %). Both classes now use the same rate, so the forest and the rules agree. Measured on a typical genuine screenshot the effect was small (about 2 points of forest probability), but it pushed in the wrong direction on every screenshot. The 10 feature columns are unchanged, so trained CSVs still load.
+- **New end-to-end test on real receipts** (`receiptScoring.test.ts`): every genuine redacted real-OCR fixture (GCash, Maya, GoTyme, MariBank, BPI) must score Low or Medium, and the edited / unsent ones High or Critical, through the full rules + Random Forest pipeline. A blur away from key fields must leave the genuine GCash receipt below High, and a blur over its reference or amount must make it High.
+
+Tests: 296 → **323**.
+
 ## V10.1.2 — 2026-10-22
 
 ### Genuine GCash receipts no longer flagged as "blurred or pixelated"
