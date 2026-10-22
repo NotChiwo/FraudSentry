@@ -46,6 +46,11 @@
 //                           tesseract.js-core@5.1.1 @tesseract.js-data/eng@1.0.0 \
 //                           @tesseract.js-data/fil@1.0.0 --ignore-scripts
 //   --timeout           seconds to wait for one scan before recording "timeout".
+//   --fresh-per-receipt scan every receipt in its own fresh browser profile, so no
+//                       receipt is judged against the history of the ones before
+//                       it ("Earlier Scan Comparison"). Use it for an evaluation
+//                       set made with tools/make-edited-set.mjs, where every fake
+//                       is a copy of a genuine receipt in the same folder.
 //   --features          also write features-<build>.csv: the evidence vector each
 //                       scan was scored on + your label, ready for the Model page's
 //                       "Upload labelled CSV" (real training data for the forest).
@@ -74,6 +79,7 @@ function parseArgs(argv) {
     else if (k === '--tesseract-mirror') a.mirror = path.resolve(v());
     else if (k === '--bypass-csp') a.bypassCsp = true;
     else if (k === '--features') a.features = true;
+    else if (k === '--fresh-per-receipt') a.fresh = true;
     else if (k === '--headed') a.headed = true;
     else if (k === '-h' || k === '--help') { console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\nimport ')[0]); process.exit(0); }
     else die(`unknown option ${k} (see --help)`);
@@ -295,6 +301,7 @@ function summarise(args, builds, rows, labels, msgRows, messages) {
   out.push(`# FraudSentry build comparison`, '');
   out.push(`- Generated: ${new Date().toISOString()}`);
   out.push(`- Builds: ${builds.map(b => `**${b.name}** (\`${path.basename(b.file)}\`)`).join(', ')}`);
+  if (args.fresh) out.push('- Each receipt scanned in a fresh profile (no earlier-scan history)');
   out.push(`- CSP: ${args.bypassCsp ? '**bypassed** (equal-OCR comparison — not what users experience)' : 'enforced (what users actually get)'}`);
   out.push(`- Tesseract: ${args.mirror ? 'served from local mirror' : 'loaded from jsDelivr'}`, '');
 
@@ -387,10 +394,11 @@ const browser = await chromium.launch(launch);
 
 const rows = [], msgRows = [];
 for (const build of args.builds) {
-  const ctx = await newContext(browser, args);
-  const page = await ctx.newPage();
+  let ctx = await newContext(browser, args);
+  let page = await ctx.newPage();
   console.log(`\n== ${build.name}: ${build.file}`);
-  for (const f of receiptFiles) {
+  for (const [i, f] of receiptFiles.entries()) {
+    if (args.fresh && i > 0) { await ctx.close(); ctx = await newContext(browser, args); page = await ctx.newPage(); }
     const row = { build: build.name, file: f };
     try {
       const { scan, seconds } = await scanReceipt(page, build, path.join(args.receipts, f), args.timeout * 1000);

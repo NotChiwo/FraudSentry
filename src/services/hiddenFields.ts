@@ -52,7 +52,12 @@ export function referenceLooksHidden(texts: string[], referenceNo: string | null
   if (referenceNo) return false;
   const vals = referenceValues(texts);
   if (!vals.length) return false;
-  const junk = vals.filter(v => v.length > 0 && (JUNK.test(v) || !/\d{6,}/.test(v.replace(/\s/g, '')) && /[a-z].*\d|\d.*[a-z]/i.test(v)));
+  // junk = mosaic/scribble characters, letters mixed with too few digits, or
+  // letters with no digit at all where a number must be ("Ref No. INE" — a
+  // cover box or tight mosaic OCR'd as letters)
+  const junk = vals.filter(v => v.length > 0 && (JUNK.test(v)
+    || !/\d{6,}/.test(v.replace(/\s/g, '')) && /[a-z].*\d|\d.*[a-z]/i.test(v)
+    || !/\d/.test(v) && /[a-z]/i.test(v)));
   return junk.length >= Math.ceil(vals.length / 2);
 }
 

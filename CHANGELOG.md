@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Evaluation kit for the defense
+- **`tools/make-edited-set.mjs`** (new): from a folder of genuine screenshots, it writes a labelled test set of edited copies: amount + total changed, amount only, date, reference pixelated, reference covered, name covered, plus a chat re-save as a genuine control. Fields are located with Tesseract and redrawn in the receipt's own text colour. An edit whose field is not found is skipped, never guessed.
+- **`tools/compare-versions.mjs --fresh-per-receipt`**: scans each receipt in a fresh profile, so a fake isn't caught just because its original was scanned first.
+- **[docs/EVALUATION.md](docs/EVALUATION.md)**: step by step from genuine screenshots to catch rate, false alarms, field accuracy and a real labelled CSV for the Random Forest.
+
+### Fixed: a hidden reference number could rate Low
+- A reference covered with a box in the text colour, or tightly pixelated, OCRs as letters ("Ref No. INE"). The pixel check missed both on a small (828 px wide) screenshot, and the text check only looked for junk symbols. A reference value with letters but no digits now counts as hidden, which rates High. It does not fire on any of the real-OCR genuine fixtures.
+
+Tests: 296 → **297**.
+
 ## V10.1.2 — 2026-10-22
 
 ### Genuine GCash receipts no longer flagged as "blurred or pixelated"

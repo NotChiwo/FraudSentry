@@ -183,6 +183,13 @@ describe('text check: the reference label is there but its number is blocked out
       }
     }
   });
+  it('a reference covered or tightly pixelated reads as letters only → hidden', () => {
+    // OCR of a genuine GCash receipt with its reference covered by a box in the
+    // text colour, and with a tight 10 px mosaic (tools/make-edited-set.mjs)
+    expect(referenceLooksHidden(['Ref No. INE Oct 16, 2026 2:49 PM'], null)).toBe(true);
+    expect(referenceLooksHidden(['Ref No. ili il Oct 16, 2026 2:49 PM'], null)).toBe(true);
+    expect(assessHiddenFields(['Ref No. INE Oct 16, 2026 2:49 PM'], undefined, null, []).referenceUnreadable).toBe(true);
+  });
   it('a clean reference, or a label with nothing after it, is not "hidden"', () => {
     expect(referenceLooksHidden(['Ref No. 8041 241 631871   Oct 10, 2026'], '8041241631871')).toBe(false);
     expect(referenceLooksHidden(['Reference Number'], null)).toBe(false);
