@@ -1,9 +1,11 @@
 // Hidden-detail detection: pixelated / covered areas (pixels) and a reference
 // number blocked out (OCR text). Images are drawn in code so no personal
-// screenshot is stored in the repository.
+// screenshot is stored in the repository; the only real pixels are two crops
+// with no personal data (a GCash in-app ad banner and an iOS battery icon).
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { findObscuredRegions } from '../services/obscuredRegions';
 import { assessHiddenFields, referenceLooksHidden } from '../services/hiddenFields';
 import { parseReceiptMulti } from '../services/receiptParser';
@@ -47,6 +49,30 @@ class Raster {
     }
   }
 }
+/** Decode an 8-bit RGB/RGBA, non-interlaced PNG (all the fixtures are). */
+function readPng(file: string): { w: number; h: number; px: (x: number, y: number) => RGB } {
+  const buf = fs.readFileSync(path.join(__dirname, 'fixtures', 'images', file));
+  let off = 8, w = 0, h = 0, ch = 3; const idat: Buffer[] = [];
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off), type = buf.toString('ascii', off + 4, off + 8), body = buf.subarray(off + 8, off + 8 + len);
+    if (type === 'IHDR') { w = body.readUInt32BE(0); h = body.readUInt32BE(4); ch = body[9] === 6 ? 4 : 3; }
+    if (type === 'IDAT') idat.push(body);
+    off += 12 + len;
+  }
+  const raw = zlib.inflateSync(Buffer.concat(idat)), stride = w * ch, out = new Uint8Array(h * stride);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x++) {
+      const v = raw[y * (stride + 1) + 1 + x];
+      const a = x >= ch ? out[y * stride + x - ch] : 0, b = y ? out[(y - 1) * stride + x] : 0, c = x >= ch && y ? out[(y - 1) * stride + x - ch] : 0;
+      const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+      const pred = f === 1 ? a : f === 2 ? b : f === 3 ? (a + b) >> 1 : f === 4 ? (pa <= pb && pa <= pc ? a : pb <= pc ? b : c) : 0;
+      out[y * stride + x] = (v + pred) & 255;
+    }
+  }
+  return { w, h, px: (x, y) => { const i = y * stride + x * ch; return [out[i], out[i + 1], out[i + 2]]; } };
+}
+
 const WHITE: RGB = [255, 255, 255], INK: RGB = [20, 60, 200], GREY: RGB = [244, 246, 251];
 
 /** A GCash-like receipt: name, phone pill, amount rows, reference line, green footer card, UI chips. */
@@ -94,6 +120,35 @@ describe('pixel check: pixelated and covered areas', () => {
     const r = receipt();
     r.rect(296, 192, 560, 50, [0, 0, 0]);
     expect(findObscuredRegions(r.data, r.w, r.h).some(x => x.kind === 'covered')).toBe(true);
+  });
+});
+
+// Regression: a GENUINE GCash Express Send receipt (2026-10-22) was rated HIGH
+// risk, "7 parts are blurred or pixelated". All 7 were in the photo ad banner
+// GCash shows under the reference line, plus the iOS battery icon.
+describe('pixel check: genuine app content is not a redaction', () => {
+  const ad = readPng('gcash-express-send-ad-banner.png');      // 648×550 incl. its shadow, as captured (828 px wide screenshot)
+  const battery = readPng('ios-status-bar-battery.png');       // 120×70, from the 1179 px wide copy
+  const paste = (r: Raster, img: typeof ad, x0: number, y0: number) => {
+    for (let y = 0; y < img.h; y++) for (let x = 0; x < img.w; x++) r.set(x0 + x, y0 + y, img.px(x, y));
+  };
+  it('the GCash photo ad banner is not "pixelated"', () => {
+    const r = new Raster(828, 1100, [244, 246, 251]);           // the receipt's light-grey lower section
+    paste(r, ad, 90, 300);
+    expect(findObscuredRegions(r.data, r.w, r.h)).toEqual([]);
+  });
+  it('the iOS battery icon in the blue status bar is not "pixelated"', () => {
+    const r = new Raster(400, 200, [20, 80, 230]);
+    paste(r, battery, 140, 60);
+    expect(findObscuredRegions(r.data, r.w, r.h)).toEqual([]);
+  });
+  it.each([6, 10, 14])('a reference pixelated with %i px tiles is still found next to the ad banner', tile => {
+    const r = receipt();
+    paste(r, ad, 216, 1000);                                   // ad between the reference line and the footer
+    r.pixelate(80, 896, 520, 42, tile);
+    const found = findObscuredRegions(r.data, r.w, r.h);
+    expect(found.some(x => x.y < 940 && x.y + x.h > 896)).toBe(true);
+    expect(found.every(x => x.y + x.h <= 1000 || x.y >= 1000 + ad.h)).toBe(true);   // nothing inside the ad
   });
 });
 
