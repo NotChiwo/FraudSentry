@@ -124,13 +124,19 @@ export async function analyzeTransactionImage(
     ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text || ''],
     ocr.words, extracted.referenceNo, forensics.obscuredRegions ?? [],
   );
-  const detailsHidden = hidden.regions.length > 0 || hidden.referenceUnreadable;
+  // Only a hidden KEY detail (reference, amount, name, number) makes the receipt
+  // unverifiable. A blurred spot elsewhere is often app content (an ad photo,
+  // an icon), so it is shown for review with a small weight and no score floor.
+  const detailsHidden = hidden.keyDetailHidden;
+  const otherAreaObscured = !detailsHidden && hidden.regions.length > 0;
   // A number read through a mosaic is made up from the noise ("…0449"): don't show it.
   if (hidden.regionOnPhone && !opts?.extractedOverride) extracted = { ...extracted, receiverContact: null };
   // A time read without its date on an edited receipt is usually read from the blurred date line: don't show it.
   if (detailsHidden && !extracted.date && extracted.time && !opts?.extractedOverride) extracted = { ...extracted, time: null };
   if (detailsHidden) {
     findings.push(finding('forensic', 'Hidden or Blocked-Out Details', hidden.detail, 'high', false, 0.45));
+  } else if (otherAreaObscured) {
+    findings.push(finding('forensic', 'Blurred or Covered Area', hidden.detail, 'medium', false, 0.12));
   }
 
   // ── Reference presence + format ──

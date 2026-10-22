@@ -1,7 +1,7 @@
 {
   "name": "fraudsentry-desktop",
   "productName": "FraudSentry",
-  "version": "10.1.2",
+  "version": "10.1.3",
   "description": "FraudSentry desktop app: the offline FraudSentry page in its own window. Nothing is sent anywhere.",
   "author": "FraudSentry thesis team (UPHSD Molino)",
   "license": "UNLICENSED",

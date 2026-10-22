@@ -68,7 +68,7 @@ export function generateDemoDataset(n = 440, seed = 7): Dataset {
     if (fraud) {
       row = [
         clamp(gauss(34, 12), 0, 100),                 // ela hotspot (higher)
-        bern(0.25),                                   // has exif (often stripped/forged)
+        bern(0.30),                                   // has exif: same rate as genuine (screenshots have none, so it tells nothing)
         bern(0.55),                                   // editor trace (more likely)
         clamp(gauss(63, 16), 0, 100),                 // ocr confidence (lower-ish)
         bern(0.45),                                   // ref present (often missing)
@@ -82,7 +82,7 @@ export function generateDemoDataset(n = 440, seed = 7): Dataset {
     } else {
       row = [
         clamp(gauss(9, 6), 0, 100),
-        bern(0.40),
+        bern(0.30),                                   // has exif: same rate as fraud
         bern(0.08),
         clamp(gauss(86, 9), 0, 100),
         bern(0.85),
