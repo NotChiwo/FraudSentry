@@ -1,26 +1,28 @@
+// The app shell: privacy notice, sidebar, top bar (alert bell) and the page
+// that is currently open. Also handles the Android back button.
 import { useState, useEffect, useRef } from 'react';
-import Sidebar, { PageId, useIsMobile, NAV_GROUPS } from './components/layout/Sidebar';
-import ErrorBoundary from './components/common/ErrorBoundary';
-import ConsentGate from './components/consent/ConsentGate';
-import HomePage from './pages/HomePage';
-import ScannerPage from './pages/ScannerPage';
-import MessageAnalyzerPage from './pages/MessageAnalyzerPage';
-import CrossEvidencePage from './pages/CrossEvidencePage';
-import ModelPage from './pages/ModelPage';
-import KnowledgeBasePage from './pages/KnowledgeBasePage';
-import ReportsPage from './pages/ReportsPage';
-import PrivacyPage from './pages/PrivacyPage';
-import AboutPage from './pages/AboutPage';
-import AlertsPage from './pages/AlertsPage';
-import AlertToast from './components/alerts/AlertToast';
-import { unreadCount } from './services/alerts';
-import TransactionsPage from './pages/TransactionsPage';
-import FraudReportsPage from './pages/FraudReportsPage';
+import Sidebar, { PageId, useIsMobile, NAV_GROUPS } from './app/Sidebar';
+import ErrorBoundary from './app/ErrorBoundary';
+import ConsentGate from './app/ConsentGate';
+import HomePage from './app/HomePage';
+import ReceiptCheckPage from './receipt-check/ReceiptCheckPage';
+import MessageCheckPage from './message-check/MessageCheckPage';
+import CrossEvidencePage from './cross-evidence/CrossEvidencePage';
+import DetectionModelPage from './random-forest/DetectionModelPage';
+import KnowledgeBasePage from './knowledge-base/KnowledgeBasePage';
+import HistoryPage from './history/HistoryPage';
+import PrivacyPage from './app/PrivacyPage';
+import AboutPage from './app/AboutPage';
+import AlertsPage from './alerts/AlertsPage';
+import AlertToast from './alerts/AlertToast';
+import { unreadCount } from './alerts/alerts';
+import TransactionsPage from './transactions/TransactionsPage';
+import ReportsPage from './reports/ReportsPage';
 import { App as NativeApp } from '@capacitor/app';
-import { isAndroidApp } from './platform/native';
-import { useAppStore } from './store/useAppStore';
-import { warmUpSharedModel } from './engine/sharedModel';
-import { restoreLabelledModel } from './services/trainingData';
+import { isAndroidApp } from './app/nativeApp';
+import { useAppStore } from './shared/store';
+import { warmUpSharedModel } from './random-forest/sharedModel';
+import { restoreLabelledModel } from './random-forest/trainingData';
 import { ShieldCheck, Bell } from 'lucide-react';
 
 const PAGE_TITLE: Record<PageId, string> = {
@@ -116,15 +118,15 @@ export default function App() {
           <ErrorBoundary key={shown} onHome={() => navigate('home')}>
           <div className="page-enter">
             {shown === 'home'      && <HomePage onNavigate={navigate} />}
-            {shown === 'scanner'   && <ScannerPage />}
-            {shown === 'analyzer'  && <MessageAnalyzerPage />}
+            {shown === 'scanner'   && <ReceiptCheckPage />}
+            {shown === 'analyzer'  && <MessageCheckPage />}
             {shown === 'cross'     && <CrossEvidencePage />}
-            {shown === 'model'     && <ModelPage />}
+            {shown === 'model'     && <DetectionModelPage />}
             {shown === 'knowledge' && <KnowledgeBasePage onNavigate={navigate} />}
-            {shown === 'reports'   && <ReportsPage onNavigate={navigate} />}
+            {shown === 'history'   && <HistoryPage onNavigate={navigate} />}
             {shown === 'alerts'    && <AlertsPage onNavigate={navigate} />}
             {shown === 'transactions' && <TransactionsPage onNavigate={navigate} />}
-            {shown === 'fraudreports' && <FraudReportsPage />}
+            {shown === 'reports' && <ReportsPage />}
             {shown === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {shown === 'about'     && <AboutPage />}
           </div>

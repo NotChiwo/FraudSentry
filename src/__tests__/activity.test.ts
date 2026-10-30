@@ -1,6 +1,6 @@
 // Home-page activity numbers come only from local history.
 import { describe, it, expect } from 'vitest';
-import { computeActivity, MILESTONES, ActivityEvent } from '../services/activity';
+import { computeActivity, MILESTONES, ActivityEvent } from '../app/activity';
 
 const NOW = new Date(2026, 9, 7, 15, 0);            // 7 Oct 2026, 3 PM local
 const at = (daysAgo: number, h = 10) => { const d = new Date(NOW); d.setDate(d.getDate() - daysAgo); d.setHours(h); return d.toISOString(); };

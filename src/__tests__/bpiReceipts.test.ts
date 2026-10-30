@@ -2,10 +2,10 @@
 // a genuine one from an edited one.
 import { describe, it, expect } from 'vitest';
 import fixtures from './fixtures/real-ocr-redacted-bpi.json';
-import { parseReceiptMulti, detectSourceFromText } from '../services/receiptParser';
-import { checkConfirmationTime, checkWeekday } from '../services/consistencyChecks';
-import { referenceLooksHidden } from '../services/hiddenFields';
-import { acceptedCurrentNotice, CONSENT_VERSION } from '../store/useAppStore';
+import { parseReceiptMulti, detectSourceFromText } from '../receipt-check/reading/receiptParser';
+import { checkWeekday } from '../receipt-check/checks/consistencyChecks';
+import { referenceLooksHidden } from '../receipt-check/checks/hiddenFields';
+import { acceptedCurrentNotice, CONSENT_VERSION } from '../shared/store';
 
 type Fx = { filename: string; passes: string[] };
 const fx = fixtures as Record<string, Fx>;
@@ -35,32 +35,17 @@ describe('BPI receipts are read correctly (real OCR, redacted)', () => {
   });
 });
 
-describe('confirmation number ↔ time (a BPI confirmation number is the transfer time in ms)', () => {
-  for (const k of ['bpi_transfer_2025_with_fee', 'bpi_transfer_2027']) {
-    it(`genuine ${k}: consistent`, () => {
-      const { data, source } = parse(k);
-      expect(checkConfirmationTime(source, data.referenceNo, data.date, data.time).status).toBe('consistent');
-    });
-  }
-  it('an edited date is caught', () => {
-    const p = parseReceiptMulti(edit('bpi_transfer_2027', /Jun 28 2027/, 'Jun 30 2027'));
-    const r = checkConfirmationTime(p.source, p.data.referenceNo, p.data.date, p.data.time);
-    expect(r.status).toBe('mismatch');
-    expect(r.detail).toMatch(/Jun 28, 2027/);
-  });
-  it('an edited time is caught', () => {
-    const p = parseReceiptMulti(edit('bpi_transfer_2027', /10:31:31 PM/, '08:31:31 PM'));
-    expect(checkConfirmationTime(p.source, p.data.referenceNo, p.data.date, p.data.time).status).toBe('mismatch');
-  });
-  it('an edited confirmation number is caught', () => {
-    const p = parseReceiptMulti(edit('bpi_transfer_2027', /1814193089365/, '1814093089365'));
-    expect(checkConfirmationTime(p.source, p.data.referenceNo, p.data.date, p.data.time).status).toBe('mismatch');
-  });
-  it('is only applied to BPI numbers that decode to a plausible date', () => {
-    expect(checkConfirmationTime('GCash', '1814193089365', 'Jun 28 2027', '10:31 PM').status).toBe('unknown');
-    expect(checkConfirmationTime('BPI', '9999999999999', 'Jun 28 2027', '10:31 PM').status).toBe('unknown');
-    expect(checkConfirmationTime('BPI', '1814193089365', null, null).status).toBe('unknown');
-    expect(checkConfirmationTime('BPI', '1814193089365', 'Jun 28 2027', null).status).toBe('consistent');   // date-only: same PH day
+describe('a BPI confirmation number is not a timestamp', () => {
+  // An earlier rule assumed it was (it held on two receipts) and flagged this
+  // genuine receipt High. The rule was removed; this receipt must read cleanly.
+  it('genuine Sep 2026 receipt: every field read, weekday consistent', () => {
+    const { data, source } = parse('bpi_transfer_2026_genuine_conf_not_time');
+    expect(source).toBe('BPI');
+    expect(data.referenceNo).toBe('1624503955714');
+    expect(data.amount).toBe(12000);
+    expect([data.date, data.time]).toEqual(['Sep 02 2026', '03:03:36 AM']);
+    expect(data.receiverContact).toBe('xxxxxxxxxxx418');
+    expect(checkWeekday(fx.bpi_transfer_2026_genuine_conf_not_time.passes).status).toBe('consistent');
   });
 });
 

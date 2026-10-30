@@ -1,8 +1,8 @@
 // Forensic signal thresholds. The "genuine" values below are real measurements
 // from genuine PH receipt screenshots (ELA hotspot % range 2.0–17.5, mean ≤ 8).
 import { describe, it, expect } from 'vitest';
-import { buildForensicSignals, ELA_HOTSPOT_THRESHOLD, ForensicInput } from '../services/imageForensics';
-import { checkReceiptDate } from '../services/consistencyChecks';
+import { buildForensicSignals, ELA_HOTSPOT_THRESHOLD, ForensicInput } from '../receipt-check/checks/imageForensics';
+import { checkReceiptDate } from '../receipt-check/checks/consistencyChecks';
 
 const base: ForensicInput = {
   sniff: 'image/jpeg', declaredType: 'image/jpeg',

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { deflateSync } from 'node:zlib';
-import { scanPng, scanWebp, findEditor, declaredTypeMatches } from '../services/imageForensics';
-import { metadataConsistency } from '../services/sampleDataset';
+import { scanPng, scanWebp, findEditor, declaredTypeMatches } from '../receipt-check/checks/imageForensics';
+import { metadataConsistency } from '../random-forest/sampleDataset';
 
 // Minimal PNG builder: signature + chunks (CRC is not checked by the scanner).
 function chunk(type: string, data: Uint8Array): Uint8Array {

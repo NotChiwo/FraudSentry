@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withinRetention, HISTORY_RETENTION_DAYS } from '../store/useAppStore';
+import { withinRetention, HISTORY_RETENTION_DAYS } from '../shared/store';
 
 describe('local history retention (RA 10173 data minimisation)', () => {
   const day = 24 * 60 * 60 * 1000;

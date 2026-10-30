@@ -3,10 +3,10 @@
 import { describe, it, expect } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import KnowledgeBasePage from '../pages/KnowledgeBasePage';
-import { ENTRIES } from '../data/scamKnowledge';
-import { filterEntries, moveIndex, exampleSegments, exampleText } from '../services/kbList';
-import { analyzeMessageText } from '../engine/messageAnalysis';
+import KnowledgeBasePage from '../knowledge-base/KnowledgeBasePage';
+import { ENTRIES } from '../knowledge-base/scamKnowledge';
+import { filterEntries, moveIndex, exampleSegments, exampleText } from '../knowledge-base/kbList';
+import { analyzeMessageText } from '../message-check/messageAnalysis';
 
 const render = (initialId?: string) => renderToStaticMarkup(createElement(KnowledgeBasePage, { initialId }));
 const count = (html: string, re: RegExp) => (html.match(re) || []).length;

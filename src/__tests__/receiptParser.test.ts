@@ -10,7 +10,7 @@
 // redacted forms of the values visible on the original screenshots.
 import { describe, it, expect } from 'vitest';
 import fixtures from './fixtures/real-ocr-redacted.json';
-import { parseReceipt, parseReceiptMulti, detectSourceFromText, isUnconfirmedTransaction, amountFormattingSignal } from '../services/receiptParser';
+import { parseReceipt, parseReceiptMulti, detectSourceFromText, isUnconfirmedTransaction, amountFormattingSignal } from '../receipt-check/reading/receiptParser';
 
 type Fx = { filename: string; passes: string[] };
 const fx = fixtures as Record<string, Fx>;

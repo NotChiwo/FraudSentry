@@ -1,11 +1,12 @@
+// Entry point: loads the styles and mounts the app.
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "./index.css";
-import "./theme.css";
-import "./scanner.css";
-import "./pages.css";
-import "./camera.css";
-import "./kb.css";
+import "./styles/base.css";
+import "./styles/theme.css";
+import "./styles/receipt-check.css";
+import "./styles/pages.css";
+import "./styles/camera.css";
+import "./styles/knowledge-base.css";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(

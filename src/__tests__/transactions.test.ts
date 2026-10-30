@@ -2,10 +2,10 @@
 // receipt, and the real outcome (did the money arrive?) — which also
 // becomes the receipt's training label.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { checkTransaction, toExtracted, type TransactionInput } from '../engine/transactionCheck';
-import { transactionTypeOf } from '../services/receiptParser';
-import { useAppStore } from '../store/useAppStore';
-import type { ImageScanResult } from '../types';
+import { checkTransaction, toExtracted, type TransactionInput } from '../transactions/transactionCheck';
+import { transactionTypeOf } from '../receipt-check/reading/receiptParser';
+import { useAppStore } from '../shared/store';
+import type { ImageScanResult } from '../shared/types';
 
 const NOW = new Date('2026-10-20T08:00:00Z');
 const base: TransactionInput = {
@@ -34,12 +34,6 @@ describe('checking typed details', () => {
     const t = checkTransaction({ ...base, amount: 15000 }, hist, NOW);
     expect(t.findings.find(f => f.id === 'history')).toMatchObject({ passed: false, severity: 'critical' });
     expect(t.classification).toBe('fraudulent');
-  });
-  it('BPI: a confirmation number that does not encode the stated time', () => {
-    const bpi = { ...base, institution: 'BPI' as const, type: 'Bank Transfer' as const, referenceNo: '1814193089365', date: '2027-06-28', time: '22:31' };
-    expect(checkTransaction(bpi, [], new Date('2027-07-01T00:00:00Z')).findings.find(f => f.id === 'conf-time')?.passed).toBe(true);
-    const wrong = checkTransaction({ ...bpi, time: '09:00' }, [], new Date('2027-07-01T00:00:00Z'));
-    expect(wrong.findings.find(f => f.id === 'conf-time')?.passed).toBe(false);
   });
 });
 

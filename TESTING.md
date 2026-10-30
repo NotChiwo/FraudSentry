@@ -30,11 +30,11 @@ The no-fee reconciliation (V8.3) raised no alarm on any of the 13 real-OCR fixtu
 | `forensics.test.ts` | 10 | V8.3: editor signatures in PNG `tEXt`/`zTXt`/`iTXt` and WebP XMP, PNG `eXIf`, screenshot tags not mistaken for editors, `image/jpg`/`image/pjpeg` aliases, the shared metadata-consistency feature |
 | `hiddenFields.test.ts` | 13 | V8.4 hidden-detail detection: a clean receipt drawn in code (UI tints, pills, icon chips, green card) has no hidden areas; a reference pixelated with 6/10/14 px tiles and a pixelated name are found; black and ink-coloured cover boxes are found; the OCR of a **real** pixelated GCash receipt (name replaced) is judged "reference hidden" and its junk is no longer a name; no false alarm on any of the 13 real-OCR fixtures; region-on-reference and region-on-mobile-number mapping |
 | `trainingData.test.ts` | 11 | V8.5 real-data training: a labelled scan becomes a numbers-only row (the exact scored vector; older scans rebuilt); readiness (≥20 rows, ≥5 per class); the exported CSV header is the evidence schema; training is deterministic (sync and background give the same forest); reopening the app rebuilds exactly the connected model and scans wait for it; too few rows never replace the model; store label / relabel / unlabel / clear |
-| `bpiReceipts.test.ts` | 16 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; confirmation number ↔ time and weekday ↔ date are consistent on both genuine receipts, and an edited date, time or confirmation number is caught; the blurred copy's reference reads as hidden; privacy-notice versioning |
+| `bpiReceipts.test.ts` | 12 | V8.6, **real BPI OCR** (redacted: name letters substituted, account digits changed, date and confirmation number shifted together by 52 weeks): Confirmation No., "Transfer to" nickname / masked name / account, amounts, dates; weekday ↔ date is consistent on the genuine receipts; a third genuine receipt (Sep 2026) whose confirmation number is *not* its transfer time is read cleanly (the timing rule was removed in V10.2); the blurred copy's reference reads as hidden; privacy-notice versioning |
 | `inkConsistency.test.ts` | 5 | V8.6 repaint hint on receipts drawn in code: one ink → consistent; amount line in a bluer ink → reported; a recurring design tint → not reported; non-amount lines never judged; too few words → unknown |
 | `fraudReports.test.ts` | 7 | V9.2: period-only counts by kind, classification, risk and outcome; classification vs confirmed outcome (TP / FP / TN / FN, accuracy, precision, recall); breakdowns by app, type, warning sign, model, alerts; plain-language description (and "no checks"); summary vs detailed with typed transactions and CSV; all-users report with per-user counts; saved reports expire after 30 days |
 | `evaluation.test.ts` | 12 | V9.1: ROC-AUC (perfect, guessing, reversed, ties, one class), ROC curve area = AUC, demo forest AUC > 0.85; McNemar exact binomial (hand-computed p), no or balanced disagreement, χ² with continuity correction; rules vs forest vs combined on the same held-out receipts with a significant improvement, rows without a rule score left out; a labelled scan keeps its rule score and floor; blend and classification threshold; model versions, names and which models can be reactivated |
-| `transactions.test.ts` | 8 | V9.1: typed details (consistent → Low; wrong-shape or missing reference; future date ≥ High; edited copy of an earlier check; BPI confirmation time); transaction type from receipt wording; "received / not received" sets a receipt's training label and pending removes it; typed-details transactions never train the model and raise an alert that is removed with them |
+| `transactions.test.ts` | 8 | V9.1: typed details (consistent → Low; wrong-shape or missing reference; future date ≥ High; edited copy of an earlier check); transaction type from receipt wording; "received / not received" sets a receipt's training label and pending removes it; typed-details transactions never train the model and raise an alert that is removed with them |
 | `alerts.test.ts` | 13 | V8.7 alerts: a High receipt gives an alert with exactly the ERD fields, unread, dated when the check ran; the message names app, amount, reference and the strongest failed checks; the alert level (Low never; Medium only when chosen; Critical only); message and cross-evidence wording; one alert per check, newest first, capped at 100; store: risky checks create alerts and clean ones don't, read / unread / mark all / delete, deleting a check (or it leaving the 40-item history) deletes its alert, a Cross-Evidence run raises one alert, saved and reopened alerts keep their status and expired ones are dropped |
 | `retention.test.ts` | 2 | V8.3: 30-day local-history expiry |
 | `uploadValidation.test.ts` | 7 | **BUG-008** (0-byte image), too-small files, unsupported types, >10 MB, renamed non-images, PNG/JPEG/WEBP signatures |
@@ -274,8 +274,8 @@ Three real BPI receipts were supplied: two genuine (2024 layout with a Fee row, 
 | 2024, genuine | High (false alarm) | **Low** | (confirmation time ✓, weekday ✓) |
 | 2026, genuine | Low | **Low** | (confirmation time ✓, weekday ✓) |
 | 2026, blurred copy | High | **High** | hidden details |
-| 2026, date edited | Low | **High** | weekday + confirmation time |
-| 2026, confirmation no. edited | Low | **High** | confirmation time |
+| 2026, date edited | Low | **High** | weekday + confirmation time (V10.2: weekday only, still High) |
+| 2026, confirmation no. edited | Low | **High** | confirmation time (**V10.2: rule removed, now Low**, see below) |
 | 2026, amount edited | Low | **Medium** | text colour hint |
 
 Text-colour hint false alarms: **0 of 43** clean / genuine images (34 synthetic incl. busy app UI as PNG and JPEG; 2 real BPI; 1 real GCash; 6 others). The thresholds were set while looking at these images, so the figures are in-sample.
@@ -329,7 +329,7 @@ Run in the built app (Chromium), starting from a V8.7 device with one saved scam
 |---|---|
 | Blurred BPI receipt | High · **Possibly fraudulent** · Bank Transfer · "Scored with RF v0 · demonstration (built-in)" |
 | Mark "Not received" | saved with time; becomes a fake-labelled training row |
-| Typed details: BPI ₱15,000, ref 1782743489365, Jun 29 2026 9:00 AM | High · Possibly fraudulent · main reason Confirmation Number Timing (the number encodes 10:31 PM) · alert raised |
+| Typed details: BPI ₱15,000, ref 1782743489365, Jun 29 2026 9:00 AM | High · Possibly fraudulent · main reason Confirmation Number Timing (the number encodes 10:31 PM) · alert raised (that rule was removed in V10.2) |
 | Transactions page | 2 transactions, 1 not confirmed, 1 not received; survives sign-out and reload |
 | Train on 61 labelled receipts | registered as "RF v1 · labelled receipts (61 rows)", ROC-AUC and ROC curve shown, now used by scans |
 | Rules vs forest vs combined (seeded synthetic labels) | McNemar exact p = 0.031 → H₀ rejected (the test data was made to differ; this checks the mechanics, not a finding) |
@@ -385,6 +385,23 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Android emulator (Apps workflow, tag `v10.1.0`, run 39514746001) | the page loads inside the app and opens on Home |
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
+
+## 3k. The confirmation-number timing rule was wrong (V10.2)
+
+A genuine BPI receipt (Sep 2 2026, confirmation no. 1624503955753) was rated High because that number decodes to Jun 24 2021. The V8.6 rule ("a BPI confirmation number is the transfer time") had been built from two receipts only. It was removed.
+
+Re-scan in the built app:
+
+| Receipt | V10.1.2 | V10.2 |
+|---|---|---|
+| Sep 2026 genuine (692 px and 1170 px) | High | **Low** |
+| 2024 / 2026 genuine | Low | Low |
+| Blurred copy | High | High |
+| Date edited | High | High |
+| Amount repainted | Medium | Medium |
+| Confirmation no. edited | High | Low |
+
+**Lesson for the defense:** every rule tuned on a handful of receipts must be checked on a larger set of genuine receipts before it is trusted. See "Pending" below.
 
 ## 4. Static checks
 - `npm run typecheck` → 0 errors.

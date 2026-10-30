@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ENTRIES } from '../data/scamKnowledge';
-import { analyzeMessageText } from '../engine/messageAnalysis';
-import type { ScamType } from '../types';
+import { ENTRIES } from '../knowledge-base/scamKnowledge';
+import { analyzeMessageText } from '../message-check/messageAnalysis';
+import type { ScamType } from '../shared/types';
 
 // The Knowledge Base must never document a scam the analyzer can't recognise.
 const EXPECTED: Record<string, ScamType> = {

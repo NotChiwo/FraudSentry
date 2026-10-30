@@ -1,7 +1,7 @@
 // Field highlights: mapping extracted values back to positioned OCR words.
 import { describe, it, expect } from 'vitest';
-import { locateFields } from '../services/fieldLocator';
-import type { ExtractedTransactionData, OcrWord } from '../types';
+import { locateFields } from '../receipt-check/reading/fieldLocator';
+import type { ExtractedTransactionData, OcrWord } from '../shared/types';
 
 const w = (text: string, x0: number, y0: number, x1: number, y1: number): OcrWord => ({ text, x0, y0, x1, y1 });
 const base: ExtractedTransactionData = {
