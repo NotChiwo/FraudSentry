@@ -1,5 +1,26 @@
 # Changelog
 
+## V10.2.0 — 2026-10-30
+
+### Genuine BPI receipts no longer flagged by the "confirmation number timing" rule
+- **The bug:** a genuine BPI transfer (Sep 2 2026, PHP 12,000) was rated **High / possibly fraudulent**. The only failed check was "Confirmation Number Timing".
+- **Why:** the V8.6 rule assumed a BPI confirmation number is the transfer time in milliseconds. That held on the two receipts it was built from, but this one (1624503955753 decodes to Jun 24 2021) shows it does not hold for BPI receipts in general.
+- **The fix:** the rule is removed from receipt checks and from typed-details checks. The weekday ↔ date check stays, because it rests on how the app prints the date, not on a guess about the number.
+- **What it costs:** a receipt where *only* the confirmation number was edited is no longer caught by this rule. That catch was never reliable.
+- **Re-scanned in the built app:**
+
+  | Receipt | Result |
+  |---|---|
+  | New BPI receipt (692 and 1170 px) | Low |
+  | Genuine 2024 and 2026 BPI receipts | Low |
+  | Blurred copy | High |
+  | Date edited | High (weekday) |
+  | Amount repainted | Medium |
+  | Confirmation number edited | Low (see above) |
+- **Regression test:** the new receipt's OCR (redacted) is now a test fixture: every field must be read and the weekday must be consistent.
+
+Tests: 296 → **290**: the timing-rule tests were removed, and the new receipt test was added.
+
 ## V10.1.2 — 2026-10-22
 
 ### Genuine GCash receipts no longer flagged as "blurred or pixelated"

@@ -13,7 +13,7 @@ function receipt(id: string, riskLevel: RiskLevel, scannedAt = NOW): ImageScanRe
   return {
     id, riskLevel, scannedAt, source: 'BPI', riskScore: 0.6,
     extracted: { amount: 15000, referenceNo: '1814193089365' },
-    findings: [finding('Reference Present', 'low', 0.1, true), finding('Weekday Matches Date', 'high', 0.45), finding('Confirmation Number Timing', 'high', 0.5), finding('Minor note', 'medium', 0.2)],
+    findings: [finding('Reference Present', 'low', 0.1, true), finding('Weekday Matches Date', 'high', 0.45), finding('Amount Formatting', 'high', 0.5), finding('Minor note', 'medium', 0.2)],
   } as unknown as ImageScanResult;
 }
 function message(id: string, threatLevel: RiskLevel): MessageScanResult {
@@ -34,7 +34,7 @@ describe('generating an alert', () => {
   });
   it('the message names the receipt and its strongest failed checks, then what to do', () => {
     const m = alertForReceipt(receipt('scan-1', 'critical'))!.message;
-    expect(m).toMatch(/^BPI receipt for ₱15,000\.00 \(ref 1814193089365\)\. Main reasons: Confirmation Number Timing; Weekday Matches Date\. Do not release/);
+    expect(m).toMatch(/^BPI receipt for ₱15,000\.00 \(ref 1814193089365\)\. Main reasons: Amount Formatting; Weekday Matches Date\. Do not release/);
     expect(m).not.toMatch(/Reference Present|Minor note/);
   });
   it('follows the alert level: Low never, Medium only when asked, Critical-only skips High', () => {

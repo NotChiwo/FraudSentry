@@ -5,7 +5,6 @@
 // 1016642566968, ₱1,500 via GCash". These details can still be checked:
 //   • is there a reference number, and does it have this app's format?
 //   • is the date real and not in the future?
-//   • BPI: does the confirmation number encode the stated time?
 //   • was this reference already used in an earlier check — with another
 //     amount (an edited copy) or the same one (a reused receipt)?
 // With no image, image forensics and the Random Forest (which scores image
@@ -15,7 +14,7 @@
 import type { EvidenceSource, ExtractedTransactionData, RiskLevel, VerificationFinding, Classification, TransactionStatus } from '../types';
 import type { TransactionType } from '../services/receiptParser';
 import { REF_FORMATS } from '../services/fieldValidation';
-import { checkReceiptDate, checkConfirmationTime } from '../services/consistencyChecks';
+import { checkReceiptDate } from '../services/consistencyChecks';
 import { matchAgainstHistory, type PriorScan } from '../services/historyMatch';
 import { clamp, scoreToRiskLevel, classificationOf, generateId, formatPHP } from '../utils/helpers';
 
@@ -82,10 +81,6 @@ export function checkTransaction(input: TransactionInput, history: PriorScan[], 
   else if (date.status === 'unknown') findings.push(f('date', 'Date and Time', 'No date was given. Ask when the transfer was made, then find it in your own account by that date.', 'low', false, 0.05));
   else findings.push(f('date', 'Date and Time', 'The date is a real date and not in the future.', 'low', true, 0));
 
-  // BPI: the confirmation number is the transfer time
-  const conf = checkConfirmationTime(input.institution, ref, input.date, time12);
-  if (conf.status === 'mismatch') { findings.push(f('conf-time', 'Confirmation Number Timing', conf.detail.replace('but the receipt shows', 'but the stated time is').replace('On a genuine receipt', 'On a genuine transfer'), 'high', false, 0.5)); floor = Math.max(floor, 0.45); }
-  else if (conf.status === 'consistent') findings.push(f('conf-time', 'Confirmation Number Timing', conf.detail.replace('on the receipt', 'you entered'), 'low', true, 0));
 
   // earlier checks on this device
   const hist = matchAgainstHistory(toExtracted({ ...input, referenceNo: ref }), history);

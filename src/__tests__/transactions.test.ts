@@ -35,12 +35,6 @@ describe('checking typed details', () => {
     expect(t.findings.find(f => f.id === 'history')).toMatchObject({ passed: false, severity: 'critical' });
     expect(t.classification).toBe('fraudulent');
   });
-  it('BPI: a confirmation number that does not encode the stated time', () => {
-    const bpi = { ...base, institution: 'BPI' as const, type: 'Bank Transfer' as const, referenceNo: '1814193089365', date: '2027-06-28', time: '22:31' };
-    expect(checkTransaction(bpi, [], new Date('2027-07-01T00:00:00Z')).findings.find(f => f.id === 'conf-time')?.passed).toBe(true);
-    const wrong = checkTransaction({ ...bpi, time: '09:00' }, [], new Date('2027-07-01T00:00:00Z'));
-    expect(wrong.findings.find(f => f.id === 'conf-time')?.passed).toBe(false);
-  });
 });
 
 describe('transaction type of a receipt', () => {
