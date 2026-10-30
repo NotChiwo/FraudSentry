@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { RandomForest, trainTestSplit, computeMetrics } from '../engine/randomForest';
-import { generateDemoDataset, FEATURE_SPECS, isEvidenceSchema, buildFeatureVector } from '../services/sampleDataset';
-import { setSharedModel, scoreWithSharedModel, getSharedModelMeta, resetSharedModelForTests, warmUpSharedModel } from '../engine/sharedModel';
-import type { ForensicReport, OcrResult, ExtractedTransactionData } from '../types';
+import { RandomForest, trainTestSplit, computeMetrics } from '../random-forest/randomForest';
+import { generateDemoDataset, FEATURE_SPECS, isEvidenceSchema, buildFeatureVector } from '../random-forest/sampleDataset';
+import { setSharedModel, scoreWithSharedModel, getSharedModelMeta, resetSharedModelForTests, warmUpSharedModel } from '../random-forest/sharedModel';
+import type { ForensicReport, OcrResult, ExtractedTransactionData } from '../shared/types';
 
 describe('Random Forest (from scratch)', () => {
   it('background training (fitAsync) builds exactly the same forest as fit()', async () => {

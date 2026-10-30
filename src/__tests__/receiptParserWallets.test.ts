@@ -4,7 +4,7 @@
 // through the same 0- and 9-preserving digit permutation the fixtures use.
 import { describe, it, expect } from 'vitest';
 import fixtures from './fixtures/real-ocr-redacted-2.json';
-import { parseReceiptMulti, detectSourceFromText } from '../services/receiptParser';
+import { parseReceiptMulti, detectSourceFromText } from '../receipt-check/reading/receiptParser';
 
 type Fx = { filename: string; passes: string[] };
 const fx = fixtures as Record<string, Fx>;

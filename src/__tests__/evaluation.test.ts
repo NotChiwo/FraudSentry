@@ -1,13 +1,13 @@
 // V9.1 evaluation: ROC-AUC, McNemar's test, the rules-vs-forest comparison
 // on labelled receipts, and the model registry.
 import { describe, it, expect } from 'vitest';
-import { rocAuc, rocCurve, mcnemar } from '../engine/evaluation';
-import { compareApproaches, rowFromScan, evaluateForest, type TrainingRow } from '../services/trainingData';
-import { canReactivate, defaultModelName, nextVersion, withModel, type ModelRecord } from '../services/modelRegistry';
-import { generateDemoDataset } from '../services/sampleDataset';
-import { RandomForest, trainTestSplit } from '../engine/randomForest';
-import { blendScore, classificationOf } from '../utils/helpers';
-import type { ImageScanResult } from '../types';
+import { rocAuc, rocCurve, mcnemar } from '../random-forest/evaluation';
+import { compareApproaches, rowFromScan, evaluateForest, type TrainingRow } from '../random-forest/trainingData';
+import { canReactivate, defaultModelName, nextVersion, withModel, type ModelRecord } from '../random-forest/modelRegistry';
+import { generateDemoDataset } from '../random-forest/sampleDataset';
+import { RandomForest, trainTestSplit } from '../random-forest/randomForest';
+import { blendScore, classificationOf } from '../shared/helpers';
+import type { ImageScanResult } from '../shared/types';
 
 describe('ROC', () => {
   it('AUC: perfect, guessing, reversed, ties count half, one class only', () => {

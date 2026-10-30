@@ -1,9 +1,9 @@
 // Alerts (thesis §9.5.1): risky checks generate an ALERT record (ERD fields),
 // with read/unread status and a history that follows the checks it belongs to.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { alertForReceipt, alertForMessage, alertForCross, withAlert, unreadCount, MAX_ALERTS, type FraudAlert } from '../services/alerts';
-import { useAppStore, HISTORY_RETENTION_DAYS, userDataToSave, userDataFromSaved, type UserData } from '../store/useAppStore';
-import type { ImageScanResult, MessageScanResult, CrossEvidenceResult, RiskLevel, VerificationFinding } from '../types';
+import { alertForReceipt, alertForMessage, alertForCross, withAlert, unreadCount, MAX_ALERTS, type FraudAlert } from '../alerts/alerts';
+import { useAppStore, HISTORY_RETENTION_DAYS, userDataToSave, userDataFromSaved, type UserData } from '../shared/store';
+import type { ImageScanResult, MessageScanResult, CrossEvidenceResult, RiskLevel, VerificationFinding } from '../shared/types';
 
 const NOW = '2026-10-20T08:00:00.000Z';
 const finding = (label: string, severity: RiskLevel, weight: number, passed = false): VerificationFinding =>

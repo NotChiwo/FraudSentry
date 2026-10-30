@@ -1,6 +1,6 @@
 // Live-camera frame quality measures (synthetic frames with known properties).
 import { describe, it, expect } from 'vitest';
-import { frameStats, frameHint, toGray } from '../services/frameQuality';
+import { frameStats, frameHint, toGray } from '../receipt-check/checks/frameQuality';
 
 const W = 160, H = 120;
 const frame = (f: (x: number, y: number) => number) => {

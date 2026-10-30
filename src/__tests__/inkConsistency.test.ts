@@ -1,8 +1,8 @@
 // Ink-colour consistency: a retyped amount line printed in a slightly different
 // tint is reported; genuine text, and design colours that recur, are not.
 import { describe, it, expect } from 'vitest';
-import { checkInkConsistency } from '../services/inkConsistency';
-import type { OcrWord } from '../types';
+import { checkInkConsistency } from '../receipt-check/checks/inkConsistency';
+import type { OcrWord } from '../shared/types';
 
 type RGB = [number, number, number];
 const W = 700, H = 900;

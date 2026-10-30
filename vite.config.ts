@@ -31,7 +31,7 @@ function ocrOfflineAssets(enabled: boolean): Plugin {
       if (id !== "\0" + OCR_ID) return null;
       if (!enabled) return 'export const available = false, tesseractJs = "", workerJs = "", coreSimdLstmJs = "", engGzBase64 = "", filGzBase64 = "";';
       // embed only the exact pinned engine: its hash must equal TESSERACT_SRI in ocr.ts
-      const want = fs.readFileSync(path.resolve(__dirname, "src/services/ocr.ts"), "utf8").match(/TESSERACT_SRI = '(sha384-[^']+)'/)?.[1];
+      const want = fs.readFileSync(path.resolve(__dirname, "src/receipt-check/ocr/ocr.ts"), "utf8").match(/TESSERACT_SRI = '(sha384-[^']+)'/)?.[1];
       const got = "sha384-" + crypto.createHash("sha384").update(fs.readFileSync(nm("tesseract.js/dist/tesseract.min.js"))).digest("base64");
       if (want !== got) throw new Error(`node_modules/tesseract.js is not the pinned engine (${got} ≠ TESSERACT_SRI ${want})`);
       return [

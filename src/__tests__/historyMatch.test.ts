@@ -1,9 +1,9 @@
 // Comparing a receipt with earlier scans: reused receipt vs edited copy.
 import { describe, it, expect } from 'vitest';
 import fixtures from './fixtures/real-ocr-redacted.json';
-import { parseReceiptMulti } from '../services/receiptParser';
-import { matchAgainstHistory, sameReference, PriorScan } from '../services/historyMatch';
-import { ExtractedTransactionData } from '../types';
+import { parseReceiptMulti } from '../receipt-check/reading/receiptParser';
+import { matchAgainstHistory, sameReference, PriorScan } from '../receipt-check/checks/historyMatch';
+import { ExtractedTransactionData } from '../shared/types';
 
 type Fx = { filename: string; passes: string[] };
 const fx = fixtures as Record<string, Fx>;

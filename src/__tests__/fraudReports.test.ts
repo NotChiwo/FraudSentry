@@ -1,10 +1,10 @@
 // V9.2 reports: period statistics, classification vs confirmed outcome,
 // breakdowns, the plain-language description and CSV.
 import { describe, it, expect } from 'vitest';
-import { buildReport, reportStats, reportToCsv, describeReport, reportsWithinRetention } from '../services/fraudReports';
-import { EMPTY_USER_DATA, userDataToSave, type UserData } from '../store/useAppStore';
-import { checkTransaction } from '../engine/transactionCheck';
-import type { ImageScanResult, RiskLevel, TransactionStatus, MessageScanResult } from '../types';
+import { buildReport, reportStats, reportToCsv, describeReport, reportsWithinRetention } from '../reports/fraudReports';
+import { EMPTY_USER_DATA, userDataToSave, type UserData } from '../shared/store';
+import { checkTransaction } from '../transactions/transactionCheck';
+import type { ImageScanResult, RiskLevel, TransactionStatus, MessageScanResult } from '../shared/types';
 
 const receipt = (id: string, day: string, risk: RiskLevel, status: TransactionStatus, source = 'GCash', amount = 1000, reasons: string[] = []): ImageScanResult => ({
   id, scannedAt: `2026-10-${day}T03:00:00.000Z`, riskLevel: risk, source, transactionType: 'Send Money', txStatus: status,

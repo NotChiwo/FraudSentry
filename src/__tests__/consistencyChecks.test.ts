@@ -3,8 +3,8 @@
 // those same fixtures with one figure changed, as a faker would do.
 import { describe, it, expect } from 'vitest';
 import fixtures from './fixtures/real-ocr-redacted.json';
-import { parseReceiptMulti, parseReceipt } from '../services/receiptParser';
-import { reconcileAmounts, readFeeAndTotal, correctPrincipal, checkReceiptDate, parseReceiptDate } from '../services/consistencyChecks';
+import { parseReceiptMulti, parseReceipt } from '../receipt-check/reading/receiptParser';
+import { reconcileAmounts, readFeeAndTotal, correctPrincipal, checkReceiptDate, parseReceiptDate } from '../receipt-check/checks/consistencyChecks';
 
 type Fx = { filename: string; passes: string[] };
 const fx = fixtures as Record<string, Fx>;

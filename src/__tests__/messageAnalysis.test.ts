@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { analyzeMessageText, correlateEvidence, assessLinkage } from '../engine/messageAnalysis';
-import type { ImageScanResult, ExtractedTransactionData, RiskLevel } from '../types';
+import { analyzeMessageText, correlateEvidence, assessLinkage } from '../message-check/messageAnalysis';
+import type { ImageScanResult, ExtractedTransactionData, RiskLevel } from '../shared/types';
 
 describe('PH scam patterns', () => {
   it('parcel / customs-fee scam', () => {

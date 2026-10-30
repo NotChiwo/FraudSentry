@@ -2,10 +2,10 @@
 // a genuine one from an edited one.
 import { describe, it, expect } from 'vitest';
 import fixtures from './fixtures/real-ocr-redacted-bpi.json';
-import { parseReceiptMulti, detectSourceFromText } from '../services/receiptParser';
-import { checkWeekday } from '../services/consistencyChecks';
-import { referenceLooksHidden } from '../services/hiddenFields';
-import { acceptedCurrentNotice, CONSENT_VERSION } from '../store/useAppStore';
+import { parseReceiptMulti, detectSourceFromText } from '../receipt-check/reading/receiptParser';
+import { checkWeekday } from '../receipt-check/checks/consistencyChecks';
+import { referenceLooksHidden } from '../receipt-check/checks/hiddenFields';
+import { acceptedCurrentNotice, CONSENT_VERSION } from '../shared/store';
 
 type Fx = { filename: string; passes: string[] };
 const fx = fixtures as Record<string, Fx>;

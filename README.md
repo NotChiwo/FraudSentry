@@ -8,22 +8,25 @@ FraudSentry lets Filipino users check whether a GCash / Maya / GoTyme / MariBank
 
 ## Modules
 
-| Module | Page | Engine |
-|---|---|---|
-| **Check Receipt** — upload a receipt → OCR → field parsing → image forensics → risk score | `src/pages/ScannerPage.tsx` | `src/services/ocr.ts`, `receiptParser.ts`, `imageForensics.ts`, `fieldValidation.ts`, `src/engine/imageVerification.ts` |
-| **Check Message** — PH scam-language & phishing-link detection | `src/pages/MessageAnalyzerPage.tsx` | `src/engine/messageAnalysis.ts` |
-| **Cross-Evidence** — is this receipt really about this conversation? | `src/pages/CrossEvidencePage.tsx` | `correlateEvidence()` in `messageAnalysis.ts` |
-| **Transactions** — every payment checked (receipt or typed details), transaction type, outcome (received / not received, which is also the training label), filters, CSV | `src/pages/TransactionsPage.tsx` | `src/engine/transactionCheck.ts`, `transactionTypeOf()` in `receiptParser.ts` |
-| **Reports** — summary / detailed reports for a period, classification vs confirmed outcome, breakdowns, saved, PDF / CSV | `src/pages/FraudReportsPage.tsx` | `src/services/fraudReports.ts`, `generateFraudReportPdf()` in `reportGenerator.ts` |
-| **Alerts** — an alert for every High / Critical check (level adjustable), unread / read, alert history; fields follow the ERD's ALERT table | `src/pages/AlertsPage.tsx`, `src/components/alerts/AlertToast.tsx` | `src/services/alerts.ts`, stored by `src/store/useAppStore.ts` |
-| **Detection Model** — train / evaluate the Random Forest live; model registry, ROC-AUC, rules-vs-forest McNemar test | `src/pages/ModelPage.tsx` | `src/engine/randomForest.ts` (from scratch), `src/engine/sharedModel.ts` |
+The source in `src/` has one folder per module. See **[CODE-GUIDE.md](CODE-GUIDE.md)** for what each file does and what to show when explaining it.
+
+| Module | Folder | Page | Main logic |
+|---|---|---|---|
+| **Receipt Check**: upload a receipt → OCR → field reading → image checks → risk score | `src/receipt-check/` | `ReceiptCheckPage.tsx` | `verifyReceipt.ts`, `ocr/`, `reading/`, `checks/` |
+| **Message Check**: PH scam-language & phishing-link detection | `src/message-check/` | `MessageCheckPage.tsx` | `messageAnalysis.ts` |
+| **Cross-Evidence**: is this receipt really about this conversation? | `src/cross-evidence/` | `CrossEvidencePage.tsx` | `correlateEvidence()` in `message-check/messageAnalysis.ts` |
+| **Random Forest**: the algorithm, training, evaluation, model registry, hypothesis test | `src/random-forest/` | `DetectionModelPage.tsx` | `randomForest.ts` (from scratch), `sharedModel.ts` |
+| **Alerts**: an alert for every High / Critical check, unread / read, history | `src/alerts/` | `AlertsPage.tsx` | `alerts.ts` |
+| **Transactions**: every payment checked and whether the money arrived | `src/transactions/` | `TransactionsPage.tsx` | `transactionCheck.ts` |
+| **Reports**: summary / detailed reports for a period, PDF / CSV | `src/reports/` | `ReportsPage.tsx` | `fraudReports.ts`, `pdfReports.ts` |
+| History, Knowledge Base, Home / About / Privacy | `src/history/`, `src/knowledge-base/`, `src/app/` | | |
 
 ### How a receipt is scored
 Two scorers look at the **same evidence** and are blended **50 / 50**:
 
 1. **Rule-based findings** — each failed check (ELA hotspots, missing recipient, edited-amount formatting, unsent "Confirm transaction" screen, …) has a named weight.
-   Internal-consistency checks (`src/services/consistencyChecks.ts`) look for an edited figure: amount + fee must equal the total, and the receipt cannot be dated in the future. `src/services/historyMatch.ts` compares the receipt with earlier scans on this device (same reference with a different amount means an edited copy).
-2. **Random Forest** — the evidence becomes a 10-feature vector (`buildFeatureVector` in `src/services/sampleDataset.ts`) and is voted on by the shared forest (`src/engine/sharedModel.ts`).
+   Internal-consistency checks (`src/receipt-check/checks/consistencyChecks.ts`) look for an edited figure: amount + fee must equal the total, and the receipt cannot be dated in the future. `src/receipt-check/checks/historyMatch.ts` compares the receipt with earlier scans on this device (same reference with a different amount means an edited copy).
+2. **Random Forest** — the evidence becomes a 10-feature vector (`buildFeatureVector` in `src/random-forest/sampleDataset.ts`) and is voted on by the shared forest (`src/random-forest/sharedModel.ts`).
 
 Retraining on the Detection Model page replaces the forest used by every future scan — **but only if the training data uses the same 10 evidence features** (header: `ela_hotspot,has_exif,editor_trace,ocr_confidence,ref_present,ref_valid,institution_known,amount_present,failed_signals,metadata_consistency,label`). A model trained on unrelated columns (e.g. the PaySim dataset) is evaluated on the Model page but never wired into scans, because feeding receipt evidence into it would produce a meaningless number.
 
@@ -99,7 +102,7 @@ npm run icons            # re-render the launcher / splash / desktop icons from 
 ```
 
 ### Tesseract (the only runtime dependency loaded from the network in the normal build)
-`src/services/ocr.ts` loads `tesseract.js@5.1.1` from jsDelivr with a pinned **Subresource Integrity** hash (`TESSERACT_SRI`). If the version or URL ever changes, recompute it from the real package:
+`src/receipt-check/ocr/ocr.ts` loads `tesseract.js@5.1.1` from jsDelivr with a pinned **Subresource Integrity** hash (`TESSERACT_SRI`). If the version or URL ever changes, recompute it from the real package:
 ```bash
 npm pack tesseract.js@<version> && tar xzf tesseract.js-<version>.tgz
 openssl dgst -sha384 -binary package/dist/tesseract.min.js | openssl base64 -A

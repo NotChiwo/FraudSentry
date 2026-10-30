@@ -6,9 +6,9 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { findObscuredRegions } from '../services/obscuredRegions';
-import { assessHiddenFields, referenceLooksHidden } from '../services/hiddenFields';
-import { parseReceiptMulti } from '../services/receiptParser';
+import { findObscuredRegions } from '../receipt-check/checks/obscuredRegions';
+import { assessHiddenFields, referenceLooksHidden } from '../receipt-check/checks/hiddenFields';
+import { parseReceiptMulti } from '../receipt-check/reading/receiptParser';
 
 // ---- a tiny raster canvas -------------------------------------------------
 type RGB = [number, number, number];

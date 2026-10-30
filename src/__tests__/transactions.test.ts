@@ -2,10 +2,10 @@
 // receipt, and the real outcome (did the money arrive?) — which also
 // becomes the receipt's training label.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { checkTransaction, toExtracted, type TransactionInput } from '../engine/transactionCheck';
-import { transactionTypeOf } from '../services/receiptParser';
-import { useAppStore } from '../store/useAppStore';
-import type { ImageScanResult } from '../types';
+import { checkTransaction, toExtracted, type TransactionInput } from '../transactions/transactionCheck';
+import { transactionTypeOf } from '../receipt-check/reading/receiptParser';
+import { useAppStore } from '../shared/store';
+import type { ImageScanResult } from '../shared/types';
 
 const NOW = new Date('2026-10-20T08:00:00Z');
 const base: TransactionInput = {

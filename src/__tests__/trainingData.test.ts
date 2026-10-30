@@ -4,11 +4,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   rowFromScan, featuresOf, readiness, counts, datasetFromRows, rowsToCsv, trainOnRows, restoreLabelledModel,
   type TrainingRow,
-} from '../services/trainingData';
-import { FEATURE_SPECS, generateDemoDataset, isEvidenceSchema } from '../services/sampleDataset';
-import { scoreWithSharedModel, getSharedModelMeta, resetSharedModelForTests, warmUpSharedModel } from '../engine/sharedModel';
-import { useAppStore } from '../store/useAppStore';
-import type { ImageScanResult } from '../types';
+} from '../random-forest/trainingData';
+import { FEATURE_SPECS, generateDemoDataset, isEvidenceSchema } from '../random-forest/sampleDataset';
+import { scoreWithSharedModel, getSharedModelMeta, resetSharedModelForTests, warmUpSharedModel } from '../random-forest/sharedModel';
+import { useAppStore } from '../shared/store';
+import type { ImageScanResult } from '../shared/types';
 
 // rows that look like real evidence: the demo generator's rows, labelled
 const demo = generateDemoDataset(60, 11);
