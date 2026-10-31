@@ -386,6 +386,20 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3l. Blurred names vs. blurred key details (V10.2.3)
+
+The user's BPI receipt (Jun 29 2026, ₱15,000) was flagged High because a copy had its date, confirmation number and name blurred. The unedited original was Low. Scanned in the built app (Playwright, Chromium):
+
+| Image | Result |
+|---|---|
+| Original screenshot | Low, no failed checks |
+| Same, recipient name lines **blurred** | Low |
+| Same, recipient name lines **pixelated** (3 regions found) | Low; the hidden-details check passes with the privacy note |
+| Copy with date, confirmation no. and name blurred | High, "Can't be verified — key details are blurred", chip "Can't be verified" |
+| BPI Sep 2 2026 receipt | Low |
+
+Unit tests: `hiddenFields.test.ts` (privacy blur, key details blurred, key detail not read) and `evaluation.test.ts` (the label shown).
+
 ## 3k. The confirmation-number timing rule was wrong (V10.2)
 
 A genuine BPI receipt (Sep 2 2026, confirmation no. 1624503955753) was rated High because that number decodes to Jun 24 2021. The V8.6 rule ("a BPI confirmation number is the transfer time") had been built from two receipts only. It was removed.

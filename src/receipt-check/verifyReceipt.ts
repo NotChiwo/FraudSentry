@@ -122,15 +122,18 @@ export async function analyzeTransactionImage(
   // can't hide it.
   const hidden = assessHiddenFields(
     ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text || ''],
-    ocr.words, extracted.referenceNo, forensics.obscuredRegions ?? [],
+    ocr.words, extracted.referenceNo, forensics.obscuredRegions ?? [], extracted,
   );
-  const detailsHidden = hidden.regions.length > 0 || hidden.referenceUnreadable;
+  // Only names / account numbers blurred (privacy) while the reference, date and amount are readable: noted, not held against it.
+  const detailsHidden = (hidden.regions.length > 0 || hidden.referenceUnreadable) && !hidden.privacyOnly;
   // A number read through a mosaic is made up from the noise ("…0449"): don't show it.
   if (hidden.regionOnPhone && !opts?.extractedOverride) extracted = { ...extracted, receiverContact: null };
   // A time read without its date on an edited receipt is usually read from the blurred date line: don't show it.
   if (detailsHidden && !extracted.date && extracted.time && !opts?.extractedOverride) extracted = { ...extracted, time: null };
   if (detailsHidden) {
     findings.push(finding('forensic', 'Hidden or Blocked-Out Details', hidden.detail, 'high', false, 0.45));
+  } else if (hidden.privacyOnly) {
+    findings.push(finding('forensic', 'Hidden or Blocked-Out Details', hidden.detail, 'low', true, 0));
   }
 
   // ── Reference presence + format ──
@@ -320,7 +323,7 @@ function buildActionPlan(
   if (riskLevel === 'critical' || riskLevel === 'high') {
     plan.push('Do not release money, goods, or services based on this screenshot.');
     if (failedLabel('Hidden or Blocked-Out Details')) {
-      plan.push('Parts of this receipt were blocked out. Ask the sender for the full, unedited screenshot — a genuine sender has no reason to hide the reference number or name from the person they paid.');
+      plan.push('Key details of this receipt are blurred or covered. Ask the sender for the original, unedited screenshot — the reference number, date and amount are what let you check the payment.');
     }
     if (failedLabel('Unconfirmed Transaction')) {
       plan.push('This screenshot shows a payment that was never sent (a confirmation screen, before the "Send" button). Ask for the completed receipt, then check that the money actually arrived in your own account.');

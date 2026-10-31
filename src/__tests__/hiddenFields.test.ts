@@ -200,3 +200,35 @@ describe('text check: the reference label is there but its number is blocked out
     expect(h.detail).toMatch(/mobile number/);
   });
 });
+
+describe('privacy blur vs. hidden key details', () => {
+  // a BPI-like layout: date line, confirmation line, recipient name line, amount line
+  const w = (text: string, x0: number, y0: number) => ({ text, x0, y0, x1: x0 + 20 * text.length, y1: y0 + 30 });
+  const words = [
+    w('Monday,', 40, 700), w('Jun', 200, 700), w('29', 270, 700), w('2026;', 320, 700),
+    w('Confirmation', 40, 760), w('No.', 300, 760), w('1782743489365', 380, 760),
+    w('Jeth', 40, 990), w('(QR', 140, 990), w('Code)', 220, 990),
+    w('PHP', 40, 1250), w('15,000.00', 130, 1250),
+  ];
+  const extracted = { senderName: null, receiverName: null, receiverContact: null, amount: 15000, date: 'Jun 29 2026', time: '10:31:31 PM', referenceNo: '1782743489365', transactionId: null, institution: 'BPI' };
+  const region = (y: number) => ({ kind: 'pixelated' as const, x: 40, y, w: 400, h: 40, tiles: 6 });
+
+  it('only the name blurred, reference/date/amount readable: privacy, not held against it', () => {
+    const h = assessHiddenFields([''], words, extracted.referenceNo, [region(985)], extracted);
+    expect(h.keyDetailsCovered).toEqual([]);
+    expect(h.privacyOnly).toBe(true);
+    expect(h.detail).toMatch(/blurred for privacy/);
+  });
+  it('the date and confirmation number blurred: key details, cannot be verified', () => {
+    const h = assessHiddenFields([''], words, extracted.referenceNo, [region(695), region(755), region(985)], extracted);
+    expect(h.keyDetailsCovered).toEqual(['reference', 'date']);
+    expect(h.privacyOnly).toBe(false);
+    expect(h.detail).toMatch(/including the reference number and the date/);
+    expect(h.detail).toMatch(/cannot be checked/);
+  });
+  it('a key detail that was not read cannot be ruled out', () => {
+    const h = assessHiddenFields([''], words, null, [region(985)], { ...extracted, referenceNo: null });
+    expect(h.keyDetailsCovered).toBeNull();
+    expect(h.privacyOnly).toBe(false);
+  });
+});

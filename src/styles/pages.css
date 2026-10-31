@@ -178,6 +178,7 @@
 .cls-chip { font-size: 12px; font-weight: 800; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--border-default); color: var(--text-secondary); }
 .cls-chip.fraudulent { color: var(--risk-critical); border-color: color-mix(in srgb, var(--risk-critical) 40%, transparent); background: var(--risk-critical-bg); }
 .cls-chip.legitimate { color: var(--risk-low); border-color: color-mix(in srgb, var(--risk-low) 40%, transparent); }
+.cls-chip.unverifiable { color: var(--risk-medium); border-color: color-mix(in srgb, var(--risk-medium) 40%, transparent); }
 .outcome { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
 .outcome-q { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-right: 4px; }
 .outcome .tl-btn { display: inline-flex; align-items: center; gap: 5px; }

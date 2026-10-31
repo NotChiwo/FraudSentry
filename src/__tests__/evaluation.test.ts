@@ -6,7 +6,7 @@ import { compareApproaches, rowFromScan, evaluateForest, type TrainingRow } from
 import { canReactivate, defaultModelName, nextVersion, withModel, type ModelRecord } from '../random-forest/modelRegistry';
 import { generateDemoDataset } from '../random-forest/sampleDataset';
 import { RandomForest, trainTestSplit } from '../random-forest/randomForest';
-import { blendScore, classificationOf } from '../shared/helpers';
+import { blendScore, classificationOf, classificationShown } from '../shared/helpers';
 import type { ImageScanResult } from '../shared/types';
 
 describe('ROC', () => {
@@ -89,6 +89,13 @@ describe('rules alone vs forest vs combined', () => {
     expect(blendScore(0.4, 0.2)).toBeCloseTo(0.3);
     expect(blendScore(0.1, 0.1, 0.45)).toBe(0.45);
     expect([classificationOf('low'), classificationOf('medium'), classificationOf('high'), classificationOf('critical')]).toEqual(['legitimate', 'legitimate', 'fraudulent', 'fraudulent']);
+  });
+  it('flagged only for blurred key details: shown as "can’t be verified", still counted as flagged', () => {
+    const hidden = [{ id: 'f', label: 'Hidden or Blocked-Out Details', passed: false, weight: 0.45, severity: 'high' as const, detail: '', category: 'forensic' as const }];
+    expect(classificationShown({ riskLevel: 'high', classification: 'fraudulent', findings: hidden })).toEqual({ label: 'Can’t be verified', cls: 'unverifiable' });
+    expect(classificationShown({ riskLevel: 'critical', findings: hidden })).toEqual({ label: 'Possibly fraudulent', cls: 'fraudulent' });
+    expect(classificationShown({ riskLevel: 'high', findings: [{ ...hidden[0], passed: true }] }).cls).toBe('fraudulent');
+    expect(classificationShown({ riskLevel: 'low', findings: [] }).label).toBe('Legitimate');
   });
 });
 

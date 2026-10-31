@@ -17,7 +17,7 @@ import { useAppStore } from '../shared/store';
 import CameraScanner from './CameraScanner';
 import TrainingLabel from '../transactions/TrainingLabel';
 import { ImageScanResult, ExtractedTransactionData, OcrResult, OcrWord, RiskLevel, VerificationFinding } from '../shared/types';
-import { formatBytes, formatPHP, formatRelativeTime, classificationOf, CLASSIFICATION_LABEL } from '../shared/helpers';
+import { formatBytes, formatPHP, formatRelativeTime, classificationShown, cannotBeVerified } from '../shared/helpers';
 
 // Plain-language verdicts. The technical label (legitimacyLabel) still goes in the PDF report.
 export const VERDICT: Record<RiskLevel, { title: string; level: string; Icon: typeof CheckCircle2 }> = {
@@ -30,8 +30,7 @@ const LEVELS: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
 /** The verdict for this result — hidden details get their own, clearer title. */
 export function verdictFor(r: ImageScanResult) {
   const v = VERDICT[r.riskLevel];
-  const hidden = r.findings.some(f => !f.passed && f.label === 'Hidden or Blocked-Out Details');
-  return hidden && r.riskLevel !== 'critical' ? { ...v, title: 'Details are hidden — cannot be verified' } : v;
+  return cannotBeVerified(r) ? { ...v, title: 'Can’t be verified — key details are blurred' } : v;
 }
 
 type Phase = 'idle' | 'selected' | 'scanning' | 'complete';
@@ -417,7 +416,7 @@ function ResultView(props: {
             <h1 id="verdict-title" className="verdict-title">{v.title}</h1>
             <p className="verdict-reason">{oneLineReason(result)}</p>
             <p className="verdict-class">
-              <span className={`cls-chip ${result.classification ?? classificationOf(result.riskLevel)}`}>{CLASSIFICATION_LABEL[result.classification ?? classificationOf(result.riskLevel)]}</span>
+              <span className={`cls-chip ${classificationShown(result).cls}`}>{classificationShown(result).label}</span>
               {result.transactionType && result.transactionType !== 'Other' && <span className="muted small">{result.transactionType}</span>}
               {result.forestAnalysis?.modelName && <span className="muted small">Scored with {result.forestAnalysis.modelName}</span>}
             </p>

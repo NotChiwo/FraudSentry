@@ -14,7 +14,7 @@
 // ============================================================
 import type { RiskLevel, ImageScanResult, MessageScanResult, CrossEvidenceResult } from '../shared/types';
 import type { ManualTransaction } from '../transactions/transactionCheck';
-import { RISK_RANK, formatPHP } from '../shared/helpers';
+import { RISK_RANK, formatPHP, cannotBeVerified } from '../shared/helpers';
 
 export type AlertKind = 'receipt' | 'message' | 'cross' | 'transaction';
 export type AlertStatus = 'unread' | 'read';
@@ -83,7 +83,7 @@ export function alertForReceipt(scan: ImageScanResult, min: AlertLevel = DEFAULT
   ].filter(Boolean).join(' ');
   const reasons = topReasons(scan);
   const body = reasons.length ? `${what}. Main reason${reasons.length > 1 ? 's' : ''}: ${reasons.join('; ')}` : what;
-  return make('receipt', scan.id, scan.riskLevel, RECEIPT_TITLE[scan.riskLevel], body, scan.scannedAt);
+  return make('receipt', scan.id, scan.riskLevel, cannotBeVerified(scan) ? 'Receipt can’t be verified' : RECEIPT_TITLE[scan.riskLevel], body, scan.scannedAt);
 }
 
 export function alertForMessage(scan: MessageScanResult, min: AlertLevel = DEFAULT_ALERT_LEVEL): FraudAlert | null {

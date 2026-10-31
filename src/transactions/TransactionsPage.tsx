@@ -8,7 +8,7 @@ import { useAppStore } from '../shared/store';
 import { checkTransaction, toExtracted, describeTransaction, type TransactionInput, type ManualTransaction } from './transactionCheck';
 import { KNOWN_SOURCES, TRANSACTION_TYPES, type TransactionType } from '../receipt-check/reading/receiptParser';
 import type { PriorScan } from '../receipt-check/checks/historyMatch';
-import { formatDateTime, formatPHP, downloadBlob, classificationOf, CLASSIFICATION_LABEL } from '../shared/helpers';
+import { formatDateTime, formatPHP, downloadBlob, classificationOf, classificationShown, CLASSIFICATION_LABEL } from '../shared/helpers';
 import { phDay } from '../reports/fraudReports';
 import type { EvidenceSource, RiskLevel, TransactionStatus, Classification } from '../shared/types';
 
@@ -18,7 +18,7 @@ export const STATUS_LABEL: Record<TransactionStatus, string> = { pending: 'Not c
 interface Row {
   id: string; kind: 'receipt' | 'manual';
   when: string; source: string; type: string; amount: number | null; reference: string | null; receiver: string | null;
-  txDate: string | null; riskLevel: RiskLevel; classification: Classification; status: TransactionStatus; statusAt?: string;
+  txDate: string | null; riskLevel: RiskLevel; classification: Classification; shown: { label: string; cls: string }; status: TransactionStatus; statusAt?: string;
   manual?: ManualTransaction;
 }
 
@@ -53,13 +53,13 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
       id: s.id, kind: 'receipt' as const, when: s.scannedAt, source: s.source, type: s.transactionType ?? 'Other',
       amount: s.extracted.amount, reference: s.extracted.referenceNo, receiver: s.extracted.receiverName ?? s.extracted.receiverContact,
       txDate: [s.extracted.date, s.extracted.time].filter(Boolean).join(' ') || null,
-      riskLevel: s.riskLevel, classification: s.classification ?? classificationOf(s.riskLevel), status: s.txStatus ?? 'pending', statusAt: s.txStatusAt,
+      riskLevel: s.riskLevel, classification: s.classification ?? classificationOf(s.riskLevel), shown: classificationShown(s), status: s.txStatus ?? 'pending', statusAt: s.txStatusAt,
     })),
     ...manual.map(t => ({
       id: t.id, kind: 'manual' as const, when: t.scannedAt, source: t.input.institution, type: t.input.type,
       amount: t.input.amount, reference: t.input.referenceNo, receiver: t.input.receiverName ?? t.input.receiverContact,
       txDate: [t.input.date, t.input.time].filter(Boolean).join(' ') || null,
-      riskLevel: t.riskLevel, classification: t.classification, status: t.txStatus, statusAt: t.txStatusAt, manual: t,
+      riskLevel: t.riskLevel, classification: t.classification, shown: classificationShown(t), status: t.txStatus, statusAt: t.txStatusAt, manual: t,
     })),
   ].sort((a, b) => b.when.localeCompare(a.when)), [imageScans, manual]);
 
@@ -151,7 +151,7 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
                   <div className="hr-top">
                     <span className="hr-kind">{r.type}{r.kind === 'manual' ? ' · typed details' : ''}</span>
                     <span className={`sev-chip sev-${sev(r.riskLevel)}`}>{LEVEL[r.riskLevel]}</span>
-                    <span className={`cls-chip ${r.classification}`}>{CLASSIFICATION_LABEL[r.classification]}</span>
+                    <span className={`cls-chip ${r.shown.cls}`}>{r.shown.label}</span>
                   </div>
                   <div className="hr-title">{[r.amount != null ? formatPHP(r.amount) : 'Amount not read', r.source !== 'Unknown' ? r.source : null].filter(Boolean).join(' · ')}</div>
                   <div className="hr-meta">{[r.reference ? `Ref ${r.reference}` : 'No reference', r.receiver ? `to ${r.receiver}` : null, r.txDate].filter(Boolean).join(' · ')}</div>
@@ -280,7 +280,7 @@ function EntryForm({ onDone }: { onDone: (id: string) => void }) {
       {result && (
         <div className={`tx-result sev-${sev(result.riskLevel)}`} role="status">
           <span className={`sev-chip sev-${sev(result.riskLevel)}`}>{LEVEL[result.riskLevel]} risk</span>
-          <span className={`cls-chip ${result.classification}`}>{CLASSIFICATION_LABEL[result.classification]}</span>
+          <span className={`cls-chip ${classificationShown(result).cls}`}>{classificationShown(result).label}</span>
           <span>{result.findings.filter(f => !f.passed).length ? `Main reason: ${result.findings.filter(f => !f.passed).sort((a, b) => b.weight - a.weight)[0].label}.` : 'The details are consistent.'} Saved to the list below — mark it once you have checked your account.</span>
         </div>
       )}

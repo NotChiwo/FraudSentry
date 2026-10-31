@@ -7,7 +7,7 @@
 
 import { jsPDF } from 'jspdf';
 import { ImageScanResult, MessageScanResult } from '../shared/types';
-import { RISK_META, CLASSIFICATION_LABEL, classificationOf } from '../shared/helpers';
+import { RISK_META, classificationShown } from '../shared/helpers';
 import type { FraudReport } from './fraudReports';
 import { saveFile } from '../app/nativeApp';
 
@@ -133,7 +133,7 @@ export function generateImageReport(scan: ImageScanResult) {
     y = kv(doc, y, 'Rule-based findings score', `${Math.round((scan.heuristicScore ?? 0) * 100)}%`);
     y = kv(doc, y, 'Random Forest probability', `${Math.round(fa.probability * 100)}% (${fa.votesFraud} of ${fa.totalTrees} trees voted fraudulent)`);
     y = kv(doc, y, 'Final risk (50% + 50%)', `${Math.round(scan.riskScore * 100)}%${scan.scoreFloor && scan.riskScore <= scan.scoreFloor + 1e-9 ? ' (minimum set by a definitive finding)' : ''}`);
-    y = kv(doc, y, 'Classification', CLASSIFICATION_LABEL[scan.classification ?? classificationOf(scan.riskLevel)]);
+    y = kv(doc, y, 'Classification', classificationShown(scan).label);
     if (fa.modelName) y = kv(doc, y, 'Model', pdfSafe(fa.modelName));
     if (scan.txStatus) y = kv(doc, y, 'Payment outcome', scan.txStatus === 'received' ? 'money received (confirmed by the user)' : scan.txStatus === 'not-received' ? 'NOT received (confirmed by the user)' : 'not confirmed yet');
     y = kv(doc, y, 'Forest training data', fa.datasetSource === 'demo' ? 'seeded demonstration dataset (not real collected evidence)' : fa.datasetSource === 'labelled' ? 'your labelled scans (real evidence)' : 'uploaded labelled evidence dataset');
