@@ -1,5 +1,11 @@
 # Changelog
 
+## V10.2.1 — 2026-10-31
+
+### Friendlier reminder on the receipt result
+- **Low risk** now reads "No signs of editing were found on this receipt." and shows a calm *Quick tip* (grey box): before handing anything over, open your app and check that the amount (and reference) has arrived. The old "This is not a payment confirmation… A screenshot alone can never prove that." wording is gone.
+- **Medium** says *Please double-check*; **High / Critical** says *Hold on before releasing anything*, in the same highlighted box as before.
+
 ## V10.2.0 — 2026-10-30
 
 ### Source code organised by module (no change to how the app works)

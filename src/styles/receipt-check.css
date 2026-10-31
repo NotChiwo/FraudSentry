@@ -108,6 +108,8 @@
 .verify-banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; font-size: 15px; line-height: 1.55; color: var(--text-primary);
   background: var(--bg-card); border: 1.5px solid var(--border-accent); }
 .verify-banner > svg { flex-shrink: 0; margin-top: 2px; color: var(--accent-light); }
+.verify-banner.vb-low { font-size: 14px; color: var(--text-secondary); border: 1px solid var(--border-default); background: var(--bg-input); }
+.verify-banner.vb-low b:first-child { color: var(--text-primary); }
 .verdict-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
 @media (max-width: 600px) { .verdict { padding: 18px; } .verdict-title { font-size: 22px; } .verdict-badge { width: 50px; height: 50px; } .verdict-actions > * { flex: 1 1 100%; } }
 

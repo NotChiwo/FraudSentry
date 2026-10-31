@@ -371,10 +371,18 @@ function topFailures(r: ImageScanResult): VerificationFinding[] {
 }
 function oneLineReason(r: ImageScanResult): string {
   const top = topFailures(r)[0];
-  if (!top) return 'None of our checks found a problem. That doesn’t prove the receipt is genuine — only your own app can confirm the money arrived.';
-  if (r.riskLevel === 'low') return `None of our checks found a serious problem (minor note: ${top.label.toLowerCase()}). That doesn’t prove the receipt is genuine.`;
+  if (!top) return 'No signs of editing were found on this receipt.';
+  if (r.riskLevel === 'low') return `No serious signs of editing were found (minor note: ${top.label.toLowerCase()}).`;
   return `${top.label}: ${firstSentence(top.detail)}`;
 }
+
+/** Lead-in of the "check your own app" reminder: a friendly tip when nothing was found, firmer as the risk rises. */
+const VERIFY_LEAD: Record<RiskLevel, string> = {
+  low: 'Quick tip:',
+  medium: 'Please double-check:',
+  high: 'Hold on before releasing anything.',
+  critical: 'Hold on before releasing anything.',
+};
 
 function ResultView(props: {
   result: ImageScanResult; preview: string; editing: boolean; editData: ExtractedTransactionData | null;
@@ -420,11 +428,11 @@ function ResultView(props: {
             <div key={l} className={`lm-seg lm-${l}${l === result.riskLevel ? ' on' : ''}`}><span>{VERDICT[l].level.replace(' risk', '')}</span></div>
           ))}
         </div>
-        <div className="verify-banner">
+        <div className={`verify-banner vb-${result.riskLevel}`}>
           <Smartphone size={20} aria-hidden="true" />
           <div>
-            <b>{result.riskLevel === 'low' ? 'This is not a payment confirmation.' : 'Do not release anything yet.'}</b>{' '}
-            Open your own {app} app and check that {result.extracted.amount != null ? <b className="mono">{formatPHP(result.extracted.amount)}</b> : 'the money'} actually arrived{result.extracted.referenceNo ? <> (reference <span className="mono">{result.extracted.referenceNo}</span>)</> : null}. A screenshot alone can never prove that.
+            <b>{VERIFY_LEAD[result.riskLevel]}</b>{' '}
+            {result.riskLevel === 'low' ? 'before handing anything over, open' : 'Open'} your {app} app and check that {result.extracted.amount != null ? <b className="mono">{formatPHP(result.extracted.amount)}</b> : 'the payment'} has arrived{result.extracted.referenceNo ? <> (ref. <span className="mono">{result.extracted.referenceNo}</span>)</> : null}.
           </div>
         </div>
         <div className="verdict-actions">
