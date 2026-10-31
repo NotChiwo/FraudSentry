@@ -25,7 +25,13 @@ That's it. The text reader is built in, so it works with no internet. Keep a cop
 
 ## iPhone and iPad
 
-There is no iPhone app. Open **https://fraudsentry-bscs.netlify.app/** in Safari, then tap **Share → Add to Home Screen** so it opens like an app. Load it once while online; it is the offline build, so checks keep working after that page has loaded.
+iPhones cannot install an app file from the internet, so FraudSentry is installed from its website instead:
+
+1. Open **https://notchiwo.github.io/FraudSentry/** in **Safari** (it must be Safari).
+2. Tap **Share** (the square with the arrow) → **Add to Home Screen** → **Add**.
+3. Open FraudSentry from the home screen. It has its own icon and opens full-screen, like an app.
+
+It is the offline build: after the first visit it keeps a copy of itself on the phone and opens with no internet. Receipts are still checked on the phone only; the website just delivers the app. Reports open the share sheet, where **Save to Files** is. The site updates itself whenever `main` changes; close and reopen the app to get the new version.
 
 ## Good to know
 
