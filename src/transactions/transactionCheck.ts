@@ -13,7 +13,7 @@
 // ============================================================
 import type { EvidenceSource, ExtractedTransactionData, RiskLevel, VerificationFinding, Classification, TransactionStatus } from '../shared/types';
 import type { TransactionType } from '../receipt-check/reading/receiptParser';
-import { REF_FORMATS } from '../receipt-check/reading/fieldValidation';
+import { refFormatFor } from '../receipt-check/reading/fieldValidation';
 import { checkReceiptDate } from '../receipt-check/checks/consistencyChecks';
 import { matchAgainstHistory, type PriorScan } from '../receipt-check/checks/historyMatch';
 import { clamp, scoreToRiskLevel, classificationOf, generateId, formatPHP } from '../shared/helpers';
@@ -64,7 +64,7 @@ export function checkTransaction(input: TransactionInput, history: PriorScan[], 
   // reference
   if (!ref) findings.push(f('ref-present', 'Reference Number', 'No reference number was given. Every completed bank or e-wallet transfer has one; ask for it and look it up in your own account.', 'medium', false, 0.2));
   else {
-    const fmt = REF_FORMATS[input.institution];
+    const fmt = refFormatFor(input.institution, input.type);
     if (fmt && !fmt.test(ref)) findings.push(f('ref-format', 'Reference Format', `“${ref}” does not have the shape of a ${input.institution} reference number. A made-up or mistyped number is a common sign of a fake payment claim.`, 'high', false, 0.35));
     else findings.push(f('ref-format', 'Reference Format', fmt ? `The reference has the usual ${input.institution} format.` : 'A reference number was given.', 'low', true, 0));
   }

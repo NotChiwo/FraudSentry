@@ -1,5 +1,13 @@
 # Changelog
 
+## V10.2.4 — 2026-10-31
+
+### Sent or received, and who was paid
+- **Direction:** every receipt check now records whose screen it is: **Sent** (the payer's receipt: "Sent via", "Paid via", "Transfer to" …), **Received** (what the receiver sees: "You have received ₱…", "Received money from", "+₱…", "credited to") or **Unclear**. It is shown next to the transaction type on the result, in Transactions (new filter, CSV column), in detailed reports (CSV column `direction`) and in the receipt PDF.
+- **Received-side screenshots** get a note in "What to do next": a payer has no reason to show you the receiver's screen, and fake "you received ₱…" screenshots and texts are used in wrong-send / refund scams. A note only: the score is unchanged until there are real examples to tune it on. (Cash-in screens are not warned about.) The Knowledge Base's Wrong-Send / Refund Scam entry now covers this variant.
+- **Bill payments and purchases:** the biller or merchant is read ("Paid to PLATINUM FIBER") and the note says such a receipt cannot prove that someone paid you. On a bill payment the biller is the recipient, not the "Account Name" (the subscriber).
+- **GCash bill payments (GBills via ECPay):** the 9-digit GCash reference they print is no longer flagged as an unusual format (bill payments only; transfers still need 13 digits), and the ECPay reference is read as the transaction ID. A genuine GBills receipt went from a failed reference check (score 0.13) to no failed checks (0.02).
+
 ## V10.2.3 — 2026-10-31
 
 ### Blurred receipts: "can't be verified", not "possibly fraudulent"

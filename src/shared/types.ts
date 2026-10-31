@@ -128,6 +128,10 @@ export interface ImageScanResult {
   classification?: Classification;
   /** the kind of payment the receipt shows: Send Money, Bank Transfer, QR Payment … */
   transactionType?: string;
+  /** whose screen it is: the payer's (sent), the receiver's (received), or unclear */
+  direction?: 'sent' | 'received' | 'unclear';
+  /** the biller or merchant a bill payment / purchase went to */
+  payee?: string;
   /** did the money really arrive? set by the user from their own account */
   txStatus?: TransactionStatus;
   txStatusAt?: string;

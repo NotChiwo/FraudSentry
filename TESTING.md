@@ -386,6 +386,18 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3m. Sent / received, bill payments (V10.2.4)
+
+Scanned in the built app (Playwright, Chromium):
+
+| Image | Result |
+|---|---|
+| The user's GCash GBills receipt (Platinum Fiber, ₱1,200 + ₱10 fee) | Low, no failed checks (before: "Reference Number Format" failed on the 9-digit GCash reference). Bill Payment · Sent · Paid to PLATINUM FIBER; ECPay reference read; first next step: "a payment to PLATINUM FIBER (a biller), not to a person" |
+| Mock GCash "Received money … +₱2,000.00" screen | Received; first next step: the receiving-side / refund-scam note |
+| BPI receipts (Sep 2, Jun 29, 828, 1170, 2024), BPI blurred, BPI edited date | unchanged (Low ×5, High, High); all read as Sent |
+
+Unit tests: `direction.test.ts`, with the GBills OCR text redacted in `fixtures/real-ocr-redacted-gbills.json` (name, account number and both references replaced). No real receipt fixture is read as "received".
+
 ## 3l. Blurred names vs. blurred key details (V10.2.3)
 
 The user's BPI receipt (Jun 29 2026, ₱15,000) was flagged High because a copy had its date, confirmation number and name blurred. The unedited original was Low. Scanned in the built app (Playwright, Chromium):

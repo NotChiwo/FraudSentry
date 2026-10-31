@@ -23,12 +23,12 @@ import { generateId, scoreToRiskLevel, clamp, classificationOf, blendScore } fro
 import { runOcr, OcrCancelled } from './ocr/ocr';
 import type { OcrProgress } from './ocr/ocr';
 import { analyzeForensics, inkCheckForFile } from './checks/imageForensics';
-import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf } from './reading/receiptParser';
+import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, type TransactionDirection } from './reading/receiptParser';
 import { reconcileAmounts, checkReceiptDate, checkWeekday } from './checks/consistencyChecks';
 import { assessHiddenFields } from './checks/hiddenFields';
 import { matchAgainstHistory, PriorScan } from './checks/historyMatch';
 import { buildFeatureVector } from '../random-forest/sampleDataset';
-import { REF_FORMATS } from './reading/fieldValidation';
+import { refFormatFor } from './reading/fieldValidation';
 import { scoreWithSharedModel, warmUpSharedModel } from '../random-forest/sharedModel';
 
 function finding(category: VerificationFinding['category'], label: string, detail: string, severity: RiskLevel, passed: boolean, weight: number): VerificationFinding {
@@ -36,12 +36,12 @@ function finding(category: VerificationFinding['category'], label: string, detai
 }
 
 // Reference-number shape per institution (used only when a ref was read)
-function validateReference(source: EvidenceSource, ref: string | null): VerificationFinding | null {
+function validateReference(source: EvidenceSource, ref: string | null, type?: string): VerificationFinding | null {
   if (!ref) return null;
   const clean = ref.replace(/\s/g, '');
   // Per-app shape where we know it (e.g. MariBank refs can be 6 digits);
   // otherwise a generic 6–24 character alphanumeric shape.
-  const fmt = REF_FORMATS[source];
+  const fmt = refFormatFor(source, type);
   const looksValid = fmt ? fmt.test(clean) : /^[A-Z0-9]{6,24}$/i.test(clean);
   return finding('reference', 'Reference Number Format',
     looksValid ? `Reference "${clean}" matches the length/character pattern used by ${source !== 'Unknown' ? source : 'major institutions'}. Cross-check it inside your own app's history.`
@@ -87,6 +87,18 @@ export async function analyzeTransactionImage(
     const parsed = parseReceiptMulti(ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text], file.name);
     extracted = parsed.data;
     source = parsed.source;
+  }
+
+  // ── What kind of payment, which side of it, and who was paid ──
+  const passTexts = ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text || ''];
+  const allText = passTexts.join('\n');
+  const transactionType = transactionTypeOf(allText, source);
+  const direction = transactionDirectionOf(allText);
+  const payee = payeeOf(passTexts[0], transactionType) ?? passTexts.slice(1).map(t => payeeOf(t, transactionType)).find(Boolean) ?? null;
+  if (!opts?.extractedOverride) {
+    // On a bill payment the "Account Name" is the subscriber (usually the payer); the money went to the biller.
+    if (payee && transactionType === 'Bill Payment') extracted = { ...extracted, receiverName: payee };
+    if (!extracted.transactionId) extracted = { ...extracted, transactionId: ecpayReferenceOf(passTexts) };
   }
 
   onStage?.('Scoring evidence');
@@ -138,7 +150,7 @@ export async function analyzeTransactionImage(
 
   // ── Reference presence + format ──
   if (extracted.referenceNo) {
-    const refFinding = validateReference(source, extracted.referenceNo);
+    const refFinding = validateReference(source, extracted.referenceNo, transactionType);
     if (refFinding) findings.push(refFinding);
   } else if (!detailsHidden) {   // when details are hidden, that finding already explains it
     findings.push(finding('reference', 'Reference Number Detection',
@@ -276,7 +288,7 @@ export async function analyzeTransactionImage(
     : 'No tampering indicators were found. As best practice, still confirm the funds actually landed in your account before releasing anything of value.';
 
   const reused = hist.kind === 'reused';
-  const actionPlan = buildActionPlan(riskLevel, source, extracted, failed, reused);
+  const actionPlan = [...paymentContextNotes(transactionType, direction, payee), ...buildActionPlan(riskLevel, source, extracted, failed, reused)];
 
   return {
     id: generateId('scan'),
@@ -297,7 +309,9 @@ export async function analyzeTransactionImage(
     heuristicScore,
     scoreFloor,
     classification: classificationOf(riskLevel),
-    transactionType: transactionTypeOf(ocr.passes?.length ? ocr.passes.join('\n') : ocr.text, source),
+    transactionType,
+    direction,
+    payee: payee ?? undefined,
     txStatus: 'pending',
     forestAnalysis,
     inkOutliers: ink.outliers.map(({ text, x0, y0, x1, y1 }) => ({ text, x0, y0, x1, y1 })),
@@ -308,6 +322,22 @@ export async function analyzeTransactionImage(
 
 // Concrete, ordered next steps for a non-technical user, specific to what
 // this scan actually found (not a generic warning).
+/**
+ * What kind of screenshot this is, when that matters for "did they pay me?".
+ * Notes only — they don't change the score.
+ */
+export function paymentContextNotes(type: string, direction: TransactionDirection, payee: string | null): string[] {
+  const notes: string[] = [];
+  if (direction === 'received' && type !== 'Cash In') {
+    notes.push('This is the receiving side of a payment (what the person who got the money sees), not a payment receipt. If someone else sent you this as proof that they paid you, that is unusual: fake "you received ₱…" screenshots and texts are used in wrong-send / refund scams. Check your own balance and history — only money that shows up there is real.');
+  }
+  if (type === 'Bill Payment' || type === 'Purchase') {
+    const who = payee ? `${payee} (a ${type === 'Bill Payment' ? 'biller' : 'merchant'})` : `a ${type === 'Bill Payment' ? 'biller' : 'merchant'}`;
+    notes.push(`This receipt shows a payment to ${who}, not to a person. It cannot prove that someone paid you.`);
+  }
+  return notes;
+}
+
 function buildActionPlan(
   riskLevel: RiskLevel,
   source: EvidenceSource,

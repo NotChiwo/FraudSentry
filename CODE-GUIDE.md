@@ -19,7 +19,7 @@ src/
 ├─ app/                    Home, About, Privacy, welcome notice, navigation
 ├─ shared/                 data store, types, helpers used by every module
 ├─ styles/                 all CSS
-└─ __tests__/              automated tests (290)
+└─ __tests__/              automated tests (304)
 ```
 
 ---
@@ -30,7 +30,7 @@ src/
    - `checks/uploadValidation.ts` rejects non-images, empty files and files that are too big.
 2. **`receipt-check/verifyReceipt.ts` → `analyzeTransactionImage()`** runs the whole check:
    1. **OCR:** `ocr/ocr.ts` → `runOcr()` reads the text with Tesseract, in three passes over cleaned-up copies of the image (`ocr/ocrFilters.ts`).
-   2. **Reading the fields:** `reading/receiptParser.ts` → `parseReceiptMulti()` finds the bank/e-wallet, amount, reference, date and time, recipient and transaction type.
+   2. **Reading the fields:** `reading/receiptParser.ts` → `parseReceiptMulti()` finds the bank/e-wallet, amount, reference, date and time and recipient; `transactionTypeOf()`, `transactionDirectionOf()` (sent or received) and `payeeOf()` (the biller or merchant) say what kind of payment it is.
    3. **Image checks** (`checks/`):
       - `imageForensics.ts`: error-level analysis (ELA), metadata and editor traces;
       - `hiddenFields.ts`, `obscuredRegions.ts`: blurred, pixelated or covered details;
@@ -122,4 +122,4 @@ src/
 | "How do you read the receipt?" | `receipt-check/ocr/ocr.ts` → `runOcr()`, then `reading/receiptParser.ts` |
 | "How do you detect edited receipts?" | `receipt-check/checks/` (one file per kind of edit) |
 | "Where is the data stored? Is it private?" | `shared/store.ts`: in the device only, 30-day expiry, no server |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (290 tests) |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (304 tests) |

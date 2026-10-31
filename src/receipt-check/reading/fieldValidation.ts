@@ -45,6 +45,13 @@ export const REF_FORMATS: Partial<Record<EvidenceSource, RegExp>> = {
   BDO: /^[A-Z0-9]{8,20}$/i,
   CIMB: /^[A-Z0-9]{8,20}$/i,
 };
+// GCash bill payments (GBills, through ECPay) print a shorter GCash reference, e.g. 9 digits.
+const BILL_REF_FORMATS: Partial<Record<EvidenceSource, RegExp>> = { GCash: /^\d{9,13}$/ };
+
+/** The reference shape for this app and kind of payment (undefined: not known for this app). */
+export function refFormatFor(source: EvidenceSource, type?: string): RegExp | undefined {
+  return (type === 'Bill Payment' ? BILL_REF_FORMATS[source] : undefined) ?? REF_FORMATS[source];
+}
 
 function money(text: string): number[] {
   return [...text.matchAll(/(?:php|₱|p)?\s*([\d,]+\.\d{2})/gi)]
@@ -115,6 +122,7 @@ export function validateExtraction(
   rawText: string,
   source: EvidenceSource,
   passes?: string[],
+  transactionType?: string,
 ): ValidationSummary {
   const text = rawText || '';
   const monies = money(text);
@@ -166,7 +174,7 @@ export function validateExtraction(
 
   // Reference number — checked against the platform's known format.
   if (data.referenceNo) {
-    const fmt = REF_FORMATS[source];
+    const fmt = refFormatFor(source, transactionType);
     const ref = data.referenceNo.replace(/\s/g, '');
     const a = ag('referenceNo');
     if (fmt && fmt.test(ref)) checks.push({ key: 'referenceNo', label: 'Reference No.', value: data.referenceNo, status: 'verified', confidence: confidenceFrom(true, a), agreement: a, note: `Length & pattern match a ${source} reference. Still confirm it in your own app.` });

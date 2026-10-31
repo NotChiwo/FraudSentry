@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ReceiptText, Plus, X, Search, ScanLine, Keyboard, Trash2, Download, Loader2, CheckCircle2, XCircle, Clock, ArrowRight } from 'lucide-react';
 import { useAppStore } from '../shared/store';
 import { checkTransaction, toExtracted, describeTransaction, type TransactionInput, type ManualTransaction } from './transactionCheck';
-import { KNOWN_SOURCES, TRANSACTION_TYPES, type TransactionType } from '../receipt-check/reading/receiptParser';
+import { KNOWN_SOURCES, TRANSACTION_TYPES, DIRECTION_LABEL, type TransactionType, type TransactionDirection } from '../receipt-check/reading/receiptParser';
 import type { PriorScan } from '../receipt-check/checks/historyMatch';
 import { formatDateTime, formatPHP, downloadBlob, classificationOf, classificationShown, CLASSIFICATION_LABEL } from '../shared/helpers';
 import { phDay } from '../reports/fraudReports';
@@ -18,7 +18,7 @@ export const STATUS_LABEL: Record<TransactionStatus, string> = { pending: 'Not c
 interface Row {
   id: string; kind: 'receipt' | 'manual';
   when: string; source: string; type: string; amount: number | null; reference: string | null; receiver: string | null;
-  txDate: string | null; riskLevel: RiskLevel; classification: Classification; shown: { label: string; cls: string }; status: TransactionStatus; statusAt?: string;
+  txDate: string | null; direction: TransactionDirection | null; riskLevel: RiskLevel; classification: Classification; shown: { label: string; cls: string }; status: TransactionStatus; statusAt?: string;
   manual?: ManualTransaction;
 }
 
@@ -37,6 +37,7 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
   const [cls, setCls] = useState<'all' | Classification>('all');
   const [source, setSource] = useState('all');
   const [type, setType] = useState('all');
+  const [direction, setDirection] = useState<'all' | TransactionDirection>('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [open, setOpen] = useState<string | null>(null);
@@ -52,20 +53,20 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
     ...imageScans.map(s => ({
       id: s.id, kind: 'receipt' as const, when: s.scannedAt, source: s.source, type: s.transactionType ?? 'Other',
       amount: s.extracted.amount, reference: s.extracted.referenceNo, receiver: s.extracted.receiverName ?? s.extracted.receiverContact,
-      txDate: [s.extracted.date, s.extracted.time].filter(Boolean).join(' ') || null,
+      txDate: [s.extracted.date, s.extracted.time].filter(Boolean).join(' ') || null, direction: s.direction ?? null,
       riskLevel: s.riskLevel, classification: s.classification ?? classificationOf(s.riskLevel), shown: classificationShown(s), status: s.txStatus ?? 'pending', statusAt: s.txStatusAt,
     })),
     ...manual.map(t => ({
       id: t.id, kind: 'manual' as const, when: t.scannedAt, source: t.input.institution, type: t.input.type,
       amount: t.input.amount, reference: t.input.referenceNo, receiver: t.input.receiverName ?? t.input.receiverContact,
-      txDate: [t.input.date, t.input.time].filter(Boolean).join(' ') || null,
+      txDate: [t.input.date, t.input.time].filter(Boolean).join(' ') || null, direction: null,
       riskLevel: t.riskLevel, classification: t.classification, shown: classificationShown(t), status: t.txStatus, statusAt: t.txStatusAt, manual: t,
     })),
   ].sort((a, b) => b.when.localeCompare(a.when)), [imageScans, manual]);
 
   const shown = rows.filter(r =>
     (status === 'all' || r.status === status) && (cls === 'all' || r.classification === cls) &&
-    (source === 'all' || r.source === source) && (type === 'all' || r.type === type) &&
+    (source === 'all' || r.source === source) && (type === 'all' || r.type === type) && (direction === 'all' || r.direction === direction) &&
     (!from || phDay(r.when) >= from) && (!to || phDay(r.when) <= to) &&
     (!q.trim() || [r.source, r.type, r.amount, r.reference, r.receiver].join(' ').toLowerCase().includes(q.trim().toLowerCase())));
   const count = (st: TransactionStatus) => rows.filter(r => r.status === st).length;
@@ -74,8 +75,8 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
 
   const exportCsv = () => {
     const esc = (v: unknown) => (v == null ? '' : `"${String(v).replace(/"/g, '""')}"`);
-    const head = 'transaction_id,checked_at,input,institution,transaction_type,amount,reference,receiver,transaction_date,risk_level,classification,status,status_updated';
-    const lines = shown.map(r => [r.id, r.when, r.kind === 'receipt' ? 'receipt screenshot' : 'typed details', r.source, r.type, r.amount ?? '', r.reference, r.receiver, r.txDate, r.riskLevel, r.classification, r.status, r.statusAt ?? ''].map(esc).join(','));
+    const head = 'transaction_id,checked_at,input,institution,transaction_type,direction,amount,reference,receiver,transaction_date,risk_level,classification,status,status_updated';
+    const lines = shown.map(r => [r.id, r.when, r.kind === 'receipt' ? 'receipt screenshot' : 'typed details', r.source, r.type, r.direction ?? '', r.amount ?? '', r.reference, r.receiver, r.txDate, r.riskLevel, r.classification, r.status, r.statusAt ?? ''].map(esc).join(','));
     downloadBlob([head, ...lines].join('\n') + '\n', `fraudsentry-transactions-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
   };
 
@@ -130,6 +131,10 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
                 <option value="fraudulent">{CLASSIFICATION_LABEL.fraudulent}</option>
                 <option value="legitimate">{CLASSIFICATION_LABEL.legitimate}</option>
               </select>
+              <select className="input-field" value={direction} onChange={e => setDirection(e.target.value as typeof direction)} aria-label="Filter by sent or received">
+                <option value="all">Sent or received</option>
+                {(Object.keys(DIRECTION_LABEL) as TransactionDirection[]).map(d => <option key={d} value={d}>{DIRECTION_LABEL[d]}</option>)}
+              </select>
               <select className="input-field" value={source} onChange={e => setSource(e.target.value)} aria-label="Filter by bank or e-wallet">
                 <option value="all">Any app or bank</option>
                 {sources.map(s => <option key={s} value={s}>{s}</option>)}
@@ -149,7 +154,7 @@ export default function TransactionsPage({ onNavigate }: { onNavigate?: (p: stri
                 <span className="hr-ico" aria-hidden="true">{r.kind === 'receipt' ? <ScanLine size={18} /> : <Keyboard size={18} />}</span>
                 <div className="hr-main">
                   <div className="hr-top">
-                    <span className="hr-kind">{r.type}{r.kind === 'manual' ? ' · typed details' : ''}</span>
+                    <span className="hr-kind">{r.type}{r.direction && r.direction !== 'unclear' ? ` · ${DIRECTION_LABEL[r.direction]}` : ''}{r.kind === 'manual' ? ' · typed details' : ''}</span>
                     <span className={`sev-chip sev-${sev(r.riskLevel)}`}>{LEVEL[r.riskLevel]}</span>
                     <span className={`cls-chip ${r.shown.cls}`}>{r.shown.label}</span>
                   </div>

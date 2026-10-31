@@ -7,6 +7,7 @@ import {
   Eye, ScanText, Sparkles, Square,
 } from 'lucide-react';
 import { analyzeTransactionImage } from './verifyReceipt';
+import { DIRECTION_LABEL } from './reading/receiptParser';
 import { OcrCancelled } from './ocr/ocr';
 import type { OcrProgress } from './ocr/ocr';
 import { generateImageReport } from '../reports/pdfReports';
@@ -395,7 +396,7 @@ function ResultView(props: {
   const app = result.source === 'Unknown' ? 'bank or e-wallet' : result.source;
   const failures = topFailures(result);
   const validation = useMemo(
-    () => (result.ocr.available ? validateExtraction(result.extracted, result.ocr.text, result.source, result.ocr.passes) : null),
+    () => (result.ocr.available ? validateExtraction(result.extracted, result.ocr.text, result.source, result.ocr.passes, result.transactionType) : null),
     [result],
   );
   const vmap: Record<string, FieldCheck | undefined> = {};
@@ -417,7 +418,11 @@ function ResultView(props: {
             <p className="verdict-reason">{oneLineReason(result)}</p>
             <p className="verdict-class">
               <span className={`cls-chip ${classificationShown(result).cls}`}>{classificationShown(result).label}</span>
-              {result.transactionType && result.transactionType !== 'Other' && <span className="muted small">{result.transactionType}</span>}
+              {(() => {
+                const kind = [result.transactionType && result.transactionType !== 'Other' ? result.transactionType : null, result.direction && result.direction !== 'unclear' ? DIRECTION_LABEL[result.direction] : null].filter(Boolean).join(' · ');
+                return kind ? <span className="muted small">{kind}</span> : null;
+              })()}
+              {result.payee && <span className="muted small">Paid to {result.payee}</span>}
               {result.forestAnalysis?.modelName && <span className="muted small">Scored with {result.forestAnalysis.modelName}</span>}
             </p>
           </div>
