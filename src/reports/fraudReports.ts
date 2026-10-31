@@ -16,6 +16,7 @@ import type { RiskLevel, TransactionStatus, Classification } from '../shared/typ
 import type { UserData } from '../shared/store';
 import { classificationOf, generateId, formatPHP } from '../shared/helpers';
 import { unreadCount } from '../alerts/alerts';
+import { DIRECTION_LABEL } from '../receipt-check/reading/receiptParser';
 
 export type ReportType = 'summary' | 'detailed';
 
@@ -24,6 +25,8 @@ export interface ReportRow {
   kind: 'Receipt' | 'Message' | 'Cross-Evidence' | 'Typed details';
   app: string;
   type: string;
+  /** receipts: whose screen it is (Sent / Received / Unclear) */
+  direction?: string;
   amount: number | null;
   reference: string | null;
   riskLevel: RiskLevel;
@@ -75,7 +78,7 @@ const ratio = (a: number, b: number) => (b ? a / b : null);
 export function reportRows(data: UserData, from: string, to: string): ReportRow[] {
   const rows: ReportRow[] = [];
   for (const s of data.imageScans) if (inPeriod(s.scannedAt, from, to)) rows.push({
-    when: s.scannedAt, kind: 'Receipt', app: s.source, type: s.transactionType ?? 'Other', amount: s.extracted.amount, reference: s.extracted.referenceNo,
+    when: s.scannedAt, kind: 'Receipt', app: s.source, type: s.transactionType ?? 'Other', direction: s.direction ? DIRECTION_LABEL[s.direction] : undefined, amount: s.extracted.amount, reference: s.extracted.referenceNo,
     riskLevel: s.riskLevel, classification: s.classification ?? classificationOf(s.riskLevel), outcome: s.txStatus ?? 'pending',
   });
   for (const t of data.manualTransactions) if (inPeriod(t.scannedAt, from, to)) rows.push({
@@ -180,8 +183,8 @@ export function buildReport(
 export function reportToCsv(r: FraudReport): string {
   const esc = (v: unknown) => (v == null ? '' : `"${String(v).replace(/"/g, '""')}"`);
   if (r.rows) {
-    const head = ['checked_at', 'kind', 'app_or_platform', 'type', 'amount', 'reference', 'risk_level', 'classification', 'outcome'];
-    return [head.join(','), ...r.rows.map(x => [x.when, x.kind, x.app, x.type, x.amount ?? '', x.reference, x.riskLevel, x.classification, x.outcome ?? ''].map(esc).join(','))].join('\n') + '\n';
+    const head = ['checked_at', 'kind', 'app_or_platform', 'type', 'direction', 'amount', 'reference', 'risk_level', 'classification', 'outcome'];
+    return [head.join(','), ...r.rows.map(x => [x.when, x.kind, x.app, x.type, x.direction ?? '', x.amount ?? '', x.reference, x.riskLevel, x.classification, x.outcome ?? ''].map(esc).join(','))].join('\n') + '\n';
   }
   const s = r.stats;
   const lines = [['measure', 'value'], ['checks', s.checks], ['possibly fraudulent', s.fraudulent], ['legitimate', s.legitimate],

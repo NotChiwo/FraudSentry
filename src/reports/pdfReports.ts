@@ -10,6 +10,7 @@ import { ImageScanResult, MessageScanResult } from '../shared/types';
 import { RISK_META, classificationShown } from '../shared/helpers';
 import type { FraudReport } from './fraudReports';
 import { saveFile } from '../app/nativeApp';
+import { DIRECTION_LABEL } from '../receipt-check/reading/receiptParser';
 
 // doc.save() only works in a browser; saveFile also covers the Android app
 function savePdf(doc: jsPDF, filename: string) {
@@ -102,6 +103,7 @@ export function generateImageReport(scan: ImageScanResult) {
   y = sectionTitle(doc, y, 'Evidence Source');
   y = kv(doc, y, 'File name', scan.filename);
   y = kv(doc, y, 'Detected institution', scan.source);
+  if (scan.transactionType) y = kv(doc, y, 'Transaction', [scan.transactionType, scan.direction ? DIRECTION_LABEL[scan.direction] : null, scan.payee ? `paid to ${pdfSafe(scan.payee)}` : null].filter(Boolean).join(' · '));
   y = kv(doc, y, 'Assessment confidence', `${scan.confidence}%`);
   y = kv(doc, y, 'Analyzed at', new Date(scan.scannedAt).toLocaleString('en-PH'));
   y += 3;

@@ -69,7 +69,7 @@ describe('reports', () => {
     expect(det.rows).toHaveLength(7);
     expect(det.rows!.map(r => r.when)).toEqual([...det.rows!.map(r => r.when)].sort().reverse());
     const csv = reportToCsv(det).split('\n');
-    expect(csv[0]).toBe('checked_at,kind,app_or_platform,type,amount,reference,risk_level,classification,outcome');
+    expect(csv[0]).toBe('checked_at,kind,app_or_platform,type,direction,amount,reference,risk_level,classification,outcome');
     expect(csv).toHaveLength(9);
   });
   it('saved reports expire after 30 days with the history', () => {

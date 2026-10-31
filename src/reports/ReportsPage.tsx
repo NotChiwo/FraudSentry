@@ -173,7 +173,7 @@ function ReportView({ r, onClose, onDelete }: { r: FraudReport; onClose: () => v
               <tbody>
                 {r.rows.map((x, i) => (
                   <tr key={i}>
-                    <td>{formatDateTime(x.when)}</td><td>{x.kind}</td><td>{x.app}</td><td>{x.type}</td><td>{x.amount != null ? formatPHP(x.amount) : '—'}</td>
+                    <td>{formatDateTime(x.when)}</td><td>{x.kind}</td><td>{x.app}</td><td>{x.type}{x.direction ? ` · ${x.direction}` : ''}</td><td>{x.amount != null ? formatPHP(x.amount) : '—'}</td>
                     <td className="mono">{x.reference ?? '—'}</td><td><span className={`sev-chip sev-${x.riskLevel === 'low' ? 'ok' : x.riskLevel}`}>{x.riskLevel}</span></td>
                     <td>{x.classification === 'fraudulent' ? 'Possibly fraudulent' : 'Legitimate'}</td>
                     <td>{x.outcome === 'received' ? 'Received' : x.outcome === 'not-received' ? 'Not received' : x.outcome === 'pending' ? 'Not confirmed' : '—'}</td>

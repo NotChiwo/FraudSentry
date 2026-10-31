@@ -612,7 +612,7 @@ export type TransactionType = typeof TRANSACTION_TYPES[number];
 /** The kind of payment a receipt shows, from its wording (first match wins). */
 export function transactionTypeOf(text: string, source?: string): TransactionType {
   const t = text.replace(/\s+/g, ' ');
-  if (/\bpay\s*bills?\b|\bbills?\s*payment\b|\bbiller\b|\bmeralco\b|\bmaynilad\b|manila water|\bpldt\b|\bconverge\b|\bglobe at home\b|\bsss\b|pag-?ibig|philhealth/i.test(t)) return 'Bill Payment';
+  if (/\bpay\s*bills?\b|\bbills?\s*payment\b|\bbill amount\b|\bgbills\b|\bbiller\b|\bmeralco\b|\bmaynilad\b|manila water|\bpldt\b|\bconverge\b|\bglobe at home\b|\bsss\b|pag-?ibig|philhealth/i.test(t)) return 'Bill Payment';
   if (/\bcash[\s-]?in\b/i.test(t)) return 'Cash In';
   if (/\bcash[\s-]?out\b|\bwithdraw(al|n)?\b/i.test(t)) return 'Cash Out';
   if (/\bpurchas(e|ed)\b|\bpaid to\b|\bpayment to\b|\bmerchant\b|\border (no|id|number)\b/i.test(t)) return 'Purchase';
@@ -622,6 +622,53 @@ export function transactionTypeOf(text: string, source?: string): TransactionTyp
   if (/\bsend money\b|express send|\bmoney sent\b|\byou sent\b|\bsent via\b|\bsent to\b|(^|\n)\s*sent\s*(\n|$)/i.test(text)) return 'Send Money';
   if (source && /gcash|maya|shopeepay|grabpay|coins|palawan/i.test(source)) return 'Send Money';
   return 'Other';
+}
+
+// ── direction: money out (the payer's screen) or money in (the receiver's) ──
+export type TransactionDirection = 'sent' | 'received' | 'unclear';
+export const DIRECTION_LABEL: Record<TransactionDirection, string> = { sent: 'Sent', received: 'Received', unclear: 'Unclear' };
+
+// What the payer's own app shows after paying: "Sent via GCash", "Paid via GCash", "Transfer to", "Total Amount Sent" …
+const SENT_WORDING = /\bsent via\b|\bpaid via\b|\bpaid to\b|\bpayment to\b|\btransfer(red)? to\b|\byou(?:'ve| have)? sent\b|\byou paid\b|\bmoney sent\b|\bamount sent\b|\bexpress send\b|\bsend money\b|\btransfer successful\b|\bpayment successful\b|\bpurchased\b|\bsent to the merchant\b|\bcash[\s-]?out\b|(^|\n)\s*-\s*(?:₱|php|p)\s?\d/i;
+// What the receiver sees: a received entry in the history, an inbox notice or a text
+const RECEIVED_WORDING = /\breceived (?:from|money|a payment|payment|php|₱|p\s?\d)|\byou(?:'ve| have)? received\b|\bmoney received\b|\bpayment received\b|\bincoming (?:transfer|fund|payment)s?\b|\bcredited (?:to|into)\b|\bfund transfer from\b|\bcash[\s-]?in\b|(^|\s)\+\s*(?:₱|php|p)\s?\d/i;
+
+/** Is this the screen of the person who paid, or of the person who got the money? From the wording. */
+export function transactionDirectionOf(text: string): TransactionDirection {
+  const sent = SENT_WORDING.test(text), received = RECEIVED_WORDING.test(text);
+  return sent === received ? 'unclear' : sent ? 'sent' : 'received';
+}
+
+const PAYEE_JUNK = /\s+(?:[©®O0o@Q]|\[\w?\]|\(\w?\)|\d{6,})$/;
+const cleanPayee = (s: string) => {
+  let v = s.trim();
+  for (let i = 0; i < 3 && PAYEE_JUNK.test(v); i++) v = v.replace(PAYEE_JUNK, '').trim();
+  return /[a-z]{3}/i.test(v) && v.length <= 60 ? v : null;
+};
+
+/** Who a bill payment or purchase was paid to — a biller or merchant, not a person. */
+export function payeeOf(text: string, type: TransactionType): string | null {
+  if (type !== 'Bill Payment' && type !== 'Purchase') return null;
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const label = l.match(/^(?:biller|merchant|paid to|payment to)\s*:?\s+(.+)$/i);
+    if (label) return cleanPayee(label[1].split(/\s{2,}/)[0]);
+    // GBills: the biller's name is printed right above "Paid via GCash"
+    if (/^paid via\b/i.test(l) && i > 0) return cleanPayee(lines[i - 1].split(/\s{2,}/)[0]);
+    // GCash purchases: "Purchased on" / "Purchased (Updated) on", then the merchant
+    if (/^purchased\b.*\bon\b/i.test(l) && lines[i + 1]) return cleanPayee(lines[i + 1].split(/\s{2,}/)[0]);
+  }
+  return null;
+}
+
+/** The ECPay reference printed on GCash bill payments ("ECPay Reference No. 2026304abCDE1f"), from any OCR pass. */
+export function ecpayReferenceOf(texts: string[]): string | null {
+  for (const t of texts) {
+    const m = t.match(/\b(?:ec\s*pay|e[ce]\s*ray)\s*reference(?:\s*no\.?)?\s+([A-Za-z0-9]{10,24})\b/i);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 /** Every bank / e-wallet FraudSentry recognises, for pickers. */
