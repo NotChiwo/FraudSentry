@@ -1,5 +1,6 @@
 // Dev-only: render assets/icon.svg into the Android launcher icons, the
-// Android splash images and the desktop app icon, using headless Chromium
+// Android splash images, the desktop app icon and the web/iPhone home-screen
+// icons (public/icons), using headless Chromium
 // (the same renderer as the app). Run after changing the icon:
 //   node tools/make-icons.mjs
 import fs from 'node:fs';
@@ -43,5 +44,9 @@ for (const [d, k] of Object.entries(DENS)) {
   }
 }
 await render(path.join(res, 'drawable/splash.png'), { w: 480, h: 800 }, img(svg, 150), '#0b1020');
+// home-screen icons for the website: square corners, because iOS and Android round them themselves
+const square = svg.replace(' rx="230"', '');
+for (const [name, px] of [['apple-touch-icon.png', 180], ['icon-192.png', 192], ['icon-512.png', 512]])
+  await render(path.join(root, 'public/icons', name), { w: px, h: px }, img(square, px));
 await browser.close();
 console.log('icons written');

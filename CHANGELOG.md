@@ -1,5 +1,14 @@
 # Changelog
 
+## V10.2.2 — 2026-10-31
+
+### FraudSentry on iPhone (Add to Home Screen)
+- **Website on GitHub Pages:** https://notchiwo.github.io/FraudSentry/, the offline build, published by the new `.github/workflows/pages.yml` on every push to `main`. It replaces the hand-uploaded Netlify copy, which was still V10.1.
+- **Installs like an app:** web app manifest, iPhone home-screen icon (`public/icons/`, made by `tools/make-icons.mjs`) and full-screen mode.
+- **Works offline:** a small service worker (`public/sw.js`) keeps a copy of the app after the first visit. It only runs on the website, not in the Android or desktop apps or when the file is opened from disk.
+- **Saving reports on iPhone/iPad** opens the share sheet ("Save to Files") instead of a download.
+- Paths in the built page are now relative, so it works from the `/FraudSentry/` sub-folder.
+
 ## V10.2.1 — 2026-10-31
 
 ### Friendlier reminder on the receipt result

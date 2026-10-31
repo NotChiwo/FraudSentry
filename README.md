@@ -71,7 +71,7 @@ Both apps wrap the **offline build**, so OCR is built in and nothing needs the i
 | **Windows** (installer and portable `.exe`) | Release → `FraudSentry-Setup-….exe` or `FraudSentry-Portable-….exe`. It is unsigned: SmartScreen → More info → Run anyway. | Electron 43 (`desktop/`) |
 | **macOS** (`.dmg`) | Release → `…-arm64.dmg` (Apple chip) or `…-x64.dmg` (Intel). It is unsigned: right-click → Open the first time. | Electron |
 | **Linux** (`.AppImage`) | Release → `FraudSentry-…-x86_64.AppImage`. Make it executable (`chmod +x`) and run it. | Electron |
-| **iPhone / iPad** | No app: open the hosted page in Safari, then Share → Add to Home Screen. | the offline HTML, hosted on Netlify |
+| **iPhone / iPad** | No app file: open **https://notchiwo.github.io/FraudSentry/** in Safari, then Share → **Add to Home Screen**. It gets its own icon, opens full-screen and works offline after the first visit. | the offline build on GitHub Pages (`.github/workflows/pages.yml`, updated on every push to `main`) |
 
 Step-by-step instructions for every device: [docs/OPENING-THE-APP.md](docs/OPENING-THE-APP.md).
 

@@ -53,6 +53,8 @@ function ocrOfflineAssets(enabled: boolean): Plugin {
 }
 
 export default defineConfig(({ mode }) => ({
+  // relative paths, so the site works from a sub-folder (GitHub Pages: /FraudSentry/)
+  base: "./",
   plugins: [react(), tailwindcss(), viteSingleFile(), ocrOfflineAssets(mode === "offline")],
   build: mode === "offline" ? { outDir: "dist-offline", emptyOutDir: true, chunkSizeWarningLimit: 20000 } : undefined,
   resolve: {
