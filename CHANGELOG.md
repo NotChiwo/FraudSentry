@@ -1,5 +1,12 @@
 # Changelog
 
+## V10.2.3 — 2026-10-31
+
+### Blurred receipts: "can't be verified", not "possibly fraudulent"
+- **Names blurred for privacy no longer count against a receipt.** When a blurred or covered area sits only on names or account numbers, and the reference number, date and amount are all clearly readable, the check passes with a note. A copy of a genuine BPI receipt with the recipient's name pixelated or blurred now comes out Low, like the original.
+- **Reference, date or amount blurred:** still High (the payment can't be checked from the screenshot), but the verdict is now "Can't be verified — key details are blurred", the chip says **Can't be verified** (amber) instead of "Possibly fraudulent", and the alert is titled "Receipt can't be verified". The explanation no longer says "someone edited this image" as an accusation: it says the picture was changed after it was saved, sometimes only for privacy, and asks for the original. In reports and metrics it still counts as flagged.
+- If a key detail could not be read or located on the image, it can't be ruled out, so the receipt is treated as before.
+
 ## V10.2.2 — 2026-10-31
 
 ### FraudSentry on iPhone (Add to Home Screen)

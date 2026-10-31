@@ -1,7 +1,7 @@
 // ============================================================
 // FraudSentry — Utility Helpers
 // ============================================================
-import { RiskLevel, Classification } from './types';
+import { RiskLevel, Classification, VerificationFinding } from './types';
 import { saveFile } from '../app/nativeApp';
 
 export function formatPHP(amount: number): string {
@@ -49,6 +49,14 @@ export const RISK_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2
 export const FRAUD_THRESHOLD = 0.45;
 export const classificationOf = (level: RiskLevel): Classification => (level === 'high' || level === 'critical' ? 'fraudulent' : 'legitimate');
 export const CLASSIFICATION_LABEL: Record<Classification, string> = { fraudulent: 'Possibly fraudulent', legitimate: 'Legitimate' };
+/** A receipt flagged only because its reference, date or amount is blurred or covered: it can't be checked, which is not the same as fake. */
+export const cannotBeVerified = (r: { riskLevel: RiskLevel; findings?: VerificationFinding[] }) =>
+  r.riskLevel !== 'critical' && !!r.findings?.some(f => !f.passed && f.label === 'Hidden or Blocked-Out Details');
+/** What the user sees for a result's classification. It still counts as flagged in the metrics. */
+export function classificationShown(r: { riskLevel: RiskLevel; classification?: Classification; findings?: VerificationFinding[] }): { label: string; cls: string } {
+  const c = r.classification ?? classificationOf(r.riskLevel);
+  return c === 'fraudulent' && cannotBeVerified(r) ? { label: 'Can’t be verified', cls: 'unverifiable' } : { label: CLASSIFICATION_LABEL[c], cls: c };
+}
 export function maxRisk(a: RiskLevel, b: RiskLevel): RiskLevel {
   return RISK_RANK[a] >= RISK_RANK[b] ? a : b;
 }
