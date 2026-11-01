@@ -76,7 +76,7 @@ Both apps wrap the **offline build**, so OCR is built in and nothing needs the i
 
 Step-by-step instructions for every device: [docs/OPENING-THE-APP.md](docs/OPENING-THE-APP.md).
 
-Every push also builds them under Actions → **Apps** → Artifacts (kept 30 days). Publishing a GitHub Release with a new tag like `v10.1.1` attaches all of them, plus the offline HTML, to that release permanently.
+Every push also builds them under Actions → **Apps** → Artifacts (kept 30 days). To publish a release: **Actions → Apps → Run workflow** on `main`, with a new tag such as `v10.2.6` (or push that tag). The workflow builds everything, creates the tag and attaches the APK, the desktop apps and the offline HTML to the release.
 
 **Android app**
 - It has **no INTERNET permission**, so Android itself guarantees the app cannot send anything anywhere.
