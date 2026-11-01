@@ -107,6 +107,8 @@ export interface ForestAnalysis {
   featureNames: string[];
   /** the exact 10-value evidence vector that was scored — reused as training data */
   features?: number[];
+  /** false: shown but not blended into the score (a photo of a screen — the forest learned from screenshots) */
+  inScore?: boolean;
 }
 
 export interface ImageScanResult {

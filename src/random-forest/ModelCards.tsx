@@ -153,7 +153,7 @@ export function ComparisonCard({ nTrees, maxDepth }: { nTrees: number; maxDepth:
               </p>
             );
           })}
-          <p className="muted small">{res.rowsUsed} receipts ({res.testRows} in the test set){res.rowsSkipped ? `; ${res.rowsSkipped} older labelled receipts without a rule score were left out` : ''}. Report the counts with the percentages; with few receipts the figures move a lot.</p>
+          <p className="muted small">{res.rowsUsed} receipts ({res.testRows} in the test set){res.rowsSkipped ? `; ${res.rowsSkipped} older labelled receipts without a rule score were left out` : ''}{res.duplicates ? `; ${res.duplicates} duplicate${res.duplicates === 1 ? '' : 's'} (the same screenshot labelled twice) removed` : ''}. Report the counts with the percentages; with few receipts the figures move a lot.</p>
         </>
       )}
       {res === null && <p className="muted small">Not enough usable receipts yet.</p>}

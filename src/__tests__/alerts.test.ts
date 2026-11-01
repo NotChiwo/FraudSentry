@@ -94,8 +94,10 @@ describe('alerts in the store', () => {
     st().addImageScan(receipt('r1', 'high')); st().addMessageScan(message('m1', 'high'));
     st().removeImageScan('r1');
     expect(st().alerts.map(a => a.resultId)).toEqual(['m1']);
+    st().addReport({ id: 'rep1' } as never);
     st().clearHistory();
     expect(st().alerts).toEqual([]);
+    expect(st().reports).toEqual([]);   // saved reports list references and amounts too
   });
   it('a check pushed out of the 40-item history takes its alert with it', () => {
     st().addImageScan(receipt('old', 'high'));

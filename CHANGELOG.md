@@ -1,5 +1,38 @@
 # Changelog
 
+## V10.2.6 — 2026-11-01
+
+A full review of the code, the pages and the docs. Fixes:
+
+### Fewer false alarms
+- **"No recipient" is no longer critical when the receipt has a recipient field.** The critical rule (weight 0.50) now fires only when the receipt has no "To", "Transfer to", "Recipient", "Account name" … field at all. When there is one but nothing was read from it (an unfamiliar bank layout, a bad photo), the milder "Recipient Details Missing" applies. This is how the MariBank false alarm happened.
+- **Photos of a screen are scored with the rules alone.** The Random Forest learned from screenshots; on a photo its inputs (how well the text was read, whether a reference was found) measure the photo's quality. A noisy 21 MB photo of a genuine receipt went from High (0.54) to Low (0.17). Its vote is still shown ("not used"), the result says "Scored with the rules (photo)", and the thesis comparison scores photo rows the same way.
+- A "To" label may follow up to two scraps of photo background (was one).
+
+### Photos and uploads
+- **Camera photos over 10 MB are scaled down** (to 3000 px) instead of refused: 50–108 MP phone cameras make bigger JPEGs. On every page that takes an image.
+- **iPhone HEIC files** get a message that says what to do, instead of "type not supported".
+
+### Message check
+- Catches the **task-job scam** ("You are hired as online part-time. Earn 500–3000 daily, just like videos. Message us on Telegram"): was Low, now High.
+- Catches the **"new number" scam** ("Ma, nasira phone ko, bagong number ko to. Pa-send naman 2k… emergency"): was Low, now flagged as impersonation.
+- Ordinary messages that look a little like them stay Low (a new number with no money request, "earn 500 points daily", a real job ad, "contact us on WhatsApp for orders").
+
+### Data and the model
+- **History → Delete all also deletes saved reports**, which list references and amounts. The Privacy page already said clearing removes everything.
+- **"Correct text → Re-analyze" replaces the earlier result** instead of adding a second copy (the old reading could still raise an alert and appear in Transactions and reports). The payment outcome and training label move to the new result.
+- **Duplicate labelled receipts are removed before training** (the same screenshot labelled twice). Kept, one copy could be in the training set and the other in the test set, inflating every metric. Duplicates don't count toward the 20-receipt minimum; the hypothesis-test card says how many were removed.
+
+### Pages
+- **Back and reload work.** The open page is in the address (`#history`, `#scanner` …): the browser's Back button or swipe (website, iPhone home-screen app) goes to the previous page instead of leaving FraudSentry, and a reload stays on the page.
+- **One heading style on every page**, and titles that match the menu ("Check a message", "Privacy & Data", "Cross-Evidence", "Detection Model").
+- **Phone layout:** the counters on Home and Transactions sit two per row (a duplicated CSS rule made them one per row); a long page name in the top bar is shortened on one line instead of wrapping.
+
+### Housekeeping
+- `vitest` 4.1.12 (two moderate advisories in 4.1.11; development only).
+- Comments in the desktop and Android apps no longer mention the removed accounts and encrypted vaults.
+- The install guide no longer names an old release file. **The newest GitHub release is still v10.1.0**: tag a new release so its downloads include these fixes.
+
 ## V10.2.5 — 2026-11-01
 
 ### Photos of a screen (an SME photographing the customer's phone)

@@ -134,7 +134,7 @@ export function generateImageReport(scan: ImageScanResult) {
     y = sectionTitle(doc, y, 'How the Risk Score Was Computed');
     y = kv(doc, y, 'Rule-based findings score', `${Math.round((scan.heuristicScore ?? 0) * 100)}%`);
     y = kv(doc, y, 'Random Forest probability', `${Math.round(fa.probability * 100)}% (${fa.votesFraud} of ${fa.totalTrees} trees voted fraudulent)`);
-    y = kv(doc, y, 'Final risk (50% + 50%)', `${Math.round(scan.riskScore * 100)}%${scan.scoreFloor && scan.riskScore <= scan.scoreFloor + 1e-9 ? ' (minimum set by a definitive finding)' : ''}`);
+    y = kv(doc, y, fa.inScore === false ? 'Final risk (rules only: photo)' : 'Final risk (50% + 50%)', `${Math.round(scan.riskScore * 100)}%${scan.scoreFloor && scan.riskScore <= scan.scoreFloor + 1e-9 ? ' (minimum set by a definitive finding)' : ''}`);
     y = kv(doc, y, 'Classification', classificationShown(scan).label);
     if (fa.modelName) y = kv(doc, y, 'Model', pdfSafe(fa.modelName));
     if (scan.txStatus) y = kv(doc, y, 'Payment outcome', scan.txStatus === 'received' ? 'money received (confirmed by the user)' : scan.txStatus === 'not-received' ? 'NOT received (confirmed by the user)' : 'not confirmed yet');

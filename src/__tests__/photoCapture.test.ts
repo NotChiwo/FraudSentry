@@ -76,6 +76,9 @@ describe('written dates', () => {
     expect(d('21 September 2026')).toBe('21 September 2026');
     expect(d('Jan 32 2026')).toBeNull();
   });
+  it('a "To" label after two scraps of photo background is still found', () => {
+    expect(parseReceipt('MariBank\nTransfer Result\n.           3          To                Ma*a Sa***s L.\nPHP 1,000.00').data.receiverName).toBe('Ma*a Sa***s L.');
+  });
   it('"Go to Accounts" is not a "To" label', () => {
     expect(parseReceipt('Transfer successful\nGo to Accounts\nPHP 500.00').data.receiverName).toBeNull();
   });

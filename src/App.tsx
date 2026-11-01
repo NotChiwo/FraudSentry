@@ -29,9 +29,17 @@ const PAGE_TITLE: Record<PageId, string> = {
   ...Object.fromEntries(NAV_GROUPS.flatMap(g => g.items.map(i => [i.id, i.label]))),
 } as Record<PageId, string>;
 
+// The open page lives in the address (#scanner, #history …), so the browser's
+// Back button / swipe goes to the previous page instead of leaving the app,
+// and a reload stays on the same page. (#welcome opens the welcome screen.)
+const pageFromHash = (): PageId => {
+  const h = typeof location !== 'undefined' ? location.hash.slice(1) : '';
+  return h in PAGE_TITLE ? (h as PageId) : 'home';
+};
+
 
 export default function App() {
-  const [page, setPage] = useState<PageId>('home');
+  const [page, setPage] = useState<PageId>(pageFromHash);
   const theme = useAppStore(s => s.theme);
   const hasConsented = useAppStore(s => s.hasConsented);
   const unread = useAppStore(s => unreadCount(s.alerts));
@@ -43,13 +51,18 @@ export default function App() {
   const [welcomeOpen, setWelcomeOpen] = useState(() => typeof location !== 'undefined' && location.hash === '#welcome');
   const openWelcome = () => { setWelcomeOpen(true); window.scrollTo({ top: 0 }); };
   useEffect(() => {
-    const onHash = () => { if (location.hash === '#welcome') setWelcomeOpen(true); };
+    // Back / Forward, or an address typed by hand
+    const onHash = () => {
+      if (location.hash === '#welcome') { setWelcomeOpen(true); return; }
+      setPage(pageFromHash());
+    };
     window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    window.addEventListener('popstate', onHash);
+    return () => { window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onHash); };
   }, []);
   const closeWelcome = () => {
     setWelcomeOpen(false);
-    if (location.hash === '#welcome') history.replaceState(null, '', location.pathname + location.search);
+    if (location.hash === '#welcome') history.replaceState(null, '', `${location.pathname}${location.search}#${page}`);
   };
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
@@ -77,13 +90,14 @@ export default function App() {
     if (!isAndroidApp()) return;
     const sub = NativeApp.addListener('backButton', () => {
       if (document.querySelector('.sheet-backdrop, [role="dialog"]')) { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return; }
-      if (shownRef.current !== 'home') { setPage('home'); return; }
+      if (shownRef.current !== 'home') { setPage('home'); history.replaceState(null, '', '#home'); return; }
       void NativeApp.minimizeApp();
     });
     return () => { void sub.then(h => h.remove()); };
   }, []);
 
   const navigate = (p: string) => {
+    if (p !== page) history.pushState(null, '', `#${p}`);
     setPage(p as PageId);
     contentRef.current?.scrollTo({ top: 0 });
     // move focus to the new page for keyboard / screen-reader users

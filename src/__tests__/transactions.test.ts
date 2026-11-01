@@ -78,3 +78,19 @@ describe('payment outcome', () => {
     expect(st().alerts).toEqual([]);
   });
 });
+
+describe('re-analysis after "Correct text"', () => {
+  const st = () => useAppStore.getState();
+  beforeEach(() => { st().clearHistory(); st().clearTrainingRows(); });
+  it('replaces the earlier result, keeps its payment outcome and label, and moves the alert', () => {
+    const first = { id: 'scan-c1', riskLevel: 'high', scannedAt: new Date().toISOString(), source: 'GCash', extracted: {}, findings: [], heuristicScore: 0.5, scoreFloor: 0,
+      forestAnalysis: { features: [5, 1, 0, 88, 1, 1, 1, 1, 1, 90] }, txStatus: 'pending' } as unknown as ImageScanResult;
+    st().addImageScan(first);
+    st().setTxStatus('receipt', first.id, 'received');
+    const corrected = { ...first, id: 'scan-c2', riskLevel: 'low', txStatus: 'pending' } as ImageScanResult;
+    st().replaceImageScan(first.id, corrected);
+    expect(st().imageScans.map(s => [s.id, s.txStatus])).toEqual([['scan-c2', 'received']]);
+    expect(st().trainingRows.map(r => [r.id, r.label])).toEqual([['scan-c2', 0]]);
+    expect(st().alerts).toEqual([]);   // the High alert went with the old result; the corrected one is Low
+  });
+});

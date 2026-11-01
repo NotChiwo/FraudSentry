@@ -386,6 +386,13 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3o. Full review (V10.2.6)
+
+- `npm run typecheck`, `npm test` (331 tests), `npm audit --omit=dev` (0), `npm run build`, `npm run build:offline`.
+- Every page opened by address in Chromium at 1280×860 and 375×780, dark and light: no console errors or warnings; no page wider than the screen (tables scroll inside their box); Back returns to the previous page; reload stays on the page.
+- A genuine-receipt photo enlarged to 6000×8000 with camera-like noise (21 MB JPEG): accepted and scaled to 2250×3000; before the rules-only change it was High 0.537 (rules 0.22, forest 0.85), after it is Low 0.17 with the recipient read. The original photo: Low. A rendered screenshot: unchanged (blend).
+- Message check: 14 everyday and scam messages (EN / Filipino) before, 8 near-miss everyday messages after; see `messageMoreScams.test.ts`.
+
 ## 3n. Photos of a screen (V10.2.5)
 
 A photo of a customer's phone showing a MariBank → GCash InstaPay receipt (₱1,000; the date row hidden behind the Share button), scanned in the built offline app (Playwright, Chromium):

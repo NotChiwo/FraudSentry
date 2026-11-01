@@ -2,11 +2,11 @@
 
 FraudSentry runs entirely on your own device. Nothing you check is sent anywhere, and you don't need an account.
 
-Every download below is on the [latest release](https://github.com/NotChiwo/FraudSentry/releases/latest) page, under **Assets**.
+Every download below is on the [latest release](https://github.com/NotChiwo/FraudSentry/releases/latest) page, under **Assets**. Check that its version matches the newest entry in [CHANGELOG.md](../CHANGELOG.md); if it is older, the newest apps are under **Actions → Apps → Artifacts** of the latest run on `main`.
 
 ## 1. Easiest on any computer: the single HTML file
 
-1. Download `FraudSentry-v10.1.0-offline.html` from the release.
+1. Download `FraudSentry-v…-offline.html` (the version number changes with each release) from the release.
 2. Double-click it. It opens in your normal browser (Chrome, Edge, Firefox or Safari).
 
 That's it. The text reader is built in, so it works with no internet. Keep a copy on the laptop as a backup in case the venue's Wi-Fi fails.

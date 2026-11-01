@@ -23,7 +23,7 @@ import { generateId, scoreToRiskLevel, clamp, classificationOf, blendScore } fro
 import { runOcr, OcrCancelled } from './ocr/ocr';
 import type { OcrProgress } from './ocr/ocr';
 import { analyzeForensics, inkCheckForFile } from './checks/imageForensics';
-import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, receivingAppOf, type TransactionDirection } from './reading/receiptParser';
+import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, receivingAppOf, recipientLabelSeen, type TransactionDirection } from './reading/receiptParser';
 import { reconcileAmounts, checkReceiptDate, checkWeekday } from './checks/consistencyChecks';
 import { assessHiddenFields } from './checks/hiddenFields';
 import { matchAgainstHistory, PriorScan } from './checks/historyMatch';
@@ -179,9 +179,11 @@ export async function analyzeTransactionImage(
 
   // ── Recipient identity completeness ──
   // A genuine money transfer ALWAYS shows who was paid. If the receipt reads
-  // clearly everywhere else (good OCR, amount/reference/date all found) but
-  // names NO recipient at all, the field is genuinely blank — a severe
-  // structural anomaly, not an OCR miss. Weighted heavily in that case.
+  // clearly everywhere else (good OCR, amount/reference/date all found) and
+  // has NO recipient field at all (no "To", "Recipient", "Account name" …),
+  // the recipient is genuinely blank — a severe structural anomaly, not an OCR
+  // miss. Weighted heavily in that case. If such a field IS there but nothing
+  // was read from it, the parser missed it: that only gets the milder finding.
   // (Skipped on an unsent screen: nothing was sent, so there is no recipient —
   // the Unconfirmed Transaction finding below already explains it.)
   // (Also skipped when details are visibly hidden: that finding already says why.)
@@ -195,7 +197,7 @@ export async function analyzeTransactionImage(
     const readFields = [extracted.amount != null ? 'amount' : null, extracted.referenceNo ? 'reference number' : null, extracted.date ? 'date' : null].filter(Boolean) as string[];
     const txnFieldsRead = readFields.length > 0;
     const readList = readFields.length > 1 ? `${readFields.slice(0, -1).join(', ')} and ${readFields[readFields.length - 1]}` : readFields[0];
-    if (ocrReadable && txnFieldsRead) {
+    if (ocrReadable && txnFieldsRead && !recipientLabelSeen(ocrTexts)) {
       findings.push(finding('text', 'No Recipient Identified',
         `The ${readList} on this receipt read clearly — yet it names NO recipient at all (no name and no number). A genuine transfer always shows who was paid, so a blank recipient on an otherwise-readable receipt is a strong sign the image was fabricated or altered. Do not accept this as proof of payment.`,
         'critical', false, 0.50));
@@ -266,9 +268,9 @@ export async function analyzeTransactionImage(
   // ── Score: rule findings + Random Forest, blended 50/50 ──
   const failed = findings.filter(f => !f.passed);
   const heuristicScore = clamp(failed.reduce((s, f) => s + f.weight, 0), 0, 1);
-  const forestAnalysis = scoreWithSharedModel(
-    buildFeatureVector(forensics, ocr, extracted, source, failed.length),
-  );
+  // On a photo of a screen the forest's inputs (OCR confidence, "reference read", …) measure the
+  // photo's quality, not the receipt: it learned from screenshots, so its vote is shown but not used.
+  const forestAnalysis = { ...scoreWithSharedModel(buildFeatureVector(forensics, ocr, extracted, source, failed.length)), inScore: !isPhoto };
   // Definitive findings set a floor the blend can never dilute (kept as
   // scoreFloor, so the evaluation can replay exactly how a result was scored).
   let scoreFloor = 0;
@@ -283,7 +285,7 @@ export async function analyzeTransactionImage(
   if (ink.status === 'suspicious') scoreFloor = Math.max(scoreFloor, 0.22);
   // Hidden details make the receipt unverifiable: never below High.
   if (detailsHidden) scoreFloor = Math.max(scoreFloor, 0.45);
-  const riskScore = blendScore(heuristicScore, forestAnalysis.probability, scoreFloor);
+  const riskScore = isPhoto ? Math.max(heuristicScore, scoreFloor) : blendScore(heuristicScore, forestAnalysis.probability, scoreFloor);
   const riskLevel: RiskLevel = scoreToRiskLevel(riskScore);
 
   const legitimacyLabel =

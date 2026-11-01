@@ -165,15 +165,11 @@ export default function DetectionModelPage() {
   return (
     <div className="page" style={{ maxWidth: 1180, paddingBottom: 48 }}>
       {/* Header */}
-      <div className="fade-up" style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 8 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 22px rgba(37,99,235,0.4)' }}>
-          <Trees size={22} color="#fff" />
-        </div>
+      <div className="page-head">
+        <div className="page-head-ico"><Trees size={22} /></div>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>Detection Model — Random Forest</h1>
-          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.5, maxWidth: 720 }}>
-            A real Random Forest learns, from labelled examples, how to weigh the evidence features FraudSentry extracts — instead of relying on fixed hand-set weights. Every metric below is computed on a held-out test set.
-          </p>
+          <h1>Detection Model</h1>
+          <p>A real Random Forest learns, from labelled examples, how to weigh the evidence features FraudSentry extracts — instead of relying on fixed hand-set weights. Every metric below is computed on a held-out test set.</p>
         </div>
       </div>
 

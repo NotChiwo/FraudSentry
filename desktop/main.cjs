@@ -8,8 +8,8 @@
 //   • it cannot navigate away or open other windows (https links open in
 //     the normal browser);
 //   • only the camera may be requested (for the live receipt camera).
-// Data (accounts, encrypted history) is kept in the app's own profile
-// folder, like a browser's localStorage.
+// The local history (receipts, messages, alerts, reports) is kept in the
+// app's own profile folder, like a browser's localStorage, for 30 days.
 // ============================================================
 const { app, BrowserWindow, protocol, net, session, shell, Menu } = require('electron');
 const path = require('node:path');

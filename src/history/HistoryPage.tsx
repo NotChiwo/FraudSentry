@@ -153,11 +153,11 @@ export default function HistoryPage({ onNavigate }: { onNavigate?: (p: string) =
             <HardDrive size={20} aria-hidden="true" />
             <div>
               <b>Your data stays on this device.</b>
-              <p>History lives in this browser's local storage (up to the last 40 receipts and 40 messages). Clearing your browser data also removes it. Deleting a check also deletes its alert. Receipt images are not kept, only the details read from them. Training labels are kept separately (numbers only) and are not removed by “Delete all”.</p>
+              <p>History lives in this browser's local storage (up to the last 40 receipts and 40 messages). Clearing your browser data also removes it. Deleting a check also deletes its alert. Receipt images are not kept, only the details read from them. “Delete all” also deletes your saved reports. Training labels are kept separately (numbers only) and are not removed by it.</p>
             </div>
             {confirmClear ? (
               <div className="confirm-row">
-                <span>Delete all {rows.length} records and their alerts?</span>
+                <span>Delete all {rows.length} records, their alerts and your saved reports?</span>
                 <button type="button" className="btn-ghost danger" onClick={() => { clearHistory(); setConfirmClear(false); }}>Yes, delete all</button>
                 <button type="button" className="btn-ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
               </div>

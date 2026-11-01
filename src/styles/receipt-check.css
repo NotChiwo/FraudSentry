@@ -47,8 +47,7 @@
 .scan-live { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: 26px; padding: 22px; }
 .scan-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .scan-window { position: relative; width: 100%; border-radius: 16px; overflow: hidden; border: 1px solid var(--border-accent); background: #000;
-  box-shadow: 0 0 0 4px var(--bg-accent-tint); }
-.scan-window { max-height: 520px; }
+  box-shadow: 0 0 0 4px var(--bg-accent-tint); max-height: 520px; }
 .scan-inner { position: relative; }
 .scan-window img { display: block; width: 100%; height: auto; opacity: .92; }
 .word-box { position: absolute; border-radius: 3px; background: rgba(139,124,255,0.20); outline: 1.5px solid rgba(169,155,255,0.85); opacity: 0;

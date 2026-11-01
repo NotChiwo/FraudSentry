@@ -31,15 +31,11 @@ const SECTIONS = [
 export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => void } = {}) {
   return (
     <div className="page" style={{ maxWidth: 820 }}>
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Lock size={19} color="var(--accent-light)" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: 'var(--text-primary)' }}>Privacy &amp; Data Policy</h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0' }}>Compliant with the Philippine Data Privacy Act of 2012 (RA 10173).</p>
-          </div>
+      <div className="page-head">
+        <div className="page-head-ico"><Lock size={22} /></div>
+        <div>
+          <h1>Privacy &amp; Data</h1>
+          <p>Compliant with the Philippine Data Privacy Act of 2012 (RA 10173).</p>
         </div>
       </div>
 

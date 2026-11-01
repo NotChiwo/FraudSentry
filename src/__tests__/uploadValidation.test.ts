@@ -42,3 +42,11 @@ describe('upload validation', () => {
     expect(sniffImageSignature(new Uint8Array([0x25, 0x50, 0x44, 0x46]))).toBeNull(); // %PDF
   });
 });
+
+describe('iPhone HEIC photos', () => {
+  it('get a message that says what to do', () => {
+    const f = new File([new Uint8Array(500)], 'IMG_0001.HEIC', { type: 'image/heic' });
+    expect(checkImageBasics(f)).toMatch(/HEIC/);
+    expect(checkImageBasics(new File([new Uint8Array(500)], 'photo.heif', { type: '' }))).toMatch(/HEIC/);
+  });
+});

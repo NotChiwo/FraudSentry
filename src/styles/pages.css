@@ -42,8 +42,6 @@
 
 .home-section { margin-bottom: 26px; }
 .home-section > .row-between, .home-section > .section-title { margin-bottom: 12px; }
-.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 860px) { .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .stat { padding: 16px; border-radius: 18px; background: var(--bg-card); border: 1px solid var(--border-default); }
 .stat-top { display: flex; align-items: center; justify-content: space-between; color: var(--text-muted); }
 .stat-l { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
@@ -153,7 +151,8 @@
 /* ── cards, stats & tables ──────────────────────────────────── */
 .panel { padding: 18px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 12px; }
 .panel .section-title { display: flex; align-items: center; gap: 8px; margin: 0; }
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
+@media (max-width: 600px) { .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stat-value { font-size: 24px; } }
 .stat-tile { padding: 16px; display: flex; flex-direction: column; gap: 4px; }
 .stat-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
 .stat-value { font-size: 28px; font-weight: 800; color: var(--text-primary); }
