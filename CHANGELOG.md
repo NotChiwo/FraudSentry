@@ -1,5 +1,14 @@
 # Changelog
 
+## V10.2.5 — 2026-11-01
+
+### Photos of a screen (an SME photographing the customer's phone)
+- **A genuine MariBank → GCash InstaPay receipt, photographed on the customer's phone, was rated High** ("no recipient"). It is now Low. Three causes, all fixed:
+  - **Date parser:** "MariBank: 1327…" was read as the date "MarBans 132767" ("Mar" + 13 + 2767). A written date now needs a real month name, a day from 1 to 31 and a space or comma before the year. (This also affected clean screenshots.)
+  - **Recipient:** in a photo, OCR puts a scrap of the background before the "To" label, so the name "Ma*a Sa***s L." was not found and the receipt was treated as naming no recipient (a critical rule). The label may now follow one short scrap set off by a wide gap, and the "Acct No." under it is read as the recipient's account.
+  - **Photo mode:** the app now tells a camera photo of a screen from a screenshot (`checks/captureType.ts`: a screenshot's app backgrounds are perfectly flat, a photo's never are; the in-app camera always counts as a photo). On a photo, error-level analysis, screen size, re-typed-colour and blurred-area checks are skipped (they only work on the original file), a recipient that couldn't be read is a small note instead of "no recipient", the result says "Photo of a screen", and "What to do next" says fewer checks were possible and names any key detail that couldn't be read (here the date row, hidden behind the Share button).
+- **"Open your … app" names where the money went.** The tip and next steps named the sender's bank (MariBank) although the money went to GCash. They now name the receiving app when the receipt says it ("G-Xchange / GCash"), the e-wallet itself for a send inside one e-wallet, and "your bank or e-wallet" for a bank transfer that doesn't say.
+
 ## V10.2.4 — 2026-10-31
 
 ### Sent or received, and who was paid

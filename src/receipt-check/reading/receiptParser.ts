@@ -246,8 +246,13 @@ function reconstructMaskedName(s: string, gcashStyle = false): string {
 // "From <name>" / "To <name>" receipts (MariBank, InstaPay, many banks). The
 // label sits at the start of the line; the name may be on the same line or just
 // below it, and may be masked with asterisks/bullets.
+// On a photo of a screen, OCR often puts a short scrap of the background before
+// the label ("3       To   Ma*a Sa***s L."): allow one such scrap, set off by a
+// wide gap, so "Go to Accounts" (single spaces) is still not a "To" label.
+const partyLabel = (keyword: 'from' | 'to') => new RegExp(`^\\s*(?:\\S{1,3}\\s{3,})?${keyword}\\b[:.\\s]*(.*)$`, 'i');
+
 function fromToName(lines: string[], keyword: 'from' | 'to'): string | null {
-  const labelRe = new RegExp(`^\\s*${keyword}\\b[:.\\s]*(.*)$`, 'i');
+  const labelRe = partyLabel(keyword);
   const tidy = (v: string) => v
     .replace(/^[^A-Za-z]+/, '')                 // leading icon/punctuation
     .replace(/^[A-Z©@®0-9]\s+(?=[A-Z])/, '')    // a lone icon letter mis-read before the name
@@ -260,6 +265,19 @@ function fromToName(lines: string[], keyword: 'from' | 'to'): string | null {
     for (let j = i + 1; j <= i + 2 && j < lines.length; j++) {
       const v = tidy(lines[j]);
       if (maskedNameLike(v)) return reconstructMaskedName(v, false);
+    }
+  }
+  return null;
+}
+
+/** "To … / G-Xchange / GCash / Acct No.: KPRT…" (MariBank, InstaPay): the recipient's account, within 3 lines of the "To" label. */
+function toAccountNo(lines: string[]): string | null {
+  const labelRe = partyLabel('to');
+  for (let i = 0; i < lines.length; i++) {
+    if (!labelRe.test(lines[i])) continue;
+    for (let j = i; j <= i + 3 && j < lines.length; j++) {
+      const m = lines[j].match(/\bacc(?:oun)?t\.?\s*(?:no|number|#)\.?\s*[:.]?\s*([A-Z0-9*•x][A-Z0-9*•x ]{3,30}[A-Z0-9*•x])/i);
+      if (m) return m[1].replace(/\s+/g, '');
     }
   }
   return null;
@@ -376,6 +394,15 @@ function transferToBlock(lines: string[]): { name: string | null; account: strin
   return { name: masked ?? nickname, account };
 }
 
+// A written date: a real month name (not "MarBans" read from "MariBank"), a day
+// from 1 to 31, then a space or comma before the year — so "Mar 132767" (digits
+// run together) is not a date.
+const MONTH = String.raw`(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?(?![a-z])`;
+const DAY = String.raw`(?:3[01]|[12]\d|0?[1-9])(?:st|nd|rd|th)?(?!\d)`;
+const YEAR = String.raw`(?:19|20)\d{2}(?!\d)`;
+const MONTH_DAY_YEAR = String.raw`${MONTH}\s*${DAY}(?:\s*,\s*|\s+)${YEAR}`;
+const DAY_MONTH_YEAR = String.raw`${DAY}\s+${MONTH}\s*,?\s*${YEAR}`;
+
 export function parseReceipt(rawText: string, filename = ''): { data: ExtractedTransactionData; source: EvidenceSource } {
   const text = rawText.replace(/\u00a0/g, ' ');
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -416,10 +443,10 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
 
   // Maya purchases show the update time in the header ("Jul 28, 2026, 08:31 PM")
   // and the actual transaction under a "Purchase date" label — prefer the label.
-  const purchased = text.match(/purchase\s+date\s+((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4})\s*,?\s*(?:\n\s*)?(\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm))?/i);
+  const purchased = text.match(new RegExp(`purchase\\s+date\\s+(${MONTH_DAY_YEAR})\\s*,?\\s*(?:\\n\\s*)?(\\d{1,2}:\\d{2}(?::\\d{2})?\\s*(?:am|pm))?`, 'i'));
   const date = purchased ? purchased[1] : firstMatch(text, [
-    /\b((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?\s*,?\s*\d{4})/i,
-    /\b(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*,?\s*\d{4})/i,
+    new RegExp(`\\b(${MONTH_DAY_YEAR})`, 'i'),
+    new RegExp(`\\b(${DAY_MONTH_YEAR})`, 'i'),
     /\b(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})\b/,
     /\b(\d{4}-\d{2}-\d{2})\b/,
   ]);
@@ -436,6 +463,7 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
     'pay to', 'send money to', 'send to', 'received by', 'credit to', 'payee',
   ]);
   if (!receiverName) receiverName = fromToName(lines, 'to');
+  const toAccount = !receiverContact && !transferTo.account ? toAccountNo(lines) : null;
   if (!receiverName) receiverName = payeeAfterHeadline(lines);
   if (!receiverName) receiverName = nameAbovePhone(lines);
 
@@ -449,7 +477,7 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
     data: {
       senderName: senderName || null,
       receiverName: receiverName || null,
-      receiverContact: receiverContact || transferTo.account || null,
+      receiverContact: receiverContact || transferTo.account || toAccount || null,
       amount,
       date: date ? date.replace(/\s+/g, ' ').trim() : null,
       time: time ? time.replace(/\s+/g, ' ').trim() : null,
@@ -669,6 +697,25 @@ export function ecpayReferenceOf(texts: string[]): string | null {
     if (m) return m[1];
   }
   return null;
+}
+
+/**
+ * Where the money went: the bank or e-wallet the RECEIVER checks. Named in the
+ * "To" block of InstaPay receipts ("G-Xchange / GCash"); for a send inside one
+ * e-wallet it is that e-wallet. Null for a bank transfer that doesn't say — it
+ * can land in any bank or e-wallet.
+ */
+export function receivingAppOf(text: string, source: EvidenceSource, type: TransactionType): EvidenceSource | null {
+  const lines = text.split('\n');
+  const label = partyLabel('to');
+  for (let i = 0; i < lines.length; i++) {
+    if (!label.test(lines[i])) continue;
+    const block = lines.slice(i, i + 4).join(' ').replace(/g-?\s*xchange/i, 'gcash');
+    const hit = KEYWORD_RES.find(([, re]) => re.test(block));
+    if (hit && hit[0] !== 'Online Banking') return hit[0];
+  }
+  if (type === 'Bank Transfer' || source === 'Unknown' || source === 'Online Banking') return null;
+  return source;
 }
 
 /** Every bank / e-wallet FraudSentry recognises, for pickers. */

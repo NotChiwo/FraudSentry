@@ -19,7 +19,7 @@ src/
 ├─ app/                    Home, About, Privacy, welcome notice, navigation
 ├─ shared/                 data store, types, helpers used by every module
 ├─ styles/                 all CSS
-└─ __tests__/              automated tests (304)
+└─ __tests__/              automated tests (313)
 ```
 
 ---
@@ -36,7 +36,8 @@ src/
       - `hiddenFields.ts`, `obscuredRegions.ts`: blurred, pixelated or covered details;
       - `inkConsistency.ts`: a number re-typed in a slightly different colour;
       - `consistencyChecks.ts`: amount + fee = total, real non-future date, weekday matches the date;
-      - `historyMatch.ts`: the same reference was already checked with another amount.
+      - `historyMatch.ts`: the same reference was already checked with another amount;
+      - `captureType.ts`: a screenshot, or a camera photo of a screen? On a photo the pixel checks above are skipped.
    4. **Rule score:** every failed check adds its weight.
    5. **Random Forest:** `random-forest/sampleDataset.ts` → `buildFeatureVector()` turns the evidence into 10 numbers, and `random-forest/sharedModel.ts` → `scoreWithSharedModel()` returns the forest's fraud probability.
    6. **Final score** = ½ rules + ½ forest, never below the floor a definitive finding sets (for example, hidden details ⇒ at least High). The risk level comes from that score: Low / Medium / High / Critical. **Classification:** High or Critical means *possibly fraudulent*; anything lower means *legitimate*.
@@ -122,4 +123,4 @@ src/
 | "How do you read the receipt?" | `receipt-check/ocr/ocr.ts` → `runOcr()`, then `reading/receiptParser.ts` |
 | "How do you detect edited receipts?" | `receipt-check/checks/` (one file per kind of edit) |
 | "Where is the data stored? Is it private?" | `shared/store.ts`: in the device only, 30-day expiry, no server |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (304 tests) |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (313 tests) |

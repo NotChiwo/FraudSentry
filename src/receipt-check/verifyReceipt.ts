@@ -23,7 +23,7 @@ import { generateId, scoreToRiskLevel, clamp, classificationOf, blendScore } fro
 import { runOcr, OcrCancelled } from './ocr/ocr';
 import type { OcrProgress } from './ocr/ocr';
 import { analyzeForensics, inkCheckForFile } from './checks/imageForensics';
-import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, type TransactionDirection } from './reading/receiptParser';
+import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, receivingAppOf, type TransactionDirection } from './reading/receiptParser';
 import { reconcileAmounts, checkReceiptDate, checkWeekday } from './checks/consistencyChecks';
 import { assessHiddenFields } from './checks/hiddenFields';
 import { matchAgainstHistory, PriorScan } from './checks/historyMatch';
@@ -64,12 +64,15 @@ export async function analyzeTransactionImage(
     signal?: AbortSignal;
     /** real OCR progress events (pass number, Tesseract's own 0-1 progress, words found) */
     onOcrProgress?: (p: OcrProgress) => void;
+    /** taken with the in-app camera: a photo, not a screenshot */
+    fromCamera?: boolean;
   },
 ): Promise<ImageScanResult> {
   const onStage = opts?.onStage;
 
   onStage?.('Running forensic analysis');
-  const forensics: ForensicReport = await analyzeForensics(file);
+  const forensics: ForensicReport = await analyzeForensics(file, { fromCamera: opts?.fromCamera });
+  const isPhoto = forensics.capture === 'photo';
   if (opts?.signal?.aborted) throw new OcrCancelled();
 
   let ocr: OcrResult;
@@ -94,6 +97,7 @@ export async function analyzeTransactionImage(
   const allText = passTexts.join('\n');
   const transactionType = transactionTypeOf(allText, source);
   const direction = transactionDirectionOf(allText);
+  const receivingApp = receivingAppOf(allText, source, transactionType);
   const payee = payeeOf(passTexts[0], transactionType) ?? passTexts.slice(1).map(t => payeeOf(t, transactionType)).find(Boolean) ?? null;
   if (!opts?.extractedOverride) {
     // On a bill payment the "Account Name" is the subscriber (usually the payer); the money went to the biller.
@@ -108,6 +112,11 @@ export async function analyzeTransactionImage(
   // ── Forensic signals feed directly in as findings ──
   for (const s of forensics.signals) {
     findings.push(finding('forensic', s.label, s.detail, s.severity, s.passed, s.weight));
+  }
+  if (isPhoto) {
+    findings.push(finding('forensic', 'Photo of a Screen',
+      'This is a camera photo of a phone screen, not the screenshot file. The checks that look for editing in the pixels (error levels, re-typed text colour, blurred or covered areas) only work on the original file, so this result rests on the text alone.',
+      'low', true, 0));
   }
 
   // ── OCR quality finding ──
@@ -176,7 +185,12 @@ export async function analyzeTransactionImage(
   // (Skipped on an unsent screen: nothing was sent, so there is no recipient —
   // the Unconfirmed Transaction finding below already explains it.)
   // (Also skipped when details are visibly hidden: that finding already says why.)
-  if (!unconfirmed && !detailsHidden && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
+  if (isPhoto && !unconfirmed && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
+    // On a photo, a field OCR couldn't read is not a field missing from the receipt.
+    findings.push(finding('text', 'Recipient Not Read',
+      'The recipient’s name or number could not be read from this photo. That is common on photos of a screen (glare, angle, part of the screen cut off) and does not count against the receipt — but check who was paid on the sender’s screen.',
+      'low', false, 0.05));
+  } else if (!unconfirmed && !detailsHidden && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
     const ocrReadable = (ocr?.confidence ?? 0) >= 65;
     const readFields = [extracted.amount != null ? 'amount' : null, extracted.referenceNo ? 'reference number' : null, extracted.date ? 'date' : null].filter(Boolean) as string[];
     const txnFieldsRead = readFields.length > 0;
@@ -235,7 +249,8 @@ export async function analyzeTransactionImage(
 
   // ── Repainted number? Ink tint of the amount / reference line vs the rest ──
   let ink: Awaited<ReturnType<typeof inkCheckForFile>> = { status: 'unknown', outliers: [], detail: '' };
-  try { ink = await inkCheckForFile(file, ocr.words); } catch { /* no canvas: skip */ }
+  // (not on a photo of a screen: glare and the camera change the colours everywhere)
+  if (!isPhoto) try { ink = await inkCheckForFile(file, ocr.words); } catch { /* no canvas: skip */ }
   if (ink.status === 'suspicious') {
     findings.push(finding('forensic', 'Text Colour Consistency', ink.detail, 'medium', false, 0.30));
   }
@@ -288,7 +303,7 @@ export async function analyzeTransactionImage(
     : 'No tampering indicators were found. As best practice, still confirm the funds actually landed in your account before releasing anything of value.';
 
   const reused = hist.kind === 'reused';
-  const actionPlan = [...paymentContextNotes(transactionType, direction, payee), ...buildActionPlan(riskLevel, source, extracted, failed, reused)];
+  const actionPlan = [...photoNotes(isPhoto, extracted), ...paymentContextNotes(transactionType, direction, payee), ...buildActionPlan(riskLevel, receivingApp, extracted, failed, reused)];
 
   return {
     id: generateId('scan'),
@@ -312,6 +327,7 @@ export async function analyzeTransactionImage(
     transactionType,
     direction,
     payee: payee ?? undefined,
+    receivingApp,
     txStatus: 'pending',
     forestAnalysis,
     inkOutliers: ink.outliers.map(({ text, x0, y0, x1, y1 }) => ({ text, x0, y0, x1, y1 })),
@@ -322,6 +338,17 @@ export async function analyzeTransactionImage(
 
 // Concrete, ordered next steps for a non-technical user, specific to what
 // this scan actually found (not a generic warning).
+/** On a photo of a screen: fewer checks are possible, and say which key details could not be read. */
+export function photoNotes(isPhoto: boolean, extracted: ExtractedTransactionData): string[] {
+  if (!isPhoto) return [];
+  const unread = [extracted.amount == null ? 'amount' : null, extracted.referenceNo ? null : 'reference number', extracted.date ? null : 'date'].filter(Boolean) as string[];
+  const list = unread.length > 1 ? `${unread.slice(0, -1).join(', ')} and ${unread.at(-1)}` : unread[0];
+  return [
+    'This is a photo of a screen, so fewer checks are possible than on the screenshot itself. If you can, ask the sender to send the screenshot file (for example through Messenger or Viber).',
+    ...(list ? [`The ${list} could not be read from this photo — part of the receipt may be cut off, covered or in glare. Take the photo again with the whole receipt on the screen, or check it on the sender’s phone.`] : []),
+  ];
+}
+
 /**
  * What kind of screenshot this is, when that matters for "did they pay me?".
  * Notes only — they don't change the score.
@@ -340,14 +367,15 @@ export function paymentContextNotes(type: string, direction: TransactionDirectio
 
 function buildActionPlan(
   riskLevel: RiskLevel,
-  source: EvidenceSource,
+  receivingApp: EvidenceSource | null,
   extracted: ExtractedTransactionData,
   failed: VerificationFinding[],
   reused: boolean,
 ): string[] {
   const plan: string[] = [];
   const failedLabel = (l: string) => failed.some(f => f.label === l);
-  const app = source === 'Unknown' ? 'your e-wallet/bank' : source;
+  // the receiver checks the app the money went to, which may not be the sender's
+  const app = receivingApp ?? 'bank or e-wallet';
   const ref = extracted.referenceNo;
 
   if (riskLevel === 'critical' || riskLevel === 'high') {
