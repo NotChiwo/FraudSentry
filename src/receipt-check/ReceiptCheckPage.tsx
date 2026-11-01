@@ -55,6 +55,7 @@ export default function ReceiptCheckPage() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const autoScanRef = useRef(false);   // start scanning as soon as a camera capture is ready
+  const fromCameraRef = useRef(false); // the file was taken with the in-app camera (a photo, not a screenshot)
   const [camOpen, setCamOpen] = useState(false);
 
   const reset = () => {
@@ -67,6 +68,7 @@ export default function ReceiptCheckPage() {
     const err = await validateImageFile(f);
     if (err) { setError(err); return; }
     autoScanRef.current = autoScan;
+    fromCameraRef.current = autoScan;
     setError(''); setNotice(''); setResult(null); setEditing(false);
     setFile(f);
     setPhase('selected');
@@ -114,6 +116,7 @@ export default function ReceiptCheckPage() {
         .map(s => ({ id: s.id, filename: s.filename, scannedAt: s.scannedAt, extracted: s.extracted }));
       const scan = await analyzeTransactionImage(f, {
         previewDataUrl: preview,
+        fromCamera: fromCameraRef.current,
         ocrOverride: opts?.ocrOverride,
         extractedOverride: opts?.extractedOverride,
         history: opts?.extractedOverride ? [] : history,
@@ -393,7 +396,8 @@ function ResultView(props: {
   const [howOpen, setHowOpen] = useState(false);
   const [showBoxes, setShowBoxes] = useState(true);
   const v = verdictFor(result);
-  const app = result.source === 'Unknown' ? 'bank or e-wallet' : result.source;
+  // the app the money went to (older results: the sender's app, as before)
+  const app = result.receivingApp !== undefined ? (result.receivingApp ?? 'bank or e-wallet') : result.source === 'Unknown' ? 'bank or e-wallet' : result.source;
   const failures = topFailures(result);
   const validation = useMemo(
     () => (result.ocr.available ? validateExtraction(result.extracted, result.ocr.text, result.source, result.ocr.passes, result.transactionType) : null),
@@ -423,6 +427,7 @@ function ResultView(props: {
                 return kind ? <span className="muted small">{kind}</span> : null;
               })()}
               {result.payee && <span className="muted small">Paid to {result.payee}</span>}
+              {result.forensics.capture === 'photo' && <span className="muted small">Photo of a screen</span>}
               {result.forestAnalysis?.modelName && <span className="muted small">Scored with {result.forestAnalysis.modelName}</span>}
             </p>
           </div>

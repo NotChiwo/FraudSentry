@@ -21,6 +21,7 @@ import { ForensicReport, ForensicSignal, RiskLevel, OcrWord } from '../../shared
 import { generateId } from '../../shared/helpers';
 import { fileToImage } from '../ocr/ocr';
 import { findObscuredRegions, type ObscuredRegion } from './obscuredRegions';
+import { flatBlockShare, captureKindOf, type CaptureKind } from './captureType';
 import { checkInkConsistency, type InkCheck } from './inkConsistency';
 
 function sig(label: string, value: string, detail: string, severity: RiskLevel, passed: boolean, weight: number): ForensicSignal {
@@ -226,7 +227,16 @@ function detectObscured(img: HTMLImageElement): ObscuredRegion[] {
     .map(r => ({ ...r, x: Math.round(r.x / k), y: Math.round(r.y / k), w: Math.round(r.w / k), h: Math.round(r.h / k) }));
 }
 
-export async function analyzeForensics(file: File): Promise<ForensicReport> {
+function measureFlatShare(img: HTMLImageElement): number {
+  const k = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(img, 0, 0, w, h);
+  return flatBlockShare(ctx.getImageData(0, 0, w, h).data, w, h);
+}
+
+export async function analyzeForensics(file: File, opts?: { fromCamera?: boolean }): Promise<ForensicReport> {
   const buf = new Uint8Array(await file.arrayBuffer());
   const sniff = sniffType(buf);
   // (named "jpeg" for history; holds PNG/WebP metadata too)
@@ -238,15 +248,24 @@ export async function analyzeForensics(file: File): Promise<ForensicReport> {
   const img = await fileToImage(file);
   const width = img.naturalWidth, height = img.naturalHeight;
 
+  // A photo of a screen: the pixel checks below are built for screenshots, so they are skipped.
+  let flatShare: number | null = null;
+  try { flatShare = measureFlatShare(img); } catch { /* canvas unavailable */ }
+  const capture: CaptureKind = flatShare == null ? (opts?.fromCamera ? 'photo' : 'screenshot') : captureKindOf(flatShare, opts?.fromCamera);
+
   let ela = { mean: 0, hotspotPct: 0, thumb: null as string | null };
-  try { const r = await computeELA(img); ela = { mean: r.mean, hotspotPct: r.hotspotPct, thumb: r.thumb }; }
-  catch { /* leave defaults */ }
+  if (capture === 'screenshot') {
+    try { const r = await computeELA(img); ela = { mean: r.mean, hotspotPct: r.hotspotPct, thumb: r.thumb }; }
+    catch { /* leave defaults */ }
+  }
 
   let obscuredRegions: ObscuredRegion[] = [];
-  try { obscuredRegions = detectObscured(img); }
-  catch { /* canvas unavailable: leave empty */ }
+  if (capture === 'screenshot') {
+    try { obscuredRegions = detectObscured(img); }
+    catch { /* canvas unavailable: leave empty */ }
+  }
 
-  const signals = buildForensicSignals({ sniff, declaredType: file.type, jpeg, width, height, ela });
+  const signals = buildForensicSignals({ sniff, declaredType: file.type, jpeg, width, height, ela, capture });
 
   return {
     width, height,
@@ -261,6 +280,8 @@ export async function analyzeForensics(file: File): Promise<ForensicReport> {
     elaHotspotPct: ela.hotspotPct,
     elaThumbnail: ela.thumb,
     obscuredRegions,
+    capture,
+    flatShare: flatShare ?? undefined,
     signals,
   };
 }
@@ -279,6 +300,8 @@ export interface ForensicInput {
   jpeg: { hasExif: boolean; software: string | null; progressive: boolean | null };
   width: number; height: number;
   ela: { mean: number; hotspotPct: number };
+  /** a photo of a screen: screen geometry and ELA don't apply */
+  capture?: CaptureKind;
 }
 
 /** Pure: turns measured file/pixel facts into forensic findings (unit-tested). */
@@ -324,6 +347,13 @@ export function buildForensicSignals(x: ForensicInput): ForensicSignal[] {
       jpeg.progressive ? 'Progressive encoding. Common for images re-saved by chat apps, browsers or downloads, so it is noted but not counted in the score.' : 'Baseline encoding, typical of a direct device screenshot.',
       'low', true, 0,
     ));
+  }
+
+  // On a photo of a screen, the camera sets the size and re-compression is everywhere: noted, not scored.
+  if (x.capture === 'photo') {
+    signals.push(sig('Screen Geometry', `${width}×${height} (photo)`, 'This is a photo of a screen, so its size is the camera’s, not the phone screen’s. Not checked.', 'low', true, 0));
+    signals.push(sig('Error Level Analysis', 'not used on photos', 'Error levels only mean something on the original screenshot file; a camera photo re-compresses every part of the image. Not checked.', 'low', true, 0));
+    return signals;
   }
 
   // 5. Dimensions / aspect plausibility

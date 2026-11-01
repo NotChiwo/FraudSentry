@@ -55,6 +55,10 @@ export interface ForensicReport {
   elaThumbnail: string | null; // dataURL of ELA heatmap
   /** pixelated / covered areas (original-image pixels) */
   obscuredRegions?: { kind: 'pixelated' | 'covered'; x: number; y: number; w: number; h: number; tiles: number }[];
+  /** the original screenshot file, or a camera photo of a screen (checks/captureType.ts) */
+  capture?: 'screenshot' | 'photo';
+  /** share of perfectly flat 8×8 blocks the capture type was decided from */
+  flatShare?: number;
   signals: ForensicSignal[];
 }
 
@@ -132,6 +136,8 @@ export interface ImageScanResult {
   direction?: 'sent' | 'received' | 'unclear';
   /** the biller or merchant a bill payment / purchase went to */
   payee?: string;
+  /** the bank or e-wallet the money went to — the app the receiver checks (null: not named) */
+  receivingApp?: string | null;
   /** did the money really arrive? set by the user from their own account */
   txStatus?: TransactionStatus;
   txStatusAt?: string;
