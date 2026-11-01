@@ -11,7 +11,7 @@ import { generateMessageReport } from '../reports/pdfReports';
 import { useAppStore } from '../shared/store';
 import { MessageScanResult, MessagePlatform, MessageFlag } from '../shared/types';
 import { RISK_META } from '../shared/helpers';
-import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../receipt-check/checks/uploadValidation';
+import { validateImageFile, shrinkLargePhoto, ACCEPTED_IMAGE_TYPES } from '../receipt-check/checks/uploadValidation';
 import CameraScanner from '../receipt-check/CameraScanner';
 import { Camera, FileImage } from 'lucide-react';
 
@@ -51,7 +51,8 @@ export default function MessageCheckPage() {
     if (!(exampleText !== null && raw === exampleText)) addMessageScan(res);
   };
 
-  const handleImage = async (f: File) => {
+  const handleImage = async (picked: File) => {
+    const f = (await shrinkLargePhoto(picked)) ?? picked;
     const invalid = await validateImageFile(f);
     if (invalid) { setError(invalid); return; }
     setError(''); setResult(null); setBusy(true); setStage('Loading OCR engine');
@@ -79,17 +80,11 @@ export default function MessageCheckPage() {
 
   return (
     <div className="page" style={{ maxWidth: 1100 }}>
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <MessageSquareWarning size={19} color="var(--accent-light)" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: 'var(--text-primary)' }}>Fraud Message Analyzer</h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-              Paste a suspicious message or upload a screenshot. We highlight the exact phrases that look like a scam and explain why.
-            </p>
-          </div>
+      <div className="page-head">
+        <div className="page-head-ico"><MessageSquareWarning size={22} /></div>
+        <div>
+          <h1>Check a message</h1>
+          <p>Paste a suspicious message or upload a screenshot. We highlight the exact phrases that look like a scam and explain why.</p>
         </div>
       </div>
 

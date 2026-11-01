@@ -12,7 +12,7 @@ import { OcrCancelled } from './ocr/ocr';
 import type { OcrProgress } from './ocr/ocr';
 import { generateImageReport } from '../reports/pdfReports';
 import { validateExtraction, FieldCheck, FieldStatus, FieldConfidence } from './reading/fieldValidation';
-import { validateImageFile, ACCEPTED_IMAGE_TYPES } from './checks/uploadValidation';
+import { validateImageFile, shrinkLargePhoto, ACCEPTED_IMAGE_TYPES } from './checks/uploadValidation';
 import { locateFields, FieldBox } from './reading/fieldLocator';
 import { useAppStore } from '../shared/store';
 import CameraScanner from './CameraScanner';
@@ -40,6 +40,7 @@ interface Live { step: Step; pass?: 1 | 2 | 3; progress?: number; words?: OcrWor
 
 export default function ReceiptCheckPage() {
   const addImageScan = useAppStore(s => s.addImageScan);
+  const replaceImageScan = useAppStore(s => s.replaceImageScan);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -64,7 +65,8 @@ export default function ReceiptCheckPage() {
     setError(''); setNotice(''); setEditing(false); setEditData(null); setLive(null);
   };
 
-  const handleFile = useCallback(async (f: File, autoScan = false) => {
+  const handleFile = useCallback(async (picked: File, autoScan = false) => {
+    const f = (await shrinkLargePhoto(picked)) ?? picked;
     const err = await validateImageFile(f);
     if (err) { setError(err); return; }
     autoScanRef.current = autoScan;
@@ -106,7 +108,7 @@ export default function ReceiptCheckPage() {
     }
   };
 
-  const runScan = async (f: File, opts?: { ocrOverride?: OcrResult; extractedOverride?: ExtractedTransactionData }) => {
+  const runScan = async (f: File, opts?: { ocrOverride?: OcrResult; extractedOverride?: ExtractedTransactionData; replaces?: string }) => {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setPhase('scanning'); setError(''); setNotice('');
@@ -140,7 +142,8 @@ export default function ReceiptCheckPage() {
       setDuplicateOf(prior || null);
       setResult(scan);
       setEditData(scan.extracted);
-      addImageScan(scan);
+      // a corrected re-analysis replaces the earlier result instead of adding a second copy
+      if (opts?.replaces) replaceImageScan(opts.replaces, scan); else addImageScan(scan);
       setPhase('complete');
     } catch (e: unknown) {
       if (e instanceof OcrCancelled || ctrl.signal.aborted) {
@@ -167,7 +170,7 @@ export default function ReceiptCheckPage() {
   const reanalyzeWithEdits = async () => {
     if (!file || !result || !editData) return;
     setEditing(false);
-    await runScan(file, { ocrOverride: result.ocr, extractedOverride: editData });
+    await runScan(file, { ocrOverride: result.ocr, extractedOverride: editData, replaces: result.id });
   };
 
   return (
@@ -428,7 +431,7 @@ function ResultView(props: {
               })()}
               {result.payee && <span className="muted small">Paid to {result.payee}</span>}
               {result.forensics.capture === 'photo' && <span className="muted small">Photo of a screen</span>}
-              {result.forestAnalysis?.modelName && <span className="muted small">Scored with {result.forestAnalysis.modelName}</span>}
+              {result.forestAnalysis?.modelName && <span className="muted small">{result.forestAnalysis.inScore === false ? 'Scored with the rules (photo)' : `Scored with ${result.forestAnalysis.modelName}`}</span>}
             </p>
           </div>
         </div>
@@ -594,10 +597,13 @@ function HowDecided({ result, preview }: { result: ImageScanResult; preview: str
       <div className="score-trio">
         <div className="trio"><div className="trio-v mono">{pct(result.heuristicScore)}</div><div className="trio-l">Rule-based score</div></div>
         <div className="trio-op" aria-hidden="true">+</div>
-        <div className="trio"><div className="trio-v mono">{fa ? pct(fa.probability) : '—'}</div><div className="trio-l">Random Forest{fa ? ` (${fa.votesFraud}/${fa.totalTrees} trees)` : ''}</div></div>
+        <div className="trio"><div className="trio-v mono">{fa ? pct(fa.probability) : '—'}</div><div className="trio-l">Random Forest{fa ? ` (${fa.votesFraud}/${fa.totalTrees} trees)` : ''}{fa?.inScore === false ? ' · not used' : ''}</div></div>
         <div className="trio-op" aria-hidden="true">=</div>
-        <div className="trio strong"><div className="trio-v mono">{pct(result.riskScore)}</div><div className="trio-l">Final risk (½ + ½)</div></div>
+        <div className="trio strong"><div className="trio-v mono">{pct(result.riskScore)}</div><div className="trio-l">{fa?.inScore === false ? 'Final risk (rules only)' : 'Final risk (½ + ½)'}</div></div>
       </div>
+      {fa?.inScore === false && (
+        <p className="note">This is a <b>photo of a screen</b>. The forest learned from screenshots, and on a photo its inputs (how well the text was read, whether a reference was found) measure the photo’s quality rather than the receipt. Its vote is shown, but the result uses the rule-based score alone.</p>
+      )}
       {!!result.scoreFloor && result.riskScore <= result.scoreFloor + 1e-9 && (
         <p className="note">A definitive finding sets a minimum of {pct(result.scoreFloor)}: the average is never allowed to hide it.</p>
       )}

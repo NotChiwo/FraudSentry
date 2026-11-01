@@ -18,15 +18,11 @@ const PRINCIPLES = [
 export default function AboutPage() {
   return (
     <div className="page" style={{ maxWidth: 880 }}>
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ShieldCheck size={19} color="var(--accent-light)" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: 'var(--text-primary)' }}>About FraudSentry</h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0' }}>An evidence-based fraud verification and scam-intelligence platform.</p>
-          </div>
+      <div className="page-head">
+        <div className="page-head-ico"><ShieldCheck size={22} /></div>
+        <div>
+          <h1>About FraudSentry</h1>
+          <p>An evidence-based fraud verification and scam-intelligence platform.</p>
         </div>
       </div>
 

@@ -35,6 +35,8 @@ interface AppState {
   messageScans: MessageScanResult[];
   crossChecks: CrossEvidenceResult[];
   addImageScan: (r: ImageScanResult) => void;
+  /** a re-analysis after "Correct text": the new result replaces the old one (keeping its payment outcome) */
+  replaceImageScan: (oldId: string, r: ImageScanResult) => void;
   addMessageScan: (r: MessageScanResult) => void;
   addCrossCheck: (r: CrossEvidenceResult) => void;
   /** a Cross-Evidence run saves its receipt, its message and the combined result, with ONE alert (for the combined result) */
@@ -195,6 +197,16 @@ export const useAppStore = create<AppState>()(
       messageScans: [],
       crossChecks: [],
       addImageScan: (r) => set(s => withHistory(s, { imageScans: [r, ...s.imageScans].slice(0, 40) }, alertForReceipt(r, s.alertLevel))),
+      replaceImageScan: (oldId, r) => set(s => {
+        const old = s.imageScans.find(x => x.id === oldId);
+        const outcome = old?.txStatus && old.txStatus !== 'pending' ? old.txStatus : null;
+        const next = outcome ? { ...r, txStatus: outcome, txStatusAt: old!.txStatusAt } : r;
+        const rest = s.trainingRows.filter(t => t.id !== oldId);
+        return {
+          ...withHistory(s, { imageScans: [next, ...s.imageScans.filter(x => x.id !== oldId)].slice(0, 40) }, alertForReceipt(next, s.alertLevel)),
+          trainingRows: outcome ? [...rest, rowFromScan(next, outcome === 'received' ? 0 : 1)].slice(-MAX_TRAINING_ROWS) : rest,
+        };
+      }),
       addMessageScan: (r) => set(s => withHistory(s, { messageScans: [r, ...s.messageScans].slice(0, 40) }, alertForMessage(r, s.alertLevel))),
       addCrossCheck: (r) => set(s => withHistory(s, { crossChecks: [r, ...s.crossChecks].slice(0, 20) }, alertForCross(r, s.alertLevel))),
       addCrossEvidence: (receipt, message, cross) => set(s => withHistory(s, {
@@ -202,7 +214,8 @@ export const useAppStore = create<AppState>()(
         messageScans: [message, ...s.messageScans].slice(0, 40),
         crossChecks: [cross, ...s.crossChecks].slice(0, 20),
       }, alertForCross(cross, s.alertLevel))),
-      clearHistory: () => set({ imageScans: [], messageScans: [], crossChecks: [], manualTransactions: [], alerts: [] }),
+      // saved reports list references and amounts too, so they go with the history
+      clearHistory: () => set({ imageScans: [], messageScans: [], crossChecks: [], manualTransactions: [], alerts: [], reports: [] }),
       removeImageScan: (id) => set(s => withHistory(s, { imageScans: s.imageScans.filter(x => x.id !== id) })),
       removeMessageScan: (id) => set(s => withHistory(s, { messageScans: s.messageScans.filter(x => x.id !== id) })),
       removeCrossCheck: (id) => set(s => withHistory(s, { crossChecks: s.crossChecks.filter(x => x.id !== id) })),

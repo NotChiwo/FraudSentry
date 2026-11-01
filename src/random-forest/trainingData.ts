@@ -32,6 +32,8 @@ export interface TrainingRow {
   /** the rule-based score and the floor of that scan, so rules alone can be compared with the forest */
   ruleScore?: number;
   scoreFloor?: number;
+  /** a photo of a screen: the app scored it with the rules alone (see verifyReceipt.ts) */
+  photo?: boolean;
 }
 
 export interface LabelledModelOptions {
@@ -57,6 +59,7 @@ export function featuresOf(scan: ImageScanResult): number[] {
 export function rowFromScan(scan: ImageScanResult, label: 0 | 1, now = new Date()): TrainingRow {
   const row: TrainingRow = { id: scan.id, features: featuresOf(scan), label, addedAt: now.toISOString() };
   if (typeof scan.heuristicScore === 'number') { row.ruleScore = scan.heuristicScore; row.scoreFloor = scan.scoreFloor ?? 0; }
+  if (scan.forensics?.capture === 'photo') row.photo = true;
   return row;
 }
 
@@ -67,17 +70,37 @@ export function counts(rows: TrainingRow[]) {
 
 /** Can these rows train and test a forest? If not, what is missing (plain words). */
 export function readiness(rows: TrainingRow[]): { ok: boolean; message: string } {
-  const c = counts(rows);
+  const unique = uniqueRows(rows);
+  const c = counts(unique);
+  const dup = rows.length - unique.length;
   const need: string[] = [];
   if (c.total < MIN_ROWS) need.push(`${MIN_ROWS - c.total} more labelled receipt${MIN_ROWS - c.total === 1 ? '' : 's'}`);
   if (c.genuine < MIN_PER_CLASS) need.push(`at least ${MIN_PER_CLASS} genuine (have ${c.genuine})`);
   if (c.fake < MIN_PER_CLASS) need.push(`at least ${MIN_PER_CLASS} fake (have ${c.fake})`);
   return need.length
     ? { ok: false, message: `Need ${need.join(', ')} before training.` }
-    : { ok: true, message: `${c.total} labelled receipts: ${c.genuine} genuine, ${c.fake} fake.` };
+    : { ok: true, message: `${c.total} labelled receipts: ${c.genuine} genuine, ${c.fake} fake.${dup ? ` (${dup} duplicate${dup === 1 ? '' : 's'} not counted.)` : ''}` };
 }
 
+/**
+ * Drop exact duplicates (same 10 features, same label): the same screenshot
+ * scanned and labelled twice. Kept, one copy could land in the training set
+ * and the other in the test set, and the model would be "tested" on a receipt
+ * it has already seen — inflating every metric.
+ */
+export function uniqueRows(rows: TrainingRow[]): TrainingRow[] {
+  const seen = new Set<string>();
+  return rows.filter(r => {
+    const key = `${r.label}|${r.features.join(',')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** The training set from labelled rows (exact duplicates removed, see uniqueRows). */
 export function datasetFromRows(rows: TrainingRow[]): Dataset {
+  rows = uniqueRows(rows);
   return {
     X: rows.map(r => r.features.slice()),
     y: rows.map(r => r.label),
@@ -101,7 +124,7 @@ export function evaluateForest(rf: RandomForest, test: { X: number[][]; y: numbe
   return { metrics: computeMetrics(test.y, proba.map(p => (p >= 0.5 ? 1 : 0))), rocAuc: rocAuc(test.y, proba), roc: rocCurve(test.y, proba) };
 }
 
-/** Seeded 70/30 split → train → evaluate on the held-out 30 %. Same rows ⇒ same forest. */
+/** Seeded 70/30 split → train → evaluate on the held-out 30 %. Same rows ⇒ same forest. (Duplicates are removed by datasetFromRows.) */
 export async function trainOnRows(rows: TrainingRow[], opts: LabelledModelOptions, background = false): Promise<LabelledTraining> {
   const { train, test } = trainTestSplit(datasetFromRows(rows), TEST_RATIO, SPLIT_SEED);
   const rf = new RandomForest({ nTrees: opts.nTrees, maxDepth: opts.maxDepth, minSamplesSplit: 4, seed: 42 });
@@ -115,6 +138,8 @@ export interface Comparison {
   rowsUsed: number;
   /** older labelled rows without a rule score */
   rowsSkipped: number;
+  /** exact duplicates removed (the same screenshot labelled twice) */
+  duplicates: number;
   testRows: number;
   rules: ApproachResult;
   forest: ApproachResult;
@@ -129,9 +154,11 @@ export interface Comparison {
  *  • rules alone:  the rule score (with its floor) ≥ 0.45
  *  • forest alone: forest probability ≥ 0.5
  *  • combined:     the scanner's 50/50 blend (with its floor) ≥ 0.45 — what FraudSentry reports
+ *                  (rules alone for a photo of a screen, as the app scores it)
  */
 export async function compareApproaches(rows: TrainingRow[], opts: LabelledModelOptions): Promise<Comparison | null> {
-  const usable = rows.filter(r => typeof r.ruleScore === 'number');
+  const withScore = rows.filter(r => typeof r.ruleScore === 'number');
+  const usable = uniqueRows(withScore);
   if (!readiness(usable).ok) return null;
   const ds = datasetFromRows(usable);
   // carry each row's index through the split so its rule score can be found
@@ -144,12 +171,13 @@ export async function compareApproaches(rows: TrainingRow[], opts: LabelledModel
   const idx = test.X.map(x => x[x.length - 1]);
   const prob = strip(test.X).map(x => rf.predictProba(x));
   const ruleS = idx.map(i => Math.max(usable[i].ruleScore!, usable[i].scoreFloor ?? 0));
-  const combS = idx.map((i, k) => blendScore(usable[i].ruleScore!, prob[k], usable[i].scoreFloor ?? 0));
+  // exactly what the app reported: the 50/50 blend, or the rules alone for a photo of a screen
+  const combS = idx.map((i, k) => (usable[i].photo ? ruleS[k] : blendScore(usable[i].ruleScore!, prob[k], usable[i].scoreFloor ?? 0)));
   const pred = (s: number[], t: number) => s.map(v => (v >= t ? 1 : 0));
   const pRules = pred(ruleS, FRAUD_THRESHOLD), pForest = pred(prob, 0.5), pComb = pred(combS, FRAUD_THRESHOLD);
   const res = (name: string, p: number[], s: number[]): ApproachResult => ({ name, metrics: computeMetrics(y, p), rocAuc: rocAuc(y, s) });
   return {
-    rowsUsed: usable.length, rowsSkipped: rows.length - usable.length, testRows: y.length,
+    rowsUsed: usable.length, rowsSkipped: rows.length - withScore.length, duplicates: withScore.length - usable.length, testRows: y.length,
     rules: res('Rules alone', pRules, ruleS),
     forest: res('Random Forest alone', pForest, prob),
     combined: res('FraudSentry (rules + forest)', pComb, combS),
@@ -161,7 +189,7 @@ export async function compareApproaches(rows: TrainingRow[], opts: LabelledModel
 /** Rebuild (in the background) the forest you connected from your labelled scans. */
 export function restoreLabelledModel(rows: TrainingRow[], opts: LabelledModelOptions): Promise<void> {
   const ids = opts.rowIds ? new Set(opts.rowIds) : null;
-  const used = ids ? rows.filter(r => ids.has(r.id)) : rows;
+  const used = uniqueRows(ids ? rows.filter(r => ids.has(r.id)) : rows);
   return restoreSharedModel(async () => {
     if (!readiness(used).ok) return null;
     const t = await trainOnRows(used, opts, true);

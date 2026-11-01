@@ -20,6 +20,9 @@ export const MIN_IMAGE_BYTES = 100;
 
 /** Synchronous checks (type + size). Returns an error message or null. */
 export function checkImageBasics(file: File): string | null {
+  if (/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name)) {
+    return 'This is an iPhone HEIC photo, which browsers can’t read. Take a screenshot of the receipt instead, or export the photo as JPG (on iPhone: Settings → Camera → Formats → Most Compatible).';
+  }
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
     return "That file type isn't supported. Please upload a receipt as a PNG, JPG, or WEBP image — a normal phone screenshot works perfectly.";
   }
@@ -38,6 +41,28 @@ export function sniffImageSignature(b: Uint8Array): SniffedImageType {
   if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46   // "RIFF"
       && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'webp'; // "WEBP"
   return null;
+}
+
+/**
+ * A camera photo over the size limit (50–108 MP phone cameras make JPEGs over
+ * 10 MB) is scaled down to at most 3000 px instead of being refused. It is a
+ * photo anyway (the pixel checks for screenshots are skipped on photos), so
+ * re-encoding loses nothing the checks use. Browser only; null if it can't.
+ */
+export async function shrinkLargePhoto(file: File): Promise<File | null> {
+  if (file.size <= MAX_IMAGE_BYTES || !ACCEPTED_IMAGE_TYPES.includes(file.type) || typeof createImageBitmap !== 'function') return null;
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 3000 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    const blob = await new Promise<Blob | null>(r => c.toBlob(r, 'image/jpeg', 0.9));
+    return blob && blob.size <= MAX_IMAGE_BYTES ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: file.lastModified }) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Full validation (async — reads the first 12 bytes). Returns an error message or null. */

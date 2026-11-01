@@ -246,10 +246,10 @@ function reconstructMaskedName(s: string, gcashStyle = false): string {
 // "From <name>" / "To <name>" receipts (MariBank, InstaPay, many banks). The
 // label sits at the start of the line; the name may be on the same line or just
 // below it, and may be masked with asterisks/bullets.
-// On a photo of a screen, OCR often puts a short scrap of the background before
-// the label ("3       To   Ma*a Sa***s L."): allow one such scrap, set off by a
+// On a photo of a screen, OCR often puts short scraps of the background before
+// the label ("3       To   Ma*a Sa***s L."): allow up to two, each set off by a
 // wide gap, so "Go to Accounts" (single spaces) is still not a "To" label.
-const partyLabel = (keyword: 'from' | 'to') => new RegExp(`^\\s*(?:\\S{1,3}\\s{3,})?${keyword}\\b[:.\\s]*(.*)$`, 'i');
+const partyLabel = (keyword: 'from' | 'to') => new RegExp(`^\\s*(?:\\S{1,3}\\s{3,}){0,2}${keyword}\\b[:.\\s]*(.*)$`, 'i');
 
 function fromToName(lines: string[], keyword: 'from' | 'to'): string | null {
   const labelRe = partyLabel(keyword);
@@ -268,6 +268,18 @@ function fromToName(lines: string[], keyword: 'from' | 'to'): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Does the receipt have a recipient field at all ("To", "Transfer to",
+ * "Recipient", "Account name" …)? If it does but no name or number was read,
+ * the parser missed it (an unfamiliar layout, a bad photo); that is not a
+ * receipt with a blank recipient.
+ */
+export function recipientLabelSeen(texts: string[]): boolean {
+  const to = partyLabel('to');
+  const labels = /\b(?:transfer(?:red)?\s+to|send(?:ing)?\s+to|sent\s+to|pay(?:ing)?\s+to|paid\s+to|recipient|receiver|beneficiary|account\s+name|payee|credit(?:ed)?\s+to|destination)\b/i;
+  return texts.some(t => t.split('\n').some(l => to.test(l) || labels.test(l)));
 }
 
 /** "To … / G-Xchange / GCash / Acct No.: KPRT…" (MariBank, InstaPay): the recipient's account, within 3 lines of the "To" label. */

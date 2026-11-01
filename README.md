@@ -52,7 +52,8 @@ Plain `npm audit` currently also lists a build-time-only advisory (`vite-plugin-
 ### Dependency constraints (do not blindly upgrade)
 - `vite` stays on **7.x** — `@tailwindcss/vite` and `vite-plugin-singlefile` are tested against it; a past jump to vite 8 broke the build.
 - `@vitejs/plugin-react` stays on **^4.7** (v5+/v6 target newer vite).
-- `vitest` **≥ 4.1.11** (earlier versions carry a moderate advisory in `@vitest/mocker`).
+- `vitest` **≥ 4.1.12** (earlier versions carry moderate advisories in `@vitest/mocker`). npm 10 can fail to update it with "Cannot read properties of null (reading 'edgesOut')"; `npm install -D vitest@^4.1.12 --legacy-peer-deps` works, and a plain `npm ci` installs the result normally.
+- `npm audit` (dev dependencies included) still lists moderate advisories in `glob`, `minimatch` and `uuid`, all inside `@capacitor/cli`, the Android build tool. They are never part of the app (`npm audit --omit=dev` is clean, and CI enforces that), and the only offered fix would downgrade Capacitor to v4 and break the Android app.
 - `xlsx` and `react-router-dom` were removed as unused (they caused most of an earlier audit's high-severity findings). Do not re-add without a real need.
 
 ### Offline build (use this on defense day)

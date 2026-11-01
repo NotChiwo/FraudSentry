@@ -11,7 +11,7 @@ import { runOcr } from '../receipt-check/ocr/ocr';
 import { useAppStore } from '../shared/store';
 import { ImageScanResult, MessageScanResult, CrossEvidenceResult, RiskLevel, FieldMatchState, EvidenceLinkage } from '../shared/types';
 import { RISK_META } from '../shared/helpers';
-import { validateImageFile, ACCEPTED_IMAGE_TYPES } from '../receipt-check/checks/uploadValidation';
+import { validateImageFile, shrinkLargePhoto, ACCEPTED_IMAGE_TYPES } from '../receipt-check/checks/uploadValidation';
 
 export default function CrossEvidencePage() {
   const addCrossEvidence = useAppStore(s => s.addCrossEvidence);
@@ -30,13 +30,15 @@ export default function CrossEvidencePage() {
   const txRef = useRef<HTMLInputElement>(null);
   const convRef = useRef<HTMLInputElement>(null);
 
-  const pickTx = async (f: File) => {
+  const pickTx = async (picked: File) => {
+    const f = (await shrinkLargePhoto(picked)) ?? picked;
     const invalid = await validateImageFile(f);
     if (invalid) { setError(`Transaction screenshot: ${invalid}`); return; }
     setError(''); setTxFile(f);
     const r = new FileReader(); r.onload = () => setTxPreview(r.result as string); r.readAsDataURL(f);
   };
-  const pickConv = async (f: File) => {
+  const pickConv = async (picked: File) => {
+    const f = (await shrinkLargePhoto(picked)) ?? picked;
     const invalid = await validateImageFile(f);
     if (invalid) { setError(`Conversation screenshot: ${invalid}`); return; }
     setError(''); setConvFile(f);
@@ -83,17 +85,11 @@ export default function CrossEvidencePage() {
 
   return (
     <div className="page" style={{ maxWidth: 1080 }}>
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-accent-tint)', border: '1px solid var(--border-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GitCompareArrows size={19} color="var(--accent-light)" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: 'var(--text-primary)' }}>Cross-Evidence Analysis</h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '2px 0 0', maxWidth: 640 }}>
-              Pair a payment with the conversation behind it. An authentic-looking transfer plus a scam chat is the dangerous combination — real money, fraudulent context.
-            </p>
-          </div>
+      <div className="page-head">
+        <div className="page-head-ico"><GitCompareArrows size={22} /></div>
+        <div>
+          <h1>Cross-Evidence</h1>
+          <p>Pair a payment with the conversation behind it. An authentic-looking transfer plus a scam chat is the dangerous combination — real money, fraudulent context.</p>
         </div>
       </div>
 

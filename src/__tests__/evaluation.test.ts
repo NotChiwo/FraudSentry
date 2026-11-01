@@ -2,7 +2,7 @@
 // on labelled receipts, and the model registry.
 import { describe, it, expect } from 'vitest';
 import { rocAuc, rocCurve, mcnemar } from '../random-forest/evaluation';
-import { compareApproaches, rowFromScan, evaluateForest, type TrainingRow } from '../random-forest/trainingData';
+import { compareApproaches, rowFromScan, evaluateForest, uniqueRows, readiness, type TrainingRow } from '../random-forest/trainingData';
 import { canReactivate, defaultModelName, nextVersion, withModel, type ModelRecord } from '../random-forest/modelRegistry';
 import { generateDemoDataset } from '../random-forest/sampleDataset';
 import { RandomForest, trainTestSplit } from '../random-forest/randomForest';
@@ -115,5 +115,28 @@ describe('model registry', () => {
     expect(canReactivate(rec({}), new Set(['a'])).reason).toMatch(/1 of its labelled receipts/);
     expect(canReactivate(rec({ datasetSource: 'csv' }), new Set()).reason).toMatch(/Upload the same CSV/);
     expect(canReactivate(rec({ usableByScans: false }), new Set()).ok).toBe(false);
+  });
+});
+
+describe('the same screenshot labelled twice', () => {
+  const row = (id: string, f: number[], label: 0 | 1): TrainingRow => ({ id, features: f, label, addedAt: '', ruleScore: 0.1, scoreFloor: 0 });
+  it('exact duplicates are removed before the split, and not counted toward the minimum', () => {
+    const rows = [row('a', [1, 0, 0, 90, 1, 1, 1, 1, 0, 100], 0), row('b', [1, 0, 0, 90, 1, 1, 1, 1, 0, 100], 0), row('c', [1, 0, 0, 91, 1, 1, 1, 1, 0, 100], 0), row('d', [1, 0, 0, 90, 1, 1, 1, 1, 0, 100], 1)];
+    expect(uniqueRows(rows).map(r => r.id)).toEqual(['a', 'c', 'd']);   // same features but another label is kept
+    const twenty = Array.from({ length: 20 }, (_, i) => row(`r${i}`, [i % 10, 0, 0, 90, 1, 1, 1, 1, 0, 100], (i % 2) as 0 | 1));
+    expect(readiness(twenty).ok).toBe(false);                            // only 10 distinct rows
+    expect(readiness(twenty).message).toMatch(/^Need 10 more/);
+  });
+});
+
+describe('a photo of a screen is scored with the rules alone', () => {
+  it('rowFromScan remembers it, and the comparison scores it the way the app did', async () => {
+    const scan = { id: 'p', heuristicScore: 0.2, scoreFloor: 0, forensics: { capture: 'photo' }, forestAnalysis: { features: [0, 0, 0, 55, 0, 0, 1, 1, 3, 100] } } as unknown as ImageScanResult;
+    expect(rowFromScan(scan, 0)).toMatchObject({ photo: true, ruleScore: 0.2 });
+    // every row a photo: "FraudSentry" (what the app reports) must equal rules alone
+    const demo = generateDemoDataset(120, 9);
+    const rows: TrainingRow[] = demo.X.map((x, i) => ({ id: `q${i}`, features: x, label: demo.y[i] as 0 | 1, addedAt: '', ruleScore: demo.y[i] ? 0.5 : 0.1, scoreFloor: 0, photo: true }));
+    const c = (await compareApproaches(rows, { nTrees: 10, maxDepth: 5 }))!;
+    expect(c.combined.metrics).toEqual(c.rules.metrics);
   });
 });

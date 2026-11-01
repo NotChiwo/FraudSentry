@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- allowBackup off: the encrypted vaults and the account directory never go to cloud or adb backups -->
+    <!-- allowBackup off: the local history (receipts, messages, alerts, reports) never goes to cloud or adb backups -->
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"

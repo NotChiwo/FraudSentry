@@ -94,8 +94,11 @@ textarea.input-field { min-height: 120px; }
   min-height: 56px; padding: 8px 28px; background: var(--topbar-bg); border-bottom: 1px solid var(--topbar-border); }
 @media (max-width: 859px) { .app-topbar { padding: 8px 16px; padding-top: max(8px, env(safe-area-inset-top)); } }
 .topbar-date { font-size: 13px; color: var(--text-muted); font-weight: 500; }
-.topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 16px; color: var(--text-primary); }
-.topbar-right { display: flex; align-items: center; gap: 8px; }
+.topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 16px; color: var(--text-primary); min-width: 0; }
+/* a long page name ("Scam Knowledge Base") is cut short on one line instead of wrapping and squeezing the chips */
+.topbar-brand > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.chip-quiet { white-space: nowrap; }
 .chip-quiet { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--text-secondary);
   padding: 6px 11px; border-radius: 99px; background: var(--bg-input); border: 1px solid var(--border-input); }
 .risk-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 12px; border-radius: 99px; cursor: pointer;
