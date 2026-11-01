@@ -1,5 +1,14 @@
 # Changelog
 
+## V10.2.7 — 2026-11-02
+
+### Masked names read the way the app printed them
+(Names, numbers and references below are made-up stand-ins for the real ones.)
+- **Asterisks (MariBank, InstaPay):** OCR often reads the `*` in "Ma\*a" as a quote mark ("Ma“a", 'Sa"sL'), and the name was then thrown away as noise. Next to a To/From label a quote mark between letters is now read as the asterisk, and a last initial run into the name is split off again ("Sa\*\*\*sL." → "Sa\*\*\*s L."). The photographed MariBank receipt now shows **Ma\*a Sa\*\*\*s L** instead of "Maa Sa\*\*\*sL." (or, on another device, the noise line "Aao NG DINOMA TA DNA AA NA").
+- **Bullets (GCash):** OCR reads the bullets as "+", "..." or "---", or drops them. Inside an uppercase name these are now the bullets, and a reading that kept them beats one that dropped them: **JU•••N D.** instead of "JUN D.".
+- **Noise is not a name:** a line with more than five words, or with three or more two-letter scraps that are not initials, is not taken as a name.
+- **Recipient account:** when every OCR pass read it differently, the most complete reading wins ("KPRTXV7BMLQWHZC…" instead of a pass that dropped characters at a gap).
+
 ## V10.2.6 — 2026-11-01
 
 A full review of the code, the pages and the docs. Fixes:
