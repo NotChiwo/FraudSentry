@@ -4,13 +4,20 @@ name: Apps
 #   • Android APK (Capacitor) — and checks on an emulator that it starts
 #   • Windows installer + portable .exe, macOS .dmg, Linux AppImage (Electron)
 # Download them from the run's "Artifacts". Pushing a tag such as v10.0.0
-# also attaches them to a GitHub Release.
+# also attaches them to a GitHub Release — or run this workflow by hand on
+# main (Actions → Apps → Run workflow) with a release tag such as v10.2.6:
+# it creates that tag on the commit and publishes the release.
 
 on:
   push:
     branches: [main, 'claude/**']
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish a release with this new tag (e.g. v10.2.6). Leave empty to only build.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -105,7 +112,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && startsWith(inputs.release_tag, 'v'))
     needs: [android, android-smoke, desktop]
     runs-on: ubuntu-latest
     permissions:
@@ -115,8 +122,12 @@ jobs:
         with: { path: out, pattern: FraudSentry-*, merge-multiple: true }
       - uses: actions/download-artifact@v4
         with: { name: web-offline, path: out/web }
-      - run: mv out/web/index.html "out/FraudSentry-${GITHUB_REF_NAME}-offline.html"
+      - run: mv out/web/index.html "out/FraudSentry-${TAG}-offline.html"
+        env:
+          TAG: ${{ inputs.release_tag || github.ref_name }}
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: out/*
           generate_release_notes: true
