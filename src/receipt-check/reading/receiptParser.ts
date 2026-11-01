@@ -253,10 +253,10 @@ const partyLabel = (keyword: 'from' | 'to') => new RegExp(`^\\s*(?:\\S{1,3}\\s{3
 
 function fromToName(lines: string[], keyword: 'from' | 'to'): string | null {
   const labelRe = partyLabel(keyword);
-  const tidy = (v: string) => v
+  const tidy = (v: string) => readMaskedName(v
     .replace(/^[^A-Za-z]+/, '')                 // leading icon/punctuation
     .replace(/^[A-Z©@®0-9]\s+(?=[A-Z])/, '')    // a lone icon letter mis-read before the name
-    .replace(/\s+/g, ' ').trim();
+    .replace(/\s+/g, ' ').trim());
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(labelRe);
     if (!m) continue;
@@ -295,6 +295,21 @@ function toAccountNo(lines: string[]): string | null {
   return null;
 }
 
+// ── Masked names, as the app prints them ──
+// MariBank / InstaPay mask with asterisks ("Ma*a Sa***s L."); OCR often reads an
+// asterisk as a quote mark ("Ma“a", 'Ma"uP') — next to a To/From label, a quote
+// mark between letters is the mask. A last initial run into the name
+// ("Ma***uP.") is split off again.
+export function readMaskedName(v: string): string {
+  return v
+    .replace(/(?<=[A-Za-z*])[“”"‘’'`^°]+(?=[A-Za-z*])/g, m => '*'.repeat(m.length))
+    .replace(/(?<=[a-z*])([A-Z]\.?)$/, ' $1');
+}
+// GCash masks with bullets ("JU•••N D."); OCR reads them as "+", "...", "---" or drops them.
+export function gcashBullets(v: string): string {
+  return v.replace(/(?<=[A-Z•])(?:\.{2,}|-{2,}|\+{1,})(?=[A-Z•])/g, m => '•'.repeat(m.length));
+}
+
 // ── GCash receiver name: the line just above the phone / "Sent via GCash" ──
 function maskedNameLike(s: string): boolean {
   const t = s.trim();
@@ -308,6 +323,10 @@ function maskedNameLike(s: string): boolean {
   if (/[=“”"®©|{}\[\]<>~^\\§¶]/.test(t)) return false;
   if (/^[+\d(]/.test(t)) return false;                 // not a phone/number line
   if (/\d{3,}/.test(t)) return false;                  // names don't contain long number runs
+  // OCR noise from a photo's background ("Aao NG DINOMA TA DNA AA NA"): too many
+  // words, or several two-letter scraps that are not initials ("J." is one)
+  const words = t.split(/\s+/);
+  if (words.length > 5 || words.filter(w => /^[A-Za-z]{1,2}$/.test(w)).length >= 3) return false;
   const letters = (t.match(/[A-Za-z]/g) || []).length;
   return letters >= 2 && /^[A-Za-z]/.test(t);          // starts with a letter, has letters
 }
@@ -318,7 +337,7 @@ function nameAbovePhone(lines: string[]): string | null {
   if (anchor === -1) return null;
   for (let i = anchor - 1; i >= 0 && i >= anchor - 3; i--) {
     if (PHONE_RE.test(lines[i])) continue;             // skip the phone line itself
-    const cand = lines[i].replace(/[•·∙*°●∘º]/g, '•').replace(/\s+/g, ' ').trim();
+    const cand = gcashBullets(lines[i].replace(/[•·∙*°●∘º+]/g, '•').replace(/\s+/g, ' ').trim());
     if (maskedNameLike(cand)) return reconstructMaskedName(cand, true);
   }
   return null;
@@ -532,6 +551,20 @@ function pickName(cands: (string | null)[]): string | null {
   })[0];
 }
 
+/**
+ * The recipient's number or account across OCR passes: the majority reading, or
+ * — when every pass read it differently — the most complete one (a pass that hit
+ * a gap drops characters: "KPRTXV7BQWHZC2" vs "KPRTXV7BMLQWHZC2").
+ */
+function pickContact(cands: (string | null)[]): string | null {
+  const vals = cands.filter((v): v is string => !!v);
+  if (!vals.length) return null;
+  const top = mode(vals)!;
+  if (vals.filter(v => v === top).length > 1) return top;
+  const chars = (v: string) => v.replace(/[^A-Za-z0-9•*x]/g, '').length;
+  return [...vals].sort((a, b) => chars(b) - chars(a))[0];
+}
+
 function mode<T>(cands: (T | null | undefined)[]): T | null {
   const vals = cands.filter((v): v is T => v !== null && v !== undefined);
   if (!vals.length) return null;
@@ -594,7 +627,7 @@ export function parseReceiptMulti(texts: string[], filename = ''): { data: Extra
   const data: ExtractedTransactionData = {
     senderName: pickName(D.map(d => d.senderName)),
     receiverName: pickName(D.map(d => d.receiverName)),
-    receiverContact: mode(D.map(d => d.receiverContact)),
+    receiverContact: pickContact(D.map(d => d.receiverContact)),
     amount: correctPrincipal(list, mode(D.map(d => d.amount))),
     date: mode(D.map(d => d.date)),
     time: mode(D.map(d => d.time)),

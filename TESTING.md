@@ -386,6 +386,17 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3p. Masked names (V10.2.7)
+
+Scanned in the built offline app (Playwright, Chromium). Names and numbers are made-up stand-ins for the real ones.
+
+| Receipt | Before | After |
+|---|---|---|
+| MariBank → GCash, photo of the phone | receiver "Maa Sa\*\*\*sL." (the user's device: "Aao NG DINOMA TA DNA AA NA"); account "KPRTXV7BQWHZC2" | receiver "Ma\*a Sa\*\*\*s L"; account "KPRTXV7BMLQWHZCI" (OCR reads the final 1 as I) |
+| GCash Express Send (a Carousell listing) | "JUN D." | "JU•••N D." |
+
+Date and time stay "not detected" on the photo: that row is hidden behind the Share button. Unit tests: `maskedNames.test.ts`.
+
 ## 3o. Full review (V10.2.6)
 
 - `npm run typecheck`, `npm test` (331 tests), `npm audit --omit=dev` (0), `npm run build`, `npm run build:offline`.

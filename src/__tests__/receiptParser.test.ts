@@ -64,7 +64,7 @@ describe('field extraction on real OCR', () => {
   });
   it('GCash Express Send: masked name + phone + reference', () => {
     const d = parse('gcash_express_send').data;
-    expect(d.receiverName).toBe('MA...O R.');
+    expect(d.receiverName).toBe('MA•••O R.');
     expect(d.receiverContact).toBe('+63 993 922 1790');
     expect(d.referenceNo).toBe('1016642566968');
     expect(d.amount).toBe(160);
