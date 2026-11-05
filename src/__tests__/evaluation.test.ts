@@ -140,3 +140,24 @@ describe('a photo of a screen is scored with the rules alone', () => {
     expect(c.combined.metrics).toEqual(c.rules.metrics);
   });
 });
+
+describe('decisionTree baseline', () => {
+  it('is one unbagged tree using every feature, and leaves the default forest unchanged', async () => {
+    const { RandomForest, decisionTree, trainTestSplit, computeMetrics } = await import('../random-forest/randomForest');
+    const { generateDemoDataset } = await import('../random-forest/sampleDataset');
+    const ds = generateDemoDataset();
+    const { train, test } = trainTestSplit(ds, 0.3, 42);
+    const dt = decisionTree({ maxDepth: 9, minSamplesSplit: 4, seed: 42 });
+    dt.fit(train.X, train.y);
+    expect(dt.treeCount).toBe(1);
+    // deterministic: a second tree with the same settings predicts identically
+    const dt2 = decisionTree({ maxDepth: 9, minSamplesSplit: 4, seed: 42 });
+    dt2.fit(train.X, train.y);
+    expect(test.X.map(x => dt2.predict(x))).toEqual(test.X.map(x => dt.predict(x)));
+    // the default forest is unaffected by the new options (same figures as the Detection Model page)
+    const rf = new RandomForest({ nTrees: 40, maxDepth: 9, minSamplesSplit: 4, seed: 42 });
+    rf.fit(train.X, train.y);
+    const m = computeMetrics(test.y, test.X.map(x => rf.predict(x)));
+    expect([m.tp, m.fp, m.tn, m.fn]).toEqual([49, 5, 65, 12]);
+  });
+});

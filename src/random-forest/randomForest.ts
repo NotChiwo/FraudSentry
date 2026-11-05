@@ -26,11 +26,20 @@ export interface RFOptions {
   maxDepth: number;
   minSamplesSplit: number;
   seed: number;
+  /** Sample training rows with replacement for each tree (default true). */
+  bootstrap: boolean;
+  /** Features tried at each split: √n (default) or all of them. */
+  maxFeatures: 'sqrt' | 'all';
 }
 
 export const DEFAULT_RF_OPTIONS: RFOptions = {
-  nTrees: 40, maxDepth: 9, minSamplesSplit: 4, seed: 42,
+  nTrees: 40, maxDepth: 9, minSamplesSplit: 4, seed: 42, bootstrap: true, maxFeatures: 'sqrt',
 };
+
+/** A single CART decision tree: one tree, every training row, every feature at each split. */
+export function decisionTree(opts: Partial<Pick<RFOptions, 'maxDepth' | 'minSamplesSplit' | 'seed'>> = {}): RandomForest {
+  return new RandomForest({ ...opts, nTrees: 1, bootstrap: false, maxFeatures: 'all' });
+}
 
 export interface Metrics {
   accuracy: number; precision: number; recall: number; f1: number;
@@ -94,14 +103,15 @@ export class RandomForest {
 
   private *fitSteps(X: number[][], y: number[]): Generator<number> {
     this.nFeatures = X[0]?.length ?? 0;
-    const featPerSplit = Math.max(1, Math.ceil(Math.sqrt(this.nFeatures)));
+    const featPerSplit = this.opts.maxFeatures === 'all' ? this.nFeatures : Math.max(1, Math.ceil(Math.sqrt(this.nFeatures)));
     this.importances = new Array(this.nFeatures).fill(0);
     this.trees = [];
 
     for (let t = 0; t < this.opts.nTrees; t++) {
       // bootstrap sample (sample rows with replacement)
       const idx: number[] = [];
-      for (let i = 0; i < X.length; i++) idx.push(Math.floor(this.rng() * X.length));
+      if (this.opts.bootstrap) for (let i = 0; i < X.length; i++) idx.push(Math.floor(this.rng() * X.length));
+      else for (let i = 0; i < X.length; i++) idx.push(i);
       const root = this.buildTree(X, y, idx, 0, featPerSplit);
       this.trees.push(root);
       this.accumulateImportance(root);
