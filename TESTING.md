@@ -386,6 +386,23 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3q. Blurred GCash total and reference (V10.2.8)
+
+Scanned in the built offline app (Playwright, Chromium). "Pixelated" copies were made from a genuine GCash receipt (a Carousell listing) with a mosaic over one area.
+
+| Image | Before | After |
+|---|---|---|
+| User's edited GCash Express Send (total, end of reference, mobile number pixelated), as sent (435 px wide) | High | High |
+| Same at 720 px (the phone's resolution) | **Low 0.109** ("privacy") | **High** (amount hidden, reference cut short) |
+| Same at 1080 px | High | High |
+| Genuine GCash receipt | Low | Low |
+| Genuine, recipient name pixelated | High | **Low** (privacy) |
+| Genuine, mobile number pixelated | Medium ("no recipient") | **Low** |
+| Genuine, total amount pixelated | **Low** | **High** |
+| MariBank photos, rendered receipt screens | Low | Low |
+
+Unit tests: `editedGcash.test.ts` (made-up names and numbers).
+
 ## 3p. Masked names (V10.2.7)
 
 Scanned in the built offline app (Playwright, Chromium). Names and numbers are made-up stand-ins for the real ones.
