@@ -78,6 +78,7 @@ export async function analyzeTransactionImage(
   let ocr: OcrResult;
   let extracted: ExtractedTransactionData;
   let source: EvidenceSource;
+  let unsureFields: string[] = [];   // read differently by each OCR pass: not shown (never guessed)
 
   if (opts?.ocrOverride && opts?.extractedOverride) {
     // Re-analysis after the user edited the OCR fields
@@ -90,6 +91,7 @@ export async function analyzeTransactionImage(
     const parsed = parseReceiptMulti(ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text], file.name);
     extracted = parsed.data;
     source = parsed.source;
+    unsureFields = parsed.unreadable;
   }
 
   // ── What kind of payment, which side of it, and who was paid ──
@@ -163,6 +165,9 @@ export async function analyzeTransactionImage(
       && (source === 'GCash' || source === 'Maya') && walletNameLineGarbled(passTexts)) blurredFields.push('receiverName');
   // "Ref No." followed only by junk: the reference is there but blocked out
   if (!opts?.extractedOverride && !extracted.referenceNo && hidden.referenceUnreadable && !blurredFields.includes('referenceNo')) blurredFields.push('referenceNo');
+  unsureFields = unsureFields.filter(f => !blurredFields.includes(f as ReadField));
+  // anything not shown (blurred, or read differently each pass) is not "missing" from the receipt
+  const notShown = (f: string) => blurredFields.includes(f as ReadField) || unsureFields.includes(f);
   if (blurredFields.length) {
     extracted = { ...extracted };
     for (const f of blurredFields) (extracted as unknown as Record<string, unknown>)[f] = null;
@@ -181,13 +186,16 @@ export async function analyzeTransactionImage(
     if (refFinding) findings.push(refFinding);
   } else if (!detailsHidden) {   // when details are hidden, that finding already explains it
     findings.push(finding('reference', 'Reference Number Detection',
-      'No reference or transaction number was read from this evidence. Many — but not all — receipts display one; its absence lowers how independently this can be verified, so confirm the payment inside your own account history.',
+      notShown('referenceNo')
+        ? 'The reference number read differently on each scan pass, so it is not shown rather than guessed. Confirm the payment inside your own account history.'
+        : 'No reference or transaction number was read from this evidence. Many — but not all — receipts display one; its absence lowers how independently this can be verified, so confirm the payment inside your own account history.',
       'medium', false, 0.07));
   }
 
   // ── Amount presence ──
   findings.push(finding('text', 'Amount Detection',
     extracted.amount != null ? `An amount of ₱${extracted.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })} was read from the evidence.`
+                             : notShown('amount') ? 'The amount read differently on each scan pass, so it is not shown rather than guessed. Confirm the figure manually before trusting the receipt.'
                              : 'No clearly formatted amount was detected. Confirm the figure manually before trusting the receipt.',
     extracted.amount != null ? 'low' : 'medium', extracted.amount != null, 0.06));
 
@@ -205,14 +213,14 @@ export async function analyzeTransactionImage(
   // (Skipped on an unsent screen: nothing was sent, so there is no recipient —
   // the Unconfirmed Transaction finding below already explains it.)
   // (Also skipped when details are visibly hidden: that finding already says why.)
-  if (isPhoto && !unconfirmed && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact && !blurredFields.length) {
+  if (isPhoto && !unconfirmed && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact && !blurredFields.length && !unsureFields.length) {
     // On a photo, a field OCR couldn't read is not a field missing from the receipt.
     findings.push(finding('text', 'Recipient Not Read',
       'The recipient’s name or number could not be read from this photo. That is common on photos of a screen (glare, angle, part of the screen cut off) and does not count against the receipt — but check who was paid on the sender’s screen.',
       'low', false, 0.05));
   } else if (!unconfirmed && !detailsHidden && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact
              // a recipient blurred for privacy is not a missing one
-             && !blurredFields.includes('receiverName') && !blurredFields.includes('receiverContact')) {
+             && !notShown('receiverName') && !notShown('receiverContact')) {
     const ocrReadable = (ocr?.confidence ?? 0) >= 65;
     const readFields = [extracted.amount != null ? 'amount' : null, extracted.referenceNo ? 'reference number' : null, extracted.date ? 'date' : null].filter(Boolean) as string[];
     const txnFieldsRead = readFields.length > 0;
@@ -352,6 +360,7 @@ export async function analyzeTransactionImage(
     receivingApp,
     referenceCutShort: hidden.referenceIncomplete || undefined,
     blurredFields: blurredFields.length ? blurredFields : undefined,
+    unsureFields: unsureFields.length ? unsureFields : undefined,
     txStatus: 'pending',
     forestAnalysis,
     inkOutliers: ink.outliers.map(({ text, x0, y0, x1, y1 }) => ({ text, x0, y0, x1, y1 })),

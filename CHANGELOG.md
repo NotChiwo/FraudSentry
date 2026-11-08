@@ -1,5 +1,20 @@
 # Changelog
 
+## V10.2.11 — 2026-11-08
+
+### Never guess: a value the OCR passes don't agree on isn't shown
+- Every receipt is read three times, from differently prepared copies of the image. Real text reads the same each time; letters made up from a blur, a mask or glare come out different in each pass.
+- **Names and the recipient's number** are now shown only when at least two passes read the same thing (one slip allowed; for a masked name such as "JU•• DE•• C." about one letter in five). Otherwise the field shows **Unreadable — read differently on each pass, not guessed** ("Read differently on each scan pass" in the PDF).
+- **Amount, date, time, reference and transaction ID** are already format-checked, so one clean reading stands; they are hidden only when the passes give *different* values and none has a majority (a reference may differ by one misread digit).
+- A recipient that isn't shown for this reason is not a missing recipient: the "no recipient" rules don't fire, so a genuine receipt is not penalised for it.
+- Checked on every genuine receipt in the test fixtures: no amount, date, time or reference is lost. What is hidden is noise: "Pini p" / "piri," / "B pimip" for one name, an account number only one pass read off a photo, a BPI masked name whose visible letters differ between passes (the recipient rules ignore it, so the score does not change).
+
+### Batch test on the Detection Model page
+- Add receipts you know are genuine and receipts you know are fake or edited; **Run test** scans each with exactly the checks a live scan uses (nothing is added to History; the images stay on the device).
+- Shows **genuine passed**, **false alarms** with the 95% upper bound of the rate ("0 of 20" is "could be up to 16%", not 0%), **fakes caught** (and how many of those were shown as "Can't be verified"), and a table with each receipt's result and main reason; **Show only wrong results**.
+- **Export CSV** for the thesis tables; **Save as training rows** adds the scanned receipts, labelled with their known truth, to the labelled receipts the forest trains on.
+- It also says how many genuine receipts are needed to show a 99% pass rate (about 381 with no false alarm).
+
 ## V10.2.10 — 2026-11-08
 
 ### A pixelated name is never shown as text

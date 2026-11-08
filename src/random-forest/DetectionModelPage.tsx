@@ -12,6 +12,7 @@ import {
 } from './randomForest';
 import type { RocPoint } from './evaluation';
 import { RocChart, ModelRegistryCard, ComparisonCard } from './ModelCards';
+import BatchTestCard from './BatchTestCard';
 import { nextVersion, defaultModelName, type ModelRecord } from './modelRegistry';
 import {
   generateDemoDataset, parseCsvDataset, FEATURE_SPECS, CLASS_NAMES, isEvidenceSchema,
@@ -396,6 +397,7 @@ export default function DetectionModelPage() {
         </div>
       )}
 
+      <BatchTestCard />
       <ComparisonCard nTrees={nTrees} maxDepth={maxDepth} />
       <ModelRegistryCard live={liveMeta} />
     </div>
