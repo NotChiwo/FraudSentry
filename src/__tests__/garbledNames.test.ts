@@ -38,8 +38,12 @@ describe('garbled names', () => {
       for (const [k, v] of Object.entries(fx)) {
         if (/blurred|pixelated|edited/.test(k)) continue;
         const d = parseReceiptMulti(v.passes, v.filename ?? '').data;
-        expect(nameLooksGarbled(v.passes, d.receiverName), `${f}:${k} receiver ${d.receiverName}`).toBe(noise.has(`${f}:${k}:receiver`));
-        expect(nameLooksGarbled(v.passes, d.senderName), `${f}:${k} sender ${d.senderName}`).toBe(noise.has(`${f}:${k}:sender`));
+        // noise is hidden either here or already by the passes disagreeing (then the name is null)
+        const hidden = (n: string | null) => n == null || nameLooksGarbled(v.passes, n);
+        if (noise.has(`${f}:${k}:receiver`)) expect(hidden(d.receiverName), `${f}:${k} receiver`).toBe(true);
+        else expect(nameLooksGarbled(v.passes, d.receiverName), `${f}:${k} receiver ${d.receiverName}`).toBe(false);
+        if (noise.has(`${f}:${k}:sender`)) expect(hidden(d.senderName), `${f}:${k} sender`).toBe(true);
+        else expect(nameLooksGarbled(v.passes, d.senderName), `${f}:${k} sender ${d.senderName}`).toBe(false);
       }
     }
   });

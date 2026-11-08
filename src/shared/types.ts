@@ -144,6 +144,8 @@ export interface ImageScanResult {
   referenceCutShort?: boolean;
   /** fields that sit inside a blurred / covered area: not read (OCR of a mosaic is noise), shown as blurred */
   blurredFields?: string[];
+  /** Fields the OCR passes read differently, so they aren't shown (never guessed). */
+  unsureFields?: string[];
   /** did the money really arrive? set by the user from their own account */
   txStatus?: TransactionStatus;
   txStatusAt?: string;

@@ -42,10 +42,12 @@ describe('screenshot or photo of a screen', () => {
 
 describe('the MariBank → GCash InstaPay receipt photographed on a phone', () => {
   const p = parseReceiptMulti(photo.maribank_instapay_photo_of_screen_2026.passes, 'photo-of-phone.jpg');
-  it('reads the recipient after a scrap of background before "To", and the account number', () => {
+  it('reads the recipient after a scrap of background before "To"; the account number one pass guessed is dropped', () => {
     expect(p.source).toBe('MariBank');
     expect(p.data.receiverName).toBe('Ma*a Sa***s L.');
-    expect(p.data.receiverContact).toMatch(/^KPRTXV/);
+    // only one of the three passes read the account number off the photo: not shown, not guessed
+    expect(p.data.receiverContact).toBeNull();
+    expect(p.unreadable).toContain('receiverContact');
     expect(p.data.amount).toBe(1000);
     expect(p.data.referenceNo).toBe('604217');
   });

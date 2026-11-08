@@ -626,9 +626,61 @@ function pickReference(cands: (string | null)[]): string | null {
     .sort((a, b) => a.cost - b.cost || a.order - b.order || b.len - a.len)[0].v;
 }
 
-export function parseReceiptMulti(texts: string[], filename = ''): { data: ExtractedTransactionData; source: EvidenceSource } {
+// ── Never guess: a value the OCR passes don't agree on isn't shown ──
+// The three passes read differently prepared copies of the same image. Real
+// text reads the same every time; letters guessed out of a blur, a mask or
+// glare come out different in each pass ("FRel fun", "FRelv “Tu", "Ir Rel" IL ®").
+// Comparison ignores punctuation, spacing and the masking style.
+export type MultiField = 'senderName' | 'receiverName' | 'receiverContact' | 'amount' | 'date' | 'time' | 'referenceNo' | 'transactionId';
+const alnum = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+function sameText(a: string, b: string, slips: number): boolean {
+  const x = alnum(a), y = alnum(b);
+  if (!x || !y) return false;
+  return x === y || (Math.min(x.length, y.length) >= 6 && editDistance(x, y) <= slips);
+}
+/**
+ * Fields the OCR passes don't agree on, so the value shown would be a guess.
+ * - Free text (names, the recipient's number): at least two passes must read
+ *   the same thing (one slip allowed); one pass alone reading a name is how a
+ *   name gets "read" out of noise.
+ * - Structured values (amount, date, time, reference, transaction ID) are
+ *   format-checked by the parser, so one clean reading stands; they are only
+ *   dropped when the passes give DIFFERENT values and none has a majority.
+ */
+export function unagreedFields(passes: string[], perPass: ExtractedTransactionData[], data: ExtractedTransactionData): MultiField[] {
+  if (perPass.length < 2) return [];
+  const out: MultiField[] = [];
+  const readings = (f: MultiField) => perPass.map(d => d[f]).filter((o): o is NonNullable<typeof o> => o != null).map(String);
+  for (const f of ['senderName', 'receiverName', 'receiverContact'] as const) {
+    const v = data[f];
+    if (v == null) continue;
+    // a masked name ("I•• UQ•••A") keeps only a few letters, which OCR reads less steadily: one slip per 5
+    const slips = /[•*]/.test(v) ? Math.max(1, Math.floor(alnum(v).length / 5)) : 1;
+    if (readings(f).filter(o => sameText(o, v, slips)).length < 2) out.push(f);
+  }
+  for (const f of ['date', 'time', 'referenceNo', 'transactionId'] as const) {
+    const v = data[f];
+    if (v == null) continue;
+    const r = readings(f);
+    // a long reference / ID that passed its format check may differ by one misread digit in another pass
+    const slips = f === 'referenceNo' || f === 'transactionId' ? 1 : 0;
+    const agree = r.filter(o => sameText(o, v, slips)).length;
+    if (agree < 2 && r.some(o => !sameText(o, v, slips))) out.push(f);
+  }
+  if (data.amount != null) {
+    const r = perPass.map(d => d.amount).filter((a): a is number => a != null);
+    const agree = r.filter(a => Math.abs(a - data.amount!) < 0.005).length;
+    // the amount may be corrected from the total, so a pass whose text shows it also counts
+    const fixed = data.amount.toFixed(2), grouped = data.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const seen = passes.filter(t => t.includes(fixed) || t.includes(grouped)).length;
+    if (Math.max(agree, seen) < 2 && r.some(a => Math.abs(a - data.amount!) >= 0.005)) out.push('amount');
+  }
+  return out;
+}
+
+export function parseReceiptMulti(texts: string[], filename = ''): { data: ExtractedTransactionData; source: EvidenceSource; unreadable: MultiField[] } {
   const list = (texts || []).filter(t => t && t.trim().length > 0);
-  if (list.length <= 1) return parseReceipt(list[0] || '', filename);
+  if (list.length <= 1) return { ...parseReceipt(list[0] || '', filename), unreadable: [] };
 
   const parsed = list.map(t => parseReceipt(t, filename));
   const D = parsed.map(p => p.data);
@@ -648,7 +700,9 @@ export function parseReceiptMulti(texts: string[], filename = ''): { data: Extra
     transactionId: mode(D.map(d => d.transactionId)),
     institution: source !== 'Unknown' ? source : null,
   };
-  return { data, source };
+  const unreadable = unagreedFields(list, D, data);
+  for (const f of unreadable) (data as unknown as Record<string, unknown>)[f] = null;
+  return { data, source, unreadable };
 }
 
 // ── Edited-amount detector ────────────────────────────────────────────────

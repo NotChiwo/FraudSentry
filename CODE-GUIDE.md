@@ -19,7 +19,7 @@ src/
 ├─ app/                    Home, About, Privacy, welcome notice, navigation
 ├─ shared/                 data store, types, helpers used by every module
 ├─ styles/                 all CSS
-└─ __tests__/              automated tests (355)
+└─ __tests__/              automated tests (370)
 ```
 
 ---
@@ -70,6 +70,7 @@ src/
 | `evaluation.ts` | `rocAuc()`, `rocCurve()`, `mcnemar()` (the hypothesis test) |
 | `modelRegistry.ts` | Every trained model with its name, version and metrics (RF_MODEL) |
 | `DetectionModelPage.tsx`, `ModelCards.tsx` | The page: train, metrics, confusion matrix, ROC curve, model history, hypothesis test |
+| `batchTest.ts`, `BatchTestCard.tsx` | Batch test: scan receipts of known truth, count false alarms and fakes caught, export CSV, save as training rows |
 
 ### Alerts: `src/alerts/`
 | File | What it does |
@@ -123,4 +124,6 @@ src/
 | "How do you read the receipt?" | `receipt-check/ocr/ocr.ts` → `runOcr()`, then `reading/receiptParser.ts` |
 | "How do you detect edited receipts?" | `receipt-check/checks/` (one file per kind of edit) |
 | "Where is the data stored? Is it private?" | `shared/store.ts`: in the device only, 30-day expiry, no server |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (355 tests) |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (370 tests) |
+| "How do you know genuine receipts pass?" | `random-forest/batchTest.ts` + `BatchTestCard.tsx`: the batch test on the Detection Model page (false-alarm rate with its 95% upper bound, fakes caught) |
+| "Does it ever guess a blurred value?" | `reading/receiptParser.ts` → `unagreedFields()` (the OCR passes must agree), and `checks/hiddenFields.ts` (values under a blur) |

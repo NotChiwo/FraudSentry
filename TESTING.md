@@ -386,6 +386,16 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3t. OCR passes must agree; batch test (V10.2.11)
+
+| Check | Result |
+|---|---|
+| Every real-receipt fixture (19 receipts, 3 passes each) | no amount, date, time, reference or transaction ID hidden; hidden: 4 names and 1 account number that the passes read differently (OCR noise of masks and a photo) |
+| Batch test in the built offline app (Playwright, Chromium): 3 genuine (MariBank photo, MariBank screenshot, GCash) + 3 edited GCash | genuine 3 of 3 Low · Legitimate; fakes 3 of 3 High · Can't be verified; nothing added to History; no page errors |
+| Same at 390 px wide | fits, no sideways scrolling |
+
+Unit tests: `passAgreement.test.ts` (the agreement rule, and a pass over every genuine fixture), `batchTest.test.ts` (counts, the 95% upper bound, CSV).
+
 ## 3s. Pixelated names (V10.2.10)
 
 | Image | Before | After |
