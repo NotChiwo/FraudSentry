@@ -1,5 +1,14 @@
 # Changelog
 
+## V10.2.10 — 2026-11-08
+
+### A pixelated name is never shown as text
+- On a GCash receipt with the recipient's name pixelated, the name still came out as **"FRel fun Cruz A."** (surname replaced here): the blur detector had found the blurred number and reference, but not the few irregular patches on the name, so V10.2.9's "hide what is under a detected blur" never applied to it.
+- The text now gives it away independently of the blur detector: in some OCR pass the name's line reads with junk symbols (`FRel  iL ="`, `Ir Rel" IL ®`), or the name has letter-case no real name has ("FRel", "iL"). Such a name is shown as **Unreadable: masked or blurred** (an app icon in front of a name, "WL “Steam Purchase", and an asterisk mask read as a quote, "Jo“n", don't count).
+- On GCash and Maya, when no name was read but its line (above the "+63" number) reads as junk, the receiver is shown as Unreadable instead of "not detected"; a "Ref No." followed only by junk shows the reference as Unreadable too.
+- The label is now **Unreadable — masked or blurred**, which is also right for app masking that OCR turns into noise (GoTyme's "JOHN" + masking dots was read as "JOHN yoooeee press").
+- Checked against every genuine receipt in the test fixtures: no real name is hidden.
+
 ## V10.2.9 — 2026-11-08
 
 ### Blurred details are shown as blurred, never as text read through the blur
