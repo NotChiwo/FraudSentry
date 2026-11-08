@@ -1,5 +1,21 @@
 # Changelog
 
+## V10.2.8 — 2026-11-08
+
+### A GCash receipt with the total and the end of the reference pixelated passed as Low
+A GCash Express Send screenshot with the **Total Amount Sent**, the end of the **reference number** and the mobile number pixelated came out **Low · Legitimate** on a phone (the screenshot at full phone resolution). Fixed:
+- **Blur on any amount line hides the amount.** The check only looked where it had read the amount ("Amount 150.00"); blur on "Total Amount Sent" was filed as names blurred for privacy. Now every line that prints an amount, a total, a fee, the reference or a date counts.
+- **A blocked-out total is caught from the text too:** "Total Amount Sent" followed only by junk ("£1 { a ma") means the amount is hidden, even where the blur itself isn't detected.
+- **A cut-short reference is caught:** a reference too short for its app (a GCash transfer has 13 digits; "1016 642 56▪▪" was read as 9) with junk or blur where the rest should be means the reference is hidden. The tip, the next steps and the alert no longer quote the partial number to search for.
+- Result at every size tested (the screenshot as sent, at 720 px and at 1080 px wide): **High · Can't be verified**.
+
+### Fewer false alarms on privacy blur
+- On GCash and Maya the reference and date are printed below the amounts, so a blur entirely above the first amount line (the recipient's name or number) is privacy, even when OCR could not place the reference and date lines on a small screenshot (was High).
+- The GCash recipient is also found when the phone number and "Sent via GCash" are blurred or unreadable: from the top of the block above "Amount" (a phone-only blur was Medium "no recipient").
+
+### Wrong names
+- The carbon-footprint sentence ("…footprint **from** transportation…") is no longer read as a "From" label, and the app's buttons ("Download", "Share", "Done", "Express Send" …) are never names: the sender was "Download".
+
 ## V10.2.7 — 2026-11-02
 
 ### Masked names read the way the app printed them

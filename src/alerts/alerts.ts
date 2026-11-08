@@ -79,7 +79,7 @@ export function alertForReceipt(scan: ImageScanResult, min: AlertLevel = DEFAULT
   const what = [
     scan.source !== 'Unknown' ? `${scan.source} receipt` : 'Receipt',
     scan.extracted.amount != null ? `for ${formatPHP(scan.extracted.amount)}` : null,
-    scan.extracted.referenceNo ? `(ref ${scan.extracted.referenceNo})` : null,
+    scan.extracted.referenceNo && !scan.referenceCutShort ? `(ref ${scan.extracted.referenceNo})` : null,
   ].filter(Boolean).join(' ');
   const reasons = topReasons(scan);
   const body = reasons.length ? `${what}. Main reason${reasons.length > 1 ? 's' : ''}: ${reasons.join('; ')}` : what;

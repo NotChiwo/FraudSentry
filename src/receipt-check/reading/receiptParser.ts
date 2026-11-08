@@ -262,6 +262,9 @@ function fromToName(lines: string[], keyword: 'from' | 'to'): string | null {
     if (!m) continue;
     const same = tidy(m[1]);
     if (maskedNameLike(same)) return reconstructMaskedName(same, false);
+    // "from transportation, paper, and plastic." is a sentence, not a From label:
+    // only a bare label (nothing usable after it) looks to the next lines
+    if (/[a-z]{3,}.*\s[a-z]{3,}/i.test(same) && /[,.;]\s|\b(?:and|the|your|for|of)\b/i.test(same)) continue;
     for (let j = i + 1; j <= i + 2 && j < lines.length; j++) {
       const v = tidy(lines[j]);
       if (maskedNameLike(v)) return reconstructMaskedName(v, false);
@@ -314,9 +317,11 @@ export function gcashBullets(v: string): string {
 function maskedNameLike(s: string): boolean {
   const t = s.trim();
   if (t.length < 2 || t.length > 28) return false;
-  if (/sent\s+via|gcash|amount|total|ref\b|php|₱|reference|transaction|receipt|bank|acct|method|fee/i.test(t)) return false;
+  if (/sent\s+via|gcash|amount|total|ref\b|php|₱|reference|transaction|receipt|bank|acct|method|fee|express\s+send|send\s+money/i.test(t)) return false;
   // success headlines ("Transfer successful!") sit above "Sent via …" on bank receipts
   if (/success|transfer|confirm|complete|congrat|thank/i.test(t)) return false;
+  // the app's own buttons and headings ("(1) Download", "Share", "Done", "New transfer")
+  if (/^(?:download|share|done|save|close|back|cancel|ok|okay|next|continue|home|details|receipt|new transfer|go to accounts?|view details|express send|send money)\.?$/i.test(t)) return false;
   if (/^(source|destination|purpose|from|to)\b/i.test(t)) return false; // a label row, not a name
   // quote marks, ®, =, | … are what OCR makes of a pixelated or scribbled-over
   // name — never part of a real one ("FRel iL =\" Lee A." is not a name)
@@ -330,12 +335,20 @@ function maskedNameLike(s: string): boolean {
   const letters = (t.match(/[A-Za-z]/g) || []).length;
   return letters >= 2 && /^[A-Za-z]/.test(t);          // starts with a letter, has letters
 }
-function nameAbovePhone(lines: string[]): string | null {
-  // Anchor on the phone line (always present on GCash) or a "Sent via" line.
+function nameAbovePhone(lines: string[], wallet = false): string | null {
+  // Anchor on the phone line (always present on GCash) or a "Sent via" line —
+  // or, on a GCash/Maya receipt where both were blurred or missed by OCR, the
+  // first "Amount" line (the name is printed a few lines above it).
   let anchor = lines.findIndex(l => /sent\s+via/i.test(l));
   if (anchor === -1) anchor = lines.findIndex(l => PHONE_RE.test(l));
+  let fromTop = false;
+  if (anchor === -1 && wallet) { anchor = lines.findIndex(l => /^\s*amount\b/i.test(l)); fromTop = true; }
   if (anchor === -1) return null;
-  for (let i = anchor - 1; i >= 0 && i >= anchor - 3; i--) {
+  // Above the phone / "Sent via" line the name is the nearest line. Above "Amount"
+  // it is the TOP line of the name / phone / "Sent via" block, so look top-down
+  // (the line right above "Amount" is often a garbled "Sent via GCash").
+  const order = [...Array(Math.min(4, anchor)).keys()].map(k => anchor - 1 - k);
+  for (const i of fromTop ? order.reverse() : order.slice(0, 3)) {
     if (PHONE_RE.test(lines[i])) continue;             // skip the phone line itself
     const cand = gcashBullets(lines[i].replace(/[•·∙*°●∘º+]/g, '•').replace(/\s+/g, ' ').trim());
     if (maskedNameLike(cand)) return reconstructMaskedName(cand, true);
@@ -496,7 +509,7 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
   if (!receiverName) receiverName = fromToName(lines, 'to');
   const toAccount = !receiverContact && !transferTo.account ? toAccountNo(lines) : null;
   if (!receiverName) receiverName = payeeAfterHeadline(lines);
-  if (!receiverName) receiverName = nameAbovePhone(lines);
+  if (!receiverName) receiverName = nameAbovePhone(lines, source === 'GCash' || source === 'Maya');
 
   let senderName = valueForLabel(lines, [
     'account holder', 'sender name', 'sender', 'sent by', 'paid by',

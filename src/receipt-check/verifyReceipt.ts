@@ -141,12 +141,14 @@ export async function analyzeTransactionImage(
   // ── Hidden details: pixelated / covered areas, or a reference blocked out ──
   // Judged from the pixels and the raw OCR text, so a manual field correction
   // can't hide it.
+  const refFmt = refFormatFor(source, transactionType);
+  const referenceShapeOk = extracted.referenceNo && refFmt ? refFmt.test(extracted.referenceNo.replace(/\s/g, '')) : undefined;
   const hidden = assessHiddenFields(
     ocr.passes && ocr.passes.length ? ocr.passes : [ocr.text || ''],
-    ocr.words, extracted.referenceNo, forensics.obscuredRegions ?? [], extracted,
+    ocr.words, extracted.referenceNo, forensics.obscuredRegions ?? [], extracted, referenceShapeOk,
   );
   // Only names / account numbers blurred (privacy) while the reference, date and amount are readable: noted, not held against it.
-  const detailsHidden = (hidden.regions.length > 0 || hidden.referenceUnreadable) && !hidden.privacyOnly;
+  const detailsHidden = (hidden.regions.length > 0 || hidden.referenceUnreadable || hidden.referenceIncomplete || hidden.totalUnreadable) && !hidden.privacyOnly;
   // A number read through a mosaic is made up from the noise ("…0449"): don't show it.
   if (hidden.regionOnPhone && !opts?.extractedOverride) extracted = { ...extracted, receiverContact: null };
   // A time read without its date on an edited receipt is usually read from the blurred date line: don't show it.
@@ -305,7 +307,7 @@ export async function analyzeTransactionImage(
     : 'No tampering indicators were found. As best practice, still confirm the funds actually landed in your account before releasing anything of value.';
 
   const reused = hist.kind === 'reused';
-  const actionPlan = [...photoNotes(isPhoto, extracted), ...paymentContextNotes(transactionType, direction, payee), ...buildActionPlan(riskLevel, receivingApp, extracted, failed, reused)];
+  const actionPlan = [...photoNotes(isPhoto, extracted), ...paymentContextNotes(transactionType, direction, payee), ...buildActionPlan(riskLevel, receivingApp, hidden.referenceIncomplete ? { ...extracted, referenceNo: null } : extracted, failed, reused)];
 
   return {
     id: generateId('scan'),
@@ -330,6 +332,7 @@ export async function analyzeTransactionImage(
     direction,
     payee: payee ?? undefined,
     receivingApp,
+    referenceCutShort: hidden.referenceIncomplete || undefined,
     txStatus: 'pending',
     forestAnalysis,
     inkOutliers: ink.outliers.map(({ text, x0, y0, x1, y1 }) => ({ text, x0, y0, x1, y1 })),

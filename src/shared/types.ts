@@ -140,6 +140,8 @@ export interface ImageScanResult {
   payee?: string;
   /** the bank or e-wallet the money went to — the app the receiver checks (null: not named) */
   receivingApp?: string | null;
+  /** the reference read is only part of it (the rest is blocked out): never quote it as the one to search for */
+  referenceCutShort?: boolean;
   /** did the money really arrive? set by the user from their own account */
   txStatus?: TransactionStatus;
   txStatusAt?: string;

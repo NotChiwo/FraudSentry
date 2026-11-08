@@ -444,7 +444,7 @@ function ResultView(props: {
           <Smartphone size={20} aria-hidden="true" />
           <div>
             <b>{VERIFY_LEAD[result.riskLevel]}</b>{' '}
-            {result.riskLevel === 'low' ? 'before handing anything over, open' : 'Open'} your {app} app and check that {result.extracted.amount != null ? <b className="mono">{formatPHP(result.extracted.amount)}</b> : 'the payment'} has arrived{result.extracted.referenceNo ? <> (ref. <span className="mono">{result.extracted.referenceNo}</span>)</> : null}.
+            {result.riskLevel === 'low' ? 'before handing anything over, open' : 'Open'} your {app} app and check that {result.extracted.amount != null ? <b className="mono">{formatPHP(result.extracted.amount)}</b> : 'the payment'} has arrived{result.extracted.referenceNo && !result.referenceCutShort ? <> (ref. <span className="mono">{result.extracted.referenceNo}</span>)</> : null}.
           </div>
         </div>
         <div className="verdict-actions">

@@ -31,6 +31,10 @@ export interface HiddenFields {
   keyDetailsCovered: ('reference' | 'date' | 'amount')[] | null;
   /** only other details (names, account numbers) are hidden; the reference, date and amount are readable */
   privacyOnly: boolean;
+  /** a reference was read but is too short for its app, with junk or a blurred area where the rest should be ("1016 642 56▪▪") */
+  referenceIncomplete: boolean;
+  /** the "Total Amount Sent" label was read but its value is unreadable junk ("Total Amount Sent  £1 { a ma") */
+  totalUnreadable: boolean;
   /** what the user is told */
   detail: string;
 }
@@ -89,28 +93,100 @@ function phoneBand(words: OcrWord[] | undefined): { y0: number; y1: number; x: n
 const onBand = (regions: ObscuredRegion[], band: { y0: number; y1: number; x: number } | null) =>
   !!band && regions.some(r => r.y < band.y1 && r.y + r.h > band.y0 && r.x + r.w > band.x);
 
-/** Which of the reference, date and amount lines a region sits on; null if one of them was not read or not found on the image. */
-function keyDetailsUnder(regions: ObscuredRegion[], words: OcrWord[] | undefined, d: ExtractedTransactionData | undefined): HiddenFields['keyDetailsCovered'] {
-  if (!d || !words?.length) return null;
-  const boxes = locateFields(words, d);
-  const out: ('reference' | 'date' | 'amount')[] = [];
-  for (const key of ['reference', 'date', 'amount'] as const) {
-    const b = boxes.find(x => x.key === key);
-    if (!b) return null;
-    const h = b.y1 - b.y0;
-    if (onBand(regions, { y0: b.y0 - h * 0.6, y1: b.y1 + h * 0.6, x: 0 })) out.push(key);
+type KeyDetail = 'reference' | 'date' | 'amount';
+const MONTH_WORD = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d/i;
+
+/**
+ * Every printed line that holds a key detail, from the OCR word positions:
+ * an amount line ("Amount", "Total Amount Sent", "Fee", "₱…", "1,000.00"), the
+ * reference line, a date line. A receipt prints the amount more than once
+ * ("Amount 150.00" and "Total Amount Sent ₱150.00"): blur on ANY of them hides it.
+ */
+function keyLines(words: OcrWord[]): { key: KeyDetail; y0: number; y1: number }[] {
+  const lines: OcrWord[][] = [];
+  for (const w of [...words].sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0)) {
+    const h = w.y1 - w.y0;
+    const line = lines.find(l => Math.min(l[0].y1, w.y1) - Math.max(l[0].y0, w.y0) > Math.min(h, l[0].y1 - l[0].y0) * 0.5);
+    if (line) line.push(w); else lines.push([w]);
+  }
+  const out: { key: KeyDetail; y0: number; y1: number }[] = [];
+  for (const l of lines) {
+    const text = l.map(w => w.text).join(' ');
+    const y0 = Math.min(...l.map(w => w.y0)), y1 = Math.max(...l.map(w => w.y1));
+    const add = (key: KeyDetail) => out.push({ key, y0, y1 });
+    if (REF_LABEL.test(text)) add('reference');
+    if (/\b(?:amount|total|fee)\b|₱|\bphp\b|\d[\d,]*\.\d{2}\b/i.test(text)) add('amount');
+    if (MONTH_WORD.test(text) || /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/.test(text)) add('date');
   }
   return out;
 }
 
+/**
+ * Which key details (reference, date, amount) a region sits on: any line that
+ * prints one, plus where each read value was found. Null when nothing is
+ * covered but a key detail was not read or not found, so it can't be ruled out.
+ */
+function keyDetailsUnder(regions: ObscuredRegion[], words: OcrWord[] | undefined, d: ExtractedTransactionData | undefined): HiddenFields['keyDetailsCovered'] {
+  if (!d || !words?.length) return null;
+  const out = new Set<KeyDetail>();
+  const band = (y0: number, y1: number) => { const h = y1 - y0; return { y0: y0 - h * 0.6, y1: y1 + h * 0.6, x: 0 }; };
+  for (const l of keyLines(words)) if (onBand(regions, band(l.y0, l.y1))) out.add(l.key);
+  const boxes = locateFields(words, d);
+  let unknown = false;
+  for (const key of ['reference', 'date', 'amount'] as const) {
+    const b = boxes.find(x => x.key === key);
+    if (!b) { unknown = true; continue; }
+    if (onBand(regions, band(b.y0, b.y1))) out.add(key);
+  }
+  if (out.size) return (['reference', 'date', 'amount'] as const).filter(k => out.has(k));
+  if (!unknown) return [];
+  // GCash and Maya print the reference and date BELOW the amounts: on a small
+  // screenshot OCR may not place those lines, but a blurred area entirely above
+  // the first amount line can only be the recipient's name or number.
+  const firstAmount = keyLines(words).filter(l => l.key === 'amount').sort((a, b) => a.y0 - b.y0)[0];
+  if (firstAmount && /^(?:GCash|Maya)$/.test(d.institution ?? '') && d.referenceNo && d.date
+      && regions.every(r => r.y + r.h < firstAmount.y0)) return [];
+  return null;
+}
+
+/** "Total Amount Sent" read, but no amount after it — only junk ("£1 { a ma", "1 [| a"), in most passes: blocked out. */
+function totalLooksHidden(texts: string[]): boolean {
+  const vals: string[] = [];
+  for (const t of texts) for (const line of (t || '').split('\n')) {
+    const m = line.match(/\btotal(?:\s+amount)?(?:\s+(?:sent|paid|transferred))?\b\s*[:.]?\s*(.*)$/i);
+    if (m) vals.push(m[1].trim());
+  }
+  if (!vals.length) return false;
+  const junk = vals.filter(v => v.length > 0 && !/\d[\d,]*\.\d{2}\b/.test(v) && (JUNK.test(v) || /[=~|\]\[{}]/.test(v) || /[a-z]/i.test(v)));
+  return junk.length >= Math.ceil(vals.length / 2);
+}
+
+/** Junk after the reference digits on its line ("Ref No. 1016 642 56s =i"), in most passes: the rest is blocked out. */
+function junkAfterReference(texts: string[]): boolean {
+  const vals = referenceValues(texts);
+  if (!vals.length) return false;
+  const junk = vals.filter(v => {
+    const rest = v.replace(/^[\d\s]+/, '').trim();
+    return rest.length > 0 && (JUNK.test(rest) || /[=~|\]\[{}]/.test(rest) || /^[a-z]/i.test(rest));
+  });
+  return junk.length >= Math.ceil(vals.length / 2);
+}
+
 const KEY_NAME = { reference: 'the reference number', date: 'the date', amount: 'the amount' } as const;
 
-export function assessHiddenFields(texts: string[], words: OcrWord[] | undefined, referenceNo: string | null, regions: ObscuredRegion[], extracted?: ExtractedTransactionData): HiddenFields {
+/**
+ * @param referenceShapeOk does the reference read have its app's known shape (GCash transfers: 13 digits)?
+ *   false = too short or malformed; undefined = no known shape for this app.
+ */
+export function assessHiddenFields(texts: string[], words: OcrWord[] | undefined, referenceNo: string | null, regions: ObscuredRegion[], extracted?: ExtractedTransactionData, referenceShapeOk?: boolean): HiddenFields {
   const regionOnReference = onBand(regions, referenceBand(words));
   const regionOnPhone = onBand(regions, phoneBand(words));
   const referenceUnreadable = referenceLooksHidden(texts, referenceNo);
+  // a short reference with the rest blurred or scribbled over: "1016 642 56▪▪" read as 101664256
+  const referenceIncomplete = !!referenceNo && referenceShapeOk === false && (regions.length > 0 || junkAfterReference(texts));
+  const totalUnreadable = totalLooksHidden(texts);
   const keyDetailsCovered = regions.length ? keyDetailsUnder(regions, words, extracted) : [];
-  const privacyOnly = regions.length > 0 && !referenceUnreadable && !regionOnReference && keyDetailsCovered?.length === 0;
+  const privacyOnly = regions.length > 0 && !referenceUnreadable && !referenceIncomplete && !totalUnreadable && !regionOnReference && keyDetailsCovered?.length === 0;
   const parts: string[] = [];
   if (regions.length) {
     const kinds = new Set(regions.map(r => r.kind));
@@ -122,7 +198,9 @@ export function assessHiddenFields(texts: string[], words: OcrWord[] | undefined
     parts.push(`${regions.length === 1 ? 'Part of this receipt is' : `${regions.length} parts of this receipt are`} ${what}${list ? `, including ${list}` : ''}.`);
   }
   if (referenceUnreadable && !regionOnReference) parts.push('The "Ref No." label is visible, but the number after it cannot be read — it looks blocked out or scribbled over.');
+  if (totalUnreadable && !keyDetailsCovered?.includes('amount')) parts.push('The "Total Amount Sent" label is visible, but the amount after it cannot be read — it looks blocked out.');
+  if (referenceIncomplete && !regionOnReference && !keyDetailsCovered?.includes('reference')) parts.push(`The reference number is cut short (only "${referenceNo}" can be read, too short for this app) and the rest of it looks blocked out.`);
   if (privacyOnly) parts.push('The reference number, date and amount are all clearly readable, so this looks like names or account numbers blurred for privacy. It does not count against the receipt.');
   else if (parts.length) parts.push('A bank or e-wallet app never blurs its own receipt, so this picture was changed after it was saved — sometimes only for privacy, but it means the payment cannot be checked from this screenshot. Ask for the original, unedited screenshot, and confirm the money in your own account.');
-  return { regions, regionOnReference, regionOnPhone, referenceUnreadable, keyDetailsCovered, privacyOnly, detail: parts.join(' ') };
+  return { regions, regionOnReference, regionOnPhone, referenceUnreadable, referenceIncomplete, totalUnreadable, keyDetailsCovered, privacyOnly, detail: parts.join(' ') };
 }
