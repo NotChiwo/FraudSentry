@@ -2,8 +2,9 @@
 // Chrome DevTools protocol (Node 22's built-in WebSocket): accept the privacy
 // notice and expect the app to open straight to Home (no sign-in).
 // The WebView's debugging socket is listed a moment before it accepts a
-// connection, so connecting is retried (a CI run once failed on exactly that,
-// with the page already loaded).
+// connection, and it can drop once just after start-up (the page reloading),
+// with the app already loaded. So a connection that fails or drops before the
+// check is done is retried, and the check (safe to repeat) runs again.
 let ws;
 let id = 0; const pending = new Map();
 const onmessage = e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
@@ -32,17 +33,28 @@ const check = async () => {
       return { home: !!document.querySelector('.app-topbar'), login: !!document.querySelector('input[type=password]') };`);
     console.log('after the notice:', JSON.stringify(out));
     if (!out.home || out.login) throw new Error('the app did not open to Home');
-    ws.close(); process.exit(0);
-  } catch (e) { console.error('smoke check failed:', e.message); process.exit(1); }
+    ws.onclose = null; ws.close(); process.exit(0);
+  } catch (e) {
+    if (/connection lost/.test(e.message)) return;   // retry() reconnects and runs the check again
+    console.error('smoke check failed:', e.message); process.exit(1);
+  }
 };
-function connect(attempt = 1) {
-  let opened = false;
-  ws = new WebSocket(process.argv[2]);
-  ws.onmessage = onmessage;
-  ws.onopen = () => { opened = true; void check(); };
-  ws.onerror = e => {
-    if (!opened && attempt < 6) { console.log(`websocket not ready (attempt ${attempt}), retrying`); setTimeout(() => connect(attempt + 1), 2000); return; }
-    console.error('websocket error', e.message ?? e); process.exit(1);
-  };
+let attempt = 0, retrying = false;
+function retry(why) {
+  if (retrying) return;
+  if (++attempt >= 6) { console.error('websocket error:', why); process.exit(1); }
+  retrying = true;
+  console.log(`websocket ${why} (attempt ${attempt}), retrying`);
+  for (const r of pending.values()) r({ result: { exceptionDetails: 'connection lost' } });
+  pending.clear();
+  setTimeout(() => { retrying = false; connect(); }, 2000);
+}
+function connect() {
+  const sock = new WebSocket(process.argv[2]);
+  ws = sock;
+  sock.onmessage = onmessage;
+  sock.onopen = () => { void check(); };
+  sock.onerror = e => { if (ws === sock) retry(`error ${e.message ?? ''}`.trim()); };
+  sock.onclose = () => { if (ws === sock) retry('closed'); };
 }
 connect();

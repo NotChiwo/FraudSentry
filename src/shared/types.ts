@@ -142,6 +142,8 @@ export interface ImageScanResult {
   receivingApp?: string | null;
   /** the reference read is only part of it (the rest is blocked out): never quote it as the one to search for */
   referenceCutShort?: boolean;
+  /** fields that sit inside a blurred / covered area: not read (OCR of a mosaic is noise), shown as blurred */
+  blurredFields?: string[];
   /** did the money really arrive? set by the user from their own account */
   txStatus?: TransactionStatus;
   txStatusAt?: string;
