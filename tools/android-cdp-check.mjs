@@ -1,9 +1,12 @@
 // Drives the FraudSentry page inside the Android app's WebView over the
 // Chrome DevTools protocol (Node 22's built-in WebSocket): accept the privacy
 // notice and expect the app to open straight to Home (no sign-in).
-const ws = new WebSocket(process.argv[2]);
+// The WebView's debugging socket is listed a moment before it accepts a
+// connection, so connecting is retried (a CI run once failed on exactly that,
+// with the page already loaded).
+let ws;
 let id = 0; const pending = new Map();
-ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
+const onmessage = e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
 const send = (method, params = {}) => new Promise(r => { const n = ++id; pending.set(n, r); ws.send(JSON.stringify({ id: n, method, params })); });
 const run = async expr => {
   const r = await send('Runtime.evaluate', { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true });
@@ -17,7 +20,7 @@ const helpers = `
       ?? document.getElementById([...document.querySelectorAll('label')].find(l => l.textContent.trim() === label)?.htmlFor);
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
   const button = re => [...document.querySelectorAll('button')].find(b => re.test(b.textContent));`;
-ws.onopen = async () => {
+const check = async () => {
   try {
     const env = await run(`${helpers} await until(() => document.querySelector('h1')); return { h1: document.querySelector('h1').textContent, secure: isSecureContext, subtle: typeof crypto.subtle, ua: navigator.userAgent };`);
     console.log('page:', JSON.stringify(env));
@@ -32,4 +35,14 @@ ws.onopen = async () => {
     ws.close(); process.exit(0);
   } catch (e) { console.error('smoke check failed:', e.message); process.exit(1); }
 };
-ws.onerror = e => { console.error('websocket error', e.message ?? e); process.exit(1); };
+function connect(attempt = 1) {
+  let opened = false;
+  ws = new WebSocket(process.argv[2]);
+  ws.onmessage = onmessage;
+  ws.onopen = () => { opened = true; void check(); };
+  ws.onerror = e => {
+    if (!opened && attempt < 6) { console.log(`websocket not ready (attempt ${attempt}), retrying`); setTimeout(() => connect(attempt + 1), 2000); return; }
+    console.error('websocket error', e.message ?? e); process.exit(1);
+  };
+}
+connect();
