@@ -204,3 +204,54 @@ export function assessHiddenFields(texts: string[], words: OcrWord[] | undefined
   else if (parts.length) parts.push('A bank or e-wallet app never blurs its own receipt, so this picture was changed after it was saved — sometimes only for privacy, but it means the payment cannot be checked from this screenshot. Ask for the original, unedited screenshot, and confirm the money in your own account.');
   return { regions, regionOnReference, regionOnPhone, referenceUnreadable, referenceIncomplete, totalUnreadable, keyDetailsCovered, privacyOnly, detail: parts.join(' ') };
 }
+
+// ── Values read THROUGH a blurred area ──
+// OCR turns a mosaic into letters ("FRel fun Cruz A." from a pixelated name).
+// A value whose words sit inside a blurred or covered area is noise, not the
+// receipt's text: it is removed and shown as blurred.
+export type ReadField = 'senderName' | 'receiverName' | 'receiverContact' | 'referenceNo' | 'transactionId' | 'amount' | 'date' | 'time';
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+function tokenMatch(token: string, word: string): boolean {
+  if (token === word) return true;
+  // letters may differ by one OCR slip; numbers must match exactly
+  if (/\d/.test(token) || token.length < 3 || Math.abs(token.length - word.length) > 1) return false;
+  let i = 0, j = 0, slips = 0;
+  while (i < token.length && j < word.length) {
+    if (token[i] === word[j]) { i++; j++; continue; }
+    if (++slips > 1) return false;
+    if (token.length > word.length) i++; else if (word.length > token.length) j++; else { i++; j++; }
+  }
+  return slips + (token.length - i) + (word.length - j) <= 1;
+}
+/** Which read values lie inside a blurred / covered area (more of their words there than in clear text). */
+export function fieldsUnderBlur(regions: ObscuredRegion[], words: OcrWord[] | undefined, d: ExtractedTransactionData): ReadField[] {
+  if (!regions.length || !words?.length) return [];
+  // a word is in the blur when its centre is (a blurred box is coarse and can graze the next line)
+  const inside = (w: OcrWord) => {
+    const m = (w.y1 - w.y0) * 0.25, cx = (w.x0 + w.x1) / 2, cy = (w.y0 + w.y1) / 2;
+    return regions.some(r => cx > r.x - m && cx < r.x + r.w + m && cy > r.y - m && cy < r.y + r.h + m);
+  };
+  const covered = words.filter(inside).map(w => norm(w.text)).filter(Boolean);
+  const clear = words.filter(w => !inside(w)).map(w => norm(w.text)).filter(Boolean);
+  // Names and numbers of the parties are printed above the amounts on every layout
+  // (GCash, Maya, BPI, MariBank …). Each OCR pass reads a mosaic as different
+  // noise, so a name from another pass may match no word here: when a blur sits
+  // in that party area and the name matches no CLEAR text either, it came from the blur.
+  const firstAmount = keyLines(words).filter(l => l.key === 'amount').sort((a, b) => a.y0 - b.y0)[0];
+  const blurInPartyArea = !!firstAmount && regions.some(r => r.y + r.h <= firstAmount.y0 + 2);
+  const value: Record<ReadField, string | null> = {
+    senderName: d.senderName, receiverName: d.receiverName, receiverContact: d.receiverContact, referenceNo: d.referenceNo,
+    transactionId: d.transactionId, amount: d.amount == null ? null : d.amount.toFixed(2), date: d.date, time: d.time,
+  };
+  const out: ReadField[] = [];
+  for (const [k, v] of Object.entries(value) as [ReadField, string | null][]) {
+    if (!v) continue;
+    const tokens = v.split(/[\s,]+/).map(norm).filter(t => t.length >= 2);
+    if (!tokens.length) continue;
+    const inBlur = tokens.filter(t => covered.some(w => tokenMatch(t, w))).length;
+    const inClear = tokens.filter(t => clear.some(w => tokenMatch(t, w))).length;
+    const party = k === 'receiverName' || k === 'senderName';   // a blurred phone is caught by its own check (regionOnPhone)
+    if ((inBlur > 0 && inBlur >= tokens.length / 2 && inBlur >= inClear) || (party && blurInPartyArea && inClear === 0)) out.push(k);
+  }
+  return out;
+}

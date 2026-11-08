@@ -456,10 +456,10 @@ function ResultView(props: {
 
       {/* 2 · what we read */}
       <div className="facts">
-        <Fact label="Amount" value={result.extracted.amount == null ? null : formatPHP(result.extracted.amount)} mono />
-        <Fact label="Reference" value={result.extracted.referenceNo} mono />
+        <Fact label="Amount" value={result.extracted.amount == null ? null : formatPHP(result.extracted.amount)} mono blurred={result.blurredFields?.includes('amount')} />
+        <Fact label="Reference" value={result.extracted.referenceNo && result.referenceCutShort ? `${result.extracted.referenceNo}… (cut short)` : result.extracted.referenceNo} mono blurred={result.blurredFields?.includes('referenceNo')} />
         <Fact label="App" value={result.source === 'Unknown' ? null : result.source} />
-        <Fact label="Date" value={[result.extracted.date, result.extracted.time].filter(Boolean).join(' · ') || null} />
+        <Fact label="Date" value={[result.extracted.date, result.extracted.time].filter(Boolean).join(' · ') || null} blurred={result.blurredFields?.includes('date')} />
       </div>
 
       {result.ocr.available && result.ocr.confidence < 65 && (
@@ -556,14 +556,15 @@ function ResultView(props: {
           </div>
         ) : (
           <div className="fields">
-            <DataField label="Sender" value={result.extracted.senderName} check={vmap.senderName} />
-            <DataField label="Receiver" value={result.extracted.receiverName} check={vmap.receiverName} />
-            <DataField label="Receiver number" value={result.extracted.receiverContact} mono check={vmap.receiverContact} />
-            <DataField label="Amount" value={result.extracted.amount == null ? null : formatPHP(result.extracted.amount)} mono check={vmap.amount} />
-            <DataField label="Date" value={result.extracted.date} check={vmap.date} />
-            <DataField label="Time" value={result.extracted.time} check={vmap.time} />
-            <DataField label="Reference no." value={result.extracted.referenceNo} mono check={vmap.referenceNo} />
-            <DataField label="Transaction ID" value={result.extracted.transactionId} mono check={vmap.transactionId} />
+            <DataField label="Sender" value={result.extracted.senderName} check={vmap.senderName} blurred={result.blurredFields?.includes('senderName')} />
+            <DataField label="Receiver" value={result.extracted.receiverName} check={vmap.receiverName} blurred={result.blurredFields?.includes('receiverName')} />
+            <DataField label="Receiver number" value={result.extracted.receiverContact} mono check={vmap.receiverContact} blurred={result.blurredFields?.includes('receiverContact')} />
+            <DataField label="Amount" value={result.extracted.amount == null ? null : formatPHP(result.extracted.amount)} mono check={vmap.amount} blurred={result.blurredFields?.includes('amount')} />
+            <DataField label="Date" value={result.extracted.date} check={vmap.date} blurred={result.blurredFields?.includes('date')} />
+            <DataField label="Time" value={result.extracted.time} check={vmap.time} blurred={result.blurredFields?.includes('time')} />
+            <DataField label="Reference no." value={result.extracted.referenceNo} mono check={vmap.referenceNo} blurred={result.blurredFields?.includes('referenceNo')}
+              cutShort={result.referenceCutShort} />
+            <DataField label="Transaction ID" value={result.extracted.transactionId} mono check={vmap.transactionId} blurred={result.blurredFields?.includes('transactionId')} />
             <DataField label="App / bank" value={result.extracted.institution || result.source} check={vmap.institution} />
           </div>
         )}
@@ -647,11 +648,11 @@ function HowDecided({ result, preview }: { result: ImageScanResult; preview: str
   );
 }
 
-function Fact({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
+function Fact({ label, value, mono, blurred }: { label: string; value: string | null; mono?: boolean; blurred?: boolean }) {
   return (
     <div className="fact">
       <div className="fact-l">{label}</div>
-      <div className={`fact-v${mono ? ' mono' : ''}${value ? '' : ' empty'}`}>{value || 'Not found'}</div>
+      <div className={`fact-v${mono ? ' mono' : ''}${value ? '' : ' empty'}`}>{value || (blurred ? 'Blurred' : 'Not found')}</div>
     </div>
   );
 }
@@ -660,8 +661,21 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 const STATUS_CLASS: Record<FieldStatus, string> = { verified: 'ok', present: 'present', review: 'review', missing: 'missing' };
 const CONFIDENCE_CHIP: Record<FieldConfidence, string | null> = { high: 'High', medium: 'Medium', low: 'Check', na: null };
-function DataField({ label, value, mono, check }: { label: string; value: string | null; mono?: boolean; check?: FieldCheck }) {
+function DataField({ label, value, mono, check, blurred, cutShort }: { label: string; value: string | null; mono?: boolean; check?: FieldCheck; blurred?: boolean; cutShort?: boolean }) {
   const empty = value == null || value === '';
+  if (cutShort && !empty) return (
+    <div className="data-field st-blurred" title="Only part of this number can be read; the rest is blurred or covered.">
+      <div className="df-head"><span className="df-dot" aria-hidden="true" /><span className="df-label">{label}</span><span className="df-chip conf-blurred">Cut short</span></div>
+      <div className={`df-value${mono ? ' mono' : ''}`}>{value}…</div>
+      <div className="df-note">Only the start can be read; the rest is blurred. Ask for the full reference.</div>
+    </div>
+  );
+  if (blurred) return (
+    <div className="data-field st-blurred" title="This part of the receipt is blurred or covered, so it can't be read.">
+      <div className="df-head"><span className="df-dot" aria-hidden="true" /><span className="df-label">{label}</span><span className="df-chip conf-blurred">Blurred</span></div>
+      <div className="df-value empty">blurred, can’t be read</div>
+    </div>
+  );
   const chip = check && !empty ? CONFIDENCE_CHIP[check.confidence] : null;
   return (
     <div className={`data-field st-${check ? STATUS_CLASS[check.status] : 'none'}`} title={check?.note || ''}>

@@ -25,7 +25,7 @@ import type { OcrProgress } from './ocr/ocr';
 import { analyzeForensics, inkCheckForFile } from './checks/imageForensics';
 import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, receivingAppOf, recipientLabelSeen, type TransactionDirection } from './reading/receiptParser';
 import { reconcileAmounts, checkReceiptDate, checkWeekday } from './checks/consistencyChecks';
-import { assessHiddenFields } from './checks/hiddenFields';
+import { assessHiddenFields, fieldsUnderBlur, type ReadField } from './checks/hiddenFields';
 import { matchAgainstHistory, PriorScan } from './checks/historyMatch';
 import { buildFeatureVector } from '../random-forest/sampleDataset';
 import { refFormatFor } from './reading/fieldValidation';
@@ -151,6 +151,13 @@ export async function analyzeTransactionImage(
   const detailsHidden = (hidden.regions.length > 0 || hidden.referenceUnreadable || hidden.referenceIncomplete || hidden.totalUnreadable) && !hidden.privacyOnly;
   // A number read through a mosaic is made up from the noise ("…0449"): don't show it.
   if (hidden.regionOnPhone && !opts?.extractedOverride) extracted = { ...extracted, receiverContact: null };
+  // Any value read THROUGH a blurred area ("FRel fun Cruz A." from a pixelated name) is noise too: shown as blurred.
+  const blurredFields: ReadField[] = opts?.extractedOverride ? [] : fieldsUnderBlur(forensics.obscuredRegions ?? [], ocr.words, extracted);
+  if (hidden.regionOnPhone && !opts?.extractedOverride && !blurredFields.includes('receiverContact')) blurredFields.push('receiverContact');
+  if (blurredFields.length) {
+    extracted = { ...extracted };
+    for (const f of blurredFields) (extracted as unknown as Record<string, unknown>)[f] = null;
+  }
   // A time read without its date on an edited receipt is usually read from the blurred date line: don't show it.
   if (detailsHidden && !extracted.date && extracted.time && !opts?.extractedOverride) extracted = { ...extracted, time: null };
   if (detailsHidden) {
@@ -189,12 +196,14 @@ export async function analyzeTransactionImage(
   // (Skipped on an unsent screen: nothing was sent, so there is no recipient —
   // the Unconfirmed Transaction finding below already explains it.)
   // (Also skipped when details are visibly hidden: that finding already says why.)
-  if (isPhoto && !unconfirmed && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
+  if (isPhoto && !unconfirmed && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact && !blurredFields.length) {
     // On a photo, a field OCR couldn't read is not a field missing from the receipt.
     findings.push(finding('text', 'Recipient Not Read',
       'The recipient’s name or number could not be read from this photo. That is common on photos of a screen (glare, angle, part of the screen cut off) and does not count against the receipt — but check who was paid on the sender’s screen.',
       'low', false, 0.05));
-  } else if (!unconfirmed && !detailsHidden && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact) {
+  } else if (!unconfirmed && !detailsHidden && source !== 'Unknown' && !extracted.receiverName && !extracted.receiverContact
+             // a recipient blurred for privacy is not a missing one
+             && !blurredFields.includes('receiverName') && !blurredFields.includes('receiverContact')) {
     const ocrReadable = (ocr?.confidence ?? 0) >= 65;
     const readFields = [extracted.amount != null ? 'amount' : null, extracted.referenceNo ? 'reference number' : null, extracted.date ? 'date' : null].filter(Boolean) as string[];
     const txnFieldsRead = readFields.length > 0;
@@ -333,6 +342,7 @@ export async function analyzeTransactionImage(
     payee: payee ?? undefined,
     receivingApp,
     referenceCutShort: hidden.referenceIncomplete || undefined,
+    blurredFields: blurredFields.length ? blurredFields : undefined,
     txStatus: 'pending',
     forestAnalysis,
     inkOutliers: ink.outliers.map(({ text, x0, y0, x1, y1 }) => ({ text, x0, y0, x1, y1 })),

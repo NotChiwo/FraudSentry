@@ -386,6 +386,16 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3r. Values read through a blur (V10.2.9)
+
+| Image | Before | After |
+|---|---|---|
+| Genuine GCash, name pixelated with a 6 px mosaic | receiver "Elrmvngd 6," (OCR of the mosaic) | receiver blurred, can't be read; Low |
+| User's edited GCash Express Send (720 px) | phone number "not detected", reference "101664256" | phone "Blurred", reference "101664256… · Cut short"; High |
+| Genuine receipts (GCash, MariBank, rendered screens) | unchanged | unchanged |
+
+Known limit: on a very small screenshot (401 px wide) a detected blur box can overlap the next line, and a clear phone number under a blurred name was then hidden too (hidden, never invented). A 3–4 px mosaic leaves the letters readable and is not detected as a blur. Unit tests: `blurredValues.test.ts`.
+
 ## 3q. Blurred GCash total and reference (V10.2.8)
 
 Scanned in the built offline app (Playwright, Chromium). "Pixelated" copies were made from a genuine GCash receipt (a Carousell listing) with a mosaic over one area.

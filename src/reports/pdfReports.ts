@@ -110,12 +110,13 @@ export function generateImageReport(scan: ImageScanResult) {
 
   y = sectionTitle(doc, y, 'Extracted Transaction Data (OCR)');
   const e = scan.extracted;
-  y = kv(doc, y, 'Amount', e.amount != null ? `PHP ${e.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : 'Not detected');
-  y = kv(doc, y, 'Reference / Txn no.', e.referenceNo || e.transactionId || 'Not detected');
-  y = kv(doc, y, 'Date / Time', [e.date, e.time].filter(Boolean).join(' ') || 'Not detected');
-  y = kv(doc, y, 'Sender', pdfSafe(e.senderName || 'Not detected'));
-  y = kv(doc, y, 'Receiver', pdfSafe(e.receiverName || 'Not detected'));
-  y = kv(doc, y, 'Receiver No.', pdfSafe(e.receiverContact || 'Not detected'));
+  const nd = (f: string) => (scan.blurredFields?.includes(f) ? 'Blurred on the receipt' : 'Not detected');
+  y = kv(doc, y, 'Amount', e.amount != null ? `PHP ${e.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : nd('amount'));
+  y = kv(doc, y, 'Reference / Txn no.', e.referenceNo || e.transactionId || nd('referenceNo'));
+  y = kv(doc, y, 'Date / Time', [e.date, e.time].filter(Boolean).join(' ') || nd('date'));
+  y = kv(doc, y, 'Sender', pdfSafe(e.senderName || nd('senderName')));
+  y = kv(doc, y, 'Receiver', pdfSafe(e.receiverName || nd('receiverName')));
+  y = kv(doc, y, 'Receiver No.', pdfSafe(e.receiverContact || nd('receiverContact')));
   y = kv(doc, y, 'OCR engine', `${scan.ocr.engine} · ${scan.ocr.confidence}% confidence`);
   y += 3;
 

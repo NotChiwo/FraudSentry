@@ -1,5 +1,14 @@
 # Changelog
 
+## V10.2.9 — 2026-11-08
+
+### Blurred details are shown as blurred, never as text read through the blur
+- A pixelated name came out as **"FRel fun Cruz A."**: OCR turns a mosaic into letters. Now any value whose words lie inside a blurred or covered area is removed and shown as **Blurred, can't be read** (with a dashed outline and a "Blurred" chip; "Blurred on the receipt" in the PDF). This applies to the name, number, reference, transaction ID, amount, date and time.
+- Each OCR pass reads a mosaic as different noise, so a name from another pass may match no word on the image: a name is also treated as blurred when a blur sits in the party area (above the amounts) and the name matches no clear text on the receipt.
+- Only what is under the blur goes: the date printed next to a blurred reference, or the amount on a clear "Amount" line next to a blurred total, stay.
+- A recipient blurred for privacy is not a missing recipient: the "no recipient" rules don't fire.
+- **A cut-short reference** is shown as "101664256… · Cut short — only the start can be read; ask for the full reference", not as a normal reference.
+
 ## V10.2.8 — 2026-11-08
 
 ### A GCash receipt with the total and the end of the reference pixelated passed as Low

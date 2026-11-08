@@ -164,6 +164,9 @@
 .df-label { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
 .df-chip { margin-left: auto; font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 6px; border: 1px solid currentColor; }
 .conf-high { color: var(--accent-emerald); } .conf-medium { color: var(--accent-light); } .conf-low { color: var(--accent-amber); }
+.conf-blurred { color: var(--risk-high); border-color: color-mix(in srgb, var(--risk-high) 45%, transparent); }
+.data-field.st-blurred { border-style: dashed; border-color: color-mix(in srgb, var(--risk-high) 50%, transparent); }
+.data-field.st-blurred .df-dot { background: var(--risk-high); }
 .df-value { margin-top: 4px; font-size: 15px; font-weight: 650; color: var(--text-primary); overflow-wrap: anywhere; }
 .df-value.empty { color: var(--text-disabled); font-weight: 400; font-style: italic; }
 .df-note { margin-top: 4px; font-size: 13px; color: var(--accent-amber); line-height: 1.4; }
