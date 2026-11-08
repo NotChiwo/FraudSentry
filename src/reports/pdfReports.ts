@@ -110,7 +110,7 @@ export function generateImageReport(scan: ImageScanResult) {
 
   y = sectionTitle(doc, y, 'Extracted Transaction Data (OCR)');
   const e = scan.extracted;
-  const nd = (f: string) => (scan.blurredFields?.includes(f) ? 'Blurred on the receipt' : 'Not detected');
+  const nd = (f: string) => (scan.blurredFields?.includes(f) ? 'Masked or blurred on the receipt (unreadable)' : 'Not detected');
   y = kv(doc, y, 'Amount', e.amount != null ? `PHP ${e.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : nd('amount'));
   y = kv(doc, y, 'Reference / Txn no.', e.referenceNo || e.transactionId || nd('referenceNo'));
   y = kv(doc, y, 'Date / Time', [e.date, e.time].filter(Boolean).join(' ') || nd('date'));

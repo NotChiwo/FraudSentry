@@ -25,7 +25,7 @@ import type { OcrProgress } from './ocr/ocr';
 import { analyzeForensics, inkCheckForFile } from './checks/imageForensics';
 import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, receivingAppOf, recipientLabelSeen, type TransactionDirection } from './reading/receiptParser';
 import { reconcileAmounts, checkReceiptDate, checkWeekday } from './checks/consistencyChecks';
-import { assessHiddenFields, fieldsUnderBlur, type ReadField } from './checks/hiddenFields';
+import { assessHiddenFields, fieldsUnderBlur, nameLooksGarbled, walletNameLineGarbled, type ReadField } from './checks/hiddenFields';
 import { matchAgainstHistory, PriorScan } from './checks/historyMatch';
 import { buildFeatureVector } from '../random-forest/sampleDataset';
 import { refFormatFor } from './reading/fieldValidation';
@@ -154,6 +154,15 @@ export async function analyzeTransactionImage(
   // Any value read THROUGH a blurred area ("FRel fun Cruz A." from a pixelated name) is noise too: shown as blurred.
   const blurredFields: ReadField[] = opts?.extractedOverride ? [] : fieldsUnderBlur(forensics.obscuredRegions ?? [], ocr.words, extracted);
   if (hidden.regionOnPhone && !opts?.extractedOverride && !blurredFields.includes('receiverContact')) blurredFields.push('receiverContact');
+  // a name guessed out of a pixelated line, even where the blur itself wasn't detected
+  if (!opts?.extractedOverride) for (const f of ['receiverName', 'senderName'] as const) {
+    if (!blurredFields.includes(f) && nameLooksGarbled(passTexts, extracted[f])) blurredFields.push(f);
+  }
+  // no name read at all, but its line is there and reads as junk: unreadable, not "not detected"
+  if (!opts?.extractedOverride && !extracted.receiverName && !blurredFields.includes('receiverName')
+      && (source === 'GCash' || source === 'Maya') && walletNameLineGarbled(passTexts)) blurredFields.push('receiverName');
+  // "Ref No." followed only by junk: the reference is there but blocked out
+  if (!opts?.extractedOverride && !extracted.referenceNo && hidden.referenceUnreadable && !blurredFields.includes('referenceNo')) blurredFields.push('referenceNo');
   if (blurredFields.length) {
     extracted = { ...extracted };
     for (const f of blurredFields) (extracted as unknown as Record<string, unknown>)[f] = null;

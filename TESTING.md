@@ -386,6 +386,15 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3s. Pixelated names (V10.2.10)
+
+| Image | Before | After |
+|---|---|---|
+| User's GCash receipt, name + number + reference pixelated (as sent, 720 px, 1080 px) | receiver "FRel fun Cruz A." on the user's device / "not detected" here | receiver, number and reference **Unreadable**; amount ₱215.00, date Oct 04 2026 12:26 PM shown; High |
+| Genuine GCash, MariBank (screenshot and photo), rendered screens | unchanged | unchanged |
+
+Unit tests: `garbledNames.test.ts`, including a pass over every genuine real-receipt fixture (no real name is flagged; the one value flagged, GoTyme's "JOHN yoooeee press", is OCR noise of masking dots).
+
 ## 3r. Values read through a blur (V10.2.9)
 
 | Image | Before | After |

@@ -255,3 +255,32 @@ export function fieldsUnderBlur(regions: ObscuredRegion[], words: OcrWord[] | un
   }
   return out;
 }
+
+/**
+ * A name OCR guessed out of a pixelated line, judged from the TEXT (the blur
+ * detector can miss a few irregular patches between real letters). The name's
+ * line reads with junk symbols in some pass ('FRel  iL =" Cruz A.', 'Ir Rel" IL ® ny'),
+ * or the name has letter-case no real name has ("FRel", "iL"). An asterisk mask
+ * read as a quote between letters ("Jo“n") is not junk.
+ */
+export function nameLooksGarbled(texts: string[], name: string | null): boolean {
+  if (!name) return false;
+  const tokens = name.split(/\s+/).map(norm).filter(t => t.length >= 3);
+  // the part of each line that holds the name (an icon or logo after a wide gap, "STARBUCKS …   [A]", is not part of it)
+  const lines = texts.flatMap(t => (t || '').split('\n')).flatMap(l => l.split(/\s{3,}/)).filter(c => tokens.some(tok => norm(c).includes(tok)));
+  const junk = /[=“”"®©|{}[\]<>~^\\§¶]/;
+  // an app icon read in front of the name ('WL “Steam Purchase') is not pixelation, which leaves junk INSIDE the name
+  const body = (l: string) => l.trim().replace(/^\S{1,3}\s+[“”"'‘’]?(?=[A-Za-z])/, '').replace(/(?<=[A-Za-z*•])[“”"‘’'`^°]+(?=[A-Za-z*•])/g, '*');
+  if (lines.some(l => junk.test(body(l)))) return true;
+  return name.split(/\s+/).some(w => /[A-Z]{2,}[a-z]|[a-z][A-Z]/.test(w.replace(/^(?:Mc|Mac|De|Di|Da|La|Le|Van|Von)(?=[A-Z])/, '')));
+}
+
+/** GCash / Maya: the name is printed on the line above the "+63" number. That line read as junk ('FRel  iL =" Cruz A.') = a pixelated name. */
+export function walletNameLineGarbled(texts: string[]): boolean {
+  const junk = /[=“”"®©|{}[\]<>~^\\§¶]/;
+  return texts.some(t => {
+    const lines = (t || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const phone = lines.findIndex(l => /^\+?\s?63\b/.test(l));
+    return phone > 0 && junk.test(lines[phone - 1].replace(/(?<=[A-Za-z*•])[“”"‘’'`^°]+(?=[A-Za-z*•])/g, '*'));
+  });
+}

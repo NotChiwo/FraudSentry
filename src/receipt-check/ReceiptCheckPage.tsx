@@ -652,7 +652,7 @@ function Fact({ label, value, mono, blurred }: { label: string; value: string | 
   return (
     <div className="fact">
       <div className="fact-l">{label}</div>
-      <div className={`fact-v${mono ? ' mono' : ''}${value ? '' : ' empty'}`}>{value || (blurred ? 'Blurred' : 'Not found')}</div>
+      <div className={`fact-v${mono ? ' mono' : ''}${value ? '' : ' empty'}`}>{value || (blurred ? 'Unreadable' : 'Not found')}</div>
     </div>
   );
 }
@@ -671,9 +671,9 @@ function DataField({ label, value, mono, check, blurred, cutShort }: { label: st
     </div>
   );
   if (blurred) return (
-    <div className="data-field st-blurred" title="This part of the receipt is blurred or covered, so it can't be read.">
-      <div className="df-head"><span className="df-dot" aria-hidden="true" /><span className="df-label">{label}</span><span className="df-chip conf-blurred">Blurred</span></div>
-      <div className="df-value empty">blurred, can’t be read</div>
+    <div className="data-field st-blurred" title="This part of the receipt is blurred, covered or masked, so it can't be read. Text guessed from it would be made up.">
+      <div className="df-head"><span className="df-dot" aria-hidden="true" /><span className="df-label">{label}</span><span className="df-chip conf-blurred">Unreadable</span></div>
+      <div className="df-value empty">masked or blurred, can’t be read</div>
     </div>
   );
   const chip = check && !empty ? CONFIDENCE_CHIP[check.confidence] : null;
