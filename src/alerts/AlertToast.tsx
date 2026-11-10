@@ -11,6 +11,7 @@ const SHOW_MS = 12000;
 
 export default function AlertToast({ onOpen }: { onOpen: () => void }) {
   const alerts = useAppStore(s => s.alerts);
+  const popups = useAppStore(s => s.alertPopups);
   // alerts that already existed when the app opened are not announced again
   const seen = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
   const [current, setCurrent] = useState<FraudAlert | null>(null);
@@ -19,10 +20,10 @@ export default function AlertToast({ onOpen }: { onOpen: () => void }) {
   useEffect(() => {
     const fresh = alerts.filter(a => !seen.current.has(a.id));
     fresh.forEach(a => seen.current.add(a.id));
-    if (fresh.length) setCurrent(fresh[0]);
+    if (fresh.length) { if (popups) setCurrent(fresh[0]); }
     // the alert was deleted (or its check was) while the notice was showing
     else if (current && !alerts.some(a => a.id === current.id)) setCurrent(null);
-  }, [alerts, current]);
+  }, [alerts, current, popups]);
 
   useEffect(() => {
     if (!current || paused) return;

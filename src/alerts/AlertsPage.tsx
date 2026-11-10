@@ -20,6 +20,8 @@ const KIND: Record<AlertKind, { label: string; icon: LucideIcon }> = {
 export default function AlertsPage({ onNavigate }: { onNavigate?: (p: string) => void }) {
   const alerts = useAppStore(s => s.alerts);
   const alertLevel = useAppStore(s => s.alertLevel);
+  const alertPopups = useAppStore(s => s.alertPopups);
+  const setAlertPopups = useAppStore(s => s.setAlertPopups);
   const setAlertLevel = useAppStore(s => s.setAlertLevel);
   const setAlertStatus = useAppStore(s => s.setAlertStatus);
   const markAllAlertsRead = useAppStore(s => s.markAllAlertsRead);
@@ -109,6 +111,11 @@ export default function AlertsPage({ onNavigate }: { onNavigate?: (p: string) =>
           ))}
         </div>
         <p className="muted small" style={{ margin: 0 }}>Applies to new checks. Alerts are shown inside FraudSentry only; no email or SMS is sent, because nothing leaves this device.</p>
+        <label className="setting-toggle" style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginTop: 10, cursor: 'pointer' }}>
+          <input type="checkbox" checked={alertPopups} onChange={e => setAlertPopups(e.target.checked)} />
+          Show a pop-up when a new alert is created
+        </label>
+        {!alertPopups && <p className="muted small" style={{ margin: '4px 0 0' }}>Pop-ups are off. New alerts still appear here and on the bell.</p>}
       </section>
     </div>
   );

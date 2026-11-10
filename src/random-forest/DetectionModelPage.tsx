@@ -1,7 +1,7 @@
 // Random Forest module — the Detection Model page: train and evaluate the forest
 // (accuracy, precision, recall, F1, ROC-AUC, confusion matrix, feature importance),
 // choose which model the checks use, and run the rules-vs-forest hypothesis test.
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Trees, Play, RefreshCw, Upload, Database, Target, Crosshair,
   Activity, BarChart3, Info, CheckCircle2, AlertTriangle, FlaskConical, Cpu, Link2, Unlink, Gauge,
@@ -10,9 +10,10 @@ import type { LucideIcon } from 'lucide-react';
 import {
   RandomForest, trainTestSplit, Metrics, Dataset,
 } from './randomForest';
-import type { RocPoint } from './evaluation';
+import { classLevel, type RocPoint } from './evaluation';
 import { RocChart, ModelRegistryCard, ComparisonCard } from './ModelCards';
 import BatchTestCard from './BatchTestCard';
+import TreeComparisonCard from './TreeComparisonCard';
 import { nextVersion, defaultModelName, type ModelRecord } from './modelRegistry';
 import {
   generateDemoDataset, parseCsvDataset, FEATURE_SPECS, CLASS_NAMES, isEvidenceSchema,
@@ -92,6 +93,8 @@ export default function DetectionModelPage() {
   const fraudCount = dataset.y.filter(v => v === 1).length;
   const legitCount = dataset.y.length - fraudCount;
   const fraudPct = Math.round((fraudCount / dataset.y.length) * 100);
+  // the stratified 70:30 split every evaluation on this page uses (seed 42)
+  const splitSizes = useMemo(() => { const s = trainTestSplit(dataset, 0.3, 42); return { train: s.train.y.length, test: s.test.y.length }; }, [dataset]);
 
   async function train() {
     setError(''); setPhase('training'); setProgress(0.05);
@@ -179,7 +182,7 @@ export default function DetectionModelPage() {
         <Info size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
           {datasetSource === 'demo'
-            ? <>The loaded data is a <strong style={{ color: 'var(--text-primary)' }}>demonstration dataset</strong> — synthetically generated (seeded, reproducible) to validate the model pipeline end-to-end. It is not real collected fraud data. For your thesis results, upload your own labelled CSV of authentic vs. fraudulent evidence and the same pipeline produces your real numbers.</>
+            ? <>The loaded data is a <strong style={{ color: 'var(--text-primary)' }}>demonstration dataset</strong> — synthetically generated (seeded, reproducible; about 6% of its labels are deliberately flipped so the classes overlap like real data) to validate the model pipeline end-to-end. It is not real collected fraud data. For your thesis results, upload your own labelled CSV of authentic vs. fraudulent evidence and the same pipeline produces your real numbers.</>
             : datasetSource === 'labelled'
             ? <>Training on <strong style={{ color: 'var(--text-primary)' }}>your {dataset.y.length} labelled receipts</strong> — real evidence from your own scans. Metrics below are computed on a held-out 30% test split. With few receipts these figures move a lot between datasets: report the counts (TP / FP / TN / FN) with them.</>
             : <>Training on your <strong style={{ color: 'var(--text-primary)' }}>uploaded dataset</strong>. Metrics below are computed on a held-out 30% test split of this data.</>}
@@ -212,6 +215,8 @@ export default function DetectionModelPage() {
             <Stat label="Features" value={featNames.length} />
             <Stat label="Legitimate" value={legitCount} color="var(--accent-emerald)" />
             <Stat label="Fraudulent" value={fraudCount} color="var(--accent-red)" />
+            <Stat label="Training (70%)" value={splitSizes.train} />
+            <Stat label="Testing (30%)" value={splitSizes.test} />
           </div>
 
           {/* class balance bar */}
@@ -284,7 +289,7 @@ export default function DetectionModelPage() {
               {wired ? <Link2 size={16} color="var(--accent-emerald)" style={{ flexShrink: 0, marginTop: 1 }} /> : <Unlink size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: 1 }} />}
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
                 {wired
-                  ? <><strong style={{ color: 'var(--text-primary)' }}>Connected to live scans.</strong> Every future Transaction Check now scores its evidence through this forest ({nTrees} trees) and blends the vote 50/50 with the rule-based findings.</>
+                  ? <><strong style={{ color: 'var(--text-primary)' }}>Connected to live scans.</strong> Every future receipt check now scores its evidence through this forest ({nTrees} trees) and blends the vote 50/50 with the rule-based findings.</>
                   : <><strong style={{ color: 'var(--text-primary)' }}>Evaluated here only — not connected to live scans.</strong> This dataset&apos;s columns ({featNames.slice(0, 4).join(', ')}{featNames.length > 4 ? ', …' : ''}) are not the 10 receipt-evidence features the scanner produces, so feeding receipt evidence into this forest would give a meaningless number. Live scans keep using the previous model.</>}
               </div>
             </div>
@@ -349,6 +354,7 @@ export default function DetectionModelPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16, marginBottom: 18 }}>
             <RocChart points={roc.points} area={roc.area} />
+            <ClassLevelCard m={metrics} />
           </div>
 
           {/* Live classifier — its sliders ARE the 10 evidence features, so it only
@@ -397,6 +403,8 @@ export default function DetectionModelPage() {
         </div>
       )}
 
+      <TreeComparisonCard dataset={dataset} nTrees={nTrees} maxDepth={maxDepth}
+        datasetLabel={datasetSource === 'demo' ? `the demonstration dataset (${dataset.y.length} samples)` : datasetSource === 'labelled' ? `your ${dataset.y.length} labelled receipts` : `your uploaded dataset (${dataset.y.length} rows)`} />
       <BatchTestCard />
       <ComparisonCard nTrees={nTrees} maxDepth={maxDepth} />
       <ModelRegistryCard live={liveMeta} />
@@ -405,6 +413,27 @@ export default function DetectionModelPage() {
 }
 
 // ---------- small presentational helpers ----------
+function ClassLevelCard({ m }: { m: Metrics }) {
+  const c = classLevel(m);
+  const rows: [string, typeof c.legitimate][] = [['Legitimate', c.legitimate], ['Fraudulent', c.fraudulent]];
+  return (
+    <div className="card">
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Class-level performance</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Precision, recall and F1 for each class separately, from the confusion matrix. Support is how many test rows belong to the class.</div>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead><tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr></thead>
+          <tbody>
+            {rows.map(([name, s]) => (
+              <tr key={name}><td><b>{name}</b></td><td className="mono">{s.precision.toFixed(3)}</td><td className="mono">{s.recall.toFixed(3)}</td><td className="mono">{s.f1.toFixed(3)}</td><td className="mono">{s.support}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function Stat({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
     <div>

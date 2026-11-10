@@ -19,7 +19,7 @@ src/
 ├─ app/                    Home, About, Privacy, welcome notice, navigation
 ├─ shared/                 data store, types, helpers used by every module
 ├─ styles/                 all CSS
-└─ __tests__/              automated tests (370)
+└─ __tests__/              automated tests (386)
 ```
 
 ---
@@ -68,6 +68,8 @@ src/
 | `sharedModel.ts` | The forest the checks use, and switching it when a new model is trained |
 | `trainingData.ts` | Training on labelled receipts; `compareApproaches()` (rules vs. forest vs. both) |
 | `evaluation.ts` | `rocAuc()`, `rocCurve()`, `mcnemar()` (the hypothesis test) |
+| `decisionTree.ts` | The single Decision Tree the forest is compared with: same CART / Gini splits, but one tree on all rows and all features (depth 9, at least 5 samples to split) |
+| `treeComparison.ts`, `TreeComparisonCard.tsx` | The thesis hypothesis test: Random Forest vs. Decision Tree on the same 70:30 split, McNemar's test, stratified 10-fold cross-validation, CSV export |
 | `modelRegistry.ts` | Every trained model with its name, version and metrics (RF_MODEL) |
 | `DetectionModelPage.tsx`, `ModelCards.tsx` | The page: train, metrics, confusion matrix, ROC curve, model history, hypothesis test |
 | `batchTest.ts`, `BatchTestCard.tsx` | Batch test: scan receipts of known truth, count false alarms and fakes caught, export CSV, save as training rows |
@@ -119,11 +121,12 @@ src/
 | "What features does the model use?" | `random-forest/sampleDataset.ts`: `FEATURE_SPECS`, `buildFeatureVector()` |
 | "How is the final risk decided?" | `receipt-check/verifyReceipt.ts`: the score section near the end of `analyzeTransactionImage()` |
 | "How do you get accuracy, precision, recall, F1, ROC-AUC?" | `random-forest/randomForest.ts` → `computeMetrics()`, and `random-forest/evaluation.ts` |
-| "How did you test the hypothesis?" | `random-forest/trainingData.ts` → `compareApproaches()`, and `evaluation.ts` → `mcnemar()` |
+| "How did you test the hypothesis?" (Random Forest vs. Decision Tree) | `random-forest/treeComparison.ts` → `compareOnSplit()`, `stratifiedFolds()`; the tree is `decisionTree.ts`; the test is `evaluation.ts` → `mcnemar()`. On the page: "Hypothesis test: Random Forest vs. Decision Tree" |
+| "Is the forest better than the rules alone?" | `random-forest/trainingData.ts` → `compareApproaches()` |
 | "How does the alert system work?" | `alerts/alerts.ts`, then `shared/store.ts` (`addImageScan` creates the alert) |
 | "How do you read the receipt?" | `receipt-check/ocr/ocr.ts` → `runOcr()`, then `reading/receiptParser.ts` |
 | "How do you detect edited receipts?" | `receipt-check/checks/` (one file per kind of edit) |
 | "Where is the data stored? Is it private?" | `shared/store.ts`: in the device only, 30-day expiry, no server |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (370 tests) |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (386 tests) |
 | "How do you know genuine receipts pass?" | `random-forest/batchTest.ts` + `BatchTestCard.tsx`: the batch test on the Detection Model page (false-alarm rate with its 95% upper bound, fakes caught) |
 | "Does it ever guess a blurred value?" | `reading/receiptParser.ts` → `unagreedFields()` (the OCR passes must agree), and `checks/hiddenFields.ts` (values under a blur) |
