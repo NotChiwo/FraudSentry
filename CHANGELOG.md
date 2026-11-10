@@ -17,6 +17,7 @@
 - **Dataset breakdown** (10.1.3.11): the Dataset card also shows the training and testing sizes of the 70:30 split (309 and 131 on the demonstration data), and the notice says about 6% of the demonstration labels are flipped on purpose.
 - **Keep my checks on this device** (data dictionary, retain_scan_results), on the Privacy & Data page: on (default), checks, alerts and reports are saved for 30 days; off, they are kept only while the app is open and nothing is written to the device.
 - **Pop-up alerts on/off** (data dictionary, notification_option), on the Alerts page: alerts are still listed and counted on the bell when pop-ups are off.
+- **About page** uses the current page names (Check Receipt, Check Message, Cross-Evidence) and also lists the Detection Model and Alerts, History and Reports.
 
 ## V10.2.11 — 2026-11-08
 

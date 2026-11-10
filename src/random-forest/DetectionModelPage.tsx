@@ -289,7 +289,7 @@ export default function DetectionModelPage() {
               {wired ? <Link2 size={16} color="var(--accent-emerald)" style={{ flexShrink: 0, marginTop: 1 }} /> : <Unlink size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: 1 }} />}
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
                 {wired
-                  ? <><strong style={{ color: 'var(--text-primary)' }}>Connected to live scans.</strong> Every future Transaction Check now scores its evidence through this forest ({nTrees} trees) and blends the vote 50/50 with the rule-based findings.</>
+                  ? <><strong style={{ color: 'var(--text-primary)' }}>Connected to live scans.</strong> Every future receipt check now scores its evidence through this forest ({nTrees} trees) and blends the vote 50/50 with the rule-based findings.</>
                   : <><strong style={{ color: 'var(--text-primary)' }}>Evaluated here only — not connected to live scans.</strong> This dataset&apos;s columns ({featNames.slice(0, 4).join(', ')}{featNames.length > 4 ? ', …' : ''}) are not the 10 receipt-evidence features the scanner produces, so feeding receipt evidence into this forest would give a meaningless number. Live scans keep using the previous model.</>}
               </div>
             </div>
