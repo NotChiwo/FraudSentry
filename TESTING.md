@@ -386,6 +386,18 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3u. Random Forest vs. Decision Tree (V10.2.12)
+
+| Check | Result |
+|---|---|
+| Demonstration dataset, 309 / 131 split (seed 42) | RF 87.02 / 90.74 / 80.33 / 85.22 (TP 49, FP 5, TN 65, FN 12); DT 77.86 / 75.00 / 78.69 / 76.80 (TP 48, FP 16, TN 54, FN 13): identical to the thesis, Table 15 |
+| McNemar | both right 99, b = 15, c = 3, both wrong 14; exact p = 0.0075; H₀ rejected: identical to the thesis, Table 19 |
+| ROC-AUC (same 131 samples) | RF 0.917, DT 0.824 |
+| Stratified 10-fold CV (seed 42) | RF accuracy 91.07 (SD 4.07), DT 87.49 (SD 5.48); RF higher in 6 folds, tied in 2, lower in 2. The thesis reports 91.58 (4.41) vs. 86.86 (5.54): same conclusion, different fold assignment |
+| Built offline app (Playwright, Chromium), 1280 px and 390 px | runs in about 1.3–1.7 s; no page errors; no sideways scrolling |
+
+Unit tests: `treeComparison.test.ts`.
+
 ## 3t. OCR passes must agree; batch test (V10.2.11)
 
 | Check | Result |

@@ -1,5 +1,17 @@
 # Changelog
 
+## V10.2.12 — 2026-11-10
+
+### Hypothesis test on the Detection Model page: Random Forest vs. Decision Tree
+- New card **Hypothesis test: Random Forest vs. Decision Tree**. It runs the thesis hypothesis (H₀: no significant difference in classification accuracy) on whichever dataset is loaded: the demonstration data, your labelled receipts or an uploaded CSV.
+- **The Decision Tree** uses the same CART algorithm and Gini splits as the forest's trees, but is a single tree grown on all training rows with all features at every split (depth 9, at least 5 samples to split). The comparison therefore shows exactly what bagging and random feature selection add.
+- **Same split for both:** the stratified 70:30 split with seed 42, the same as the forest's own training. The card shows accuracy, precision, recall, F1, ROC-AUC and the confusion-matrix counts side by side.
+- **McNemar's test** on the paired outcomes (exact binomial when b + c < 25), with the 2 × 2 table and the decision on H₀.
+- **Stratified 10-fold cross-validation** (seed 42): mean and SD of each metric, accuracy per fold, and how many folds each model won.
+- **Export CSV** for the thesis tables.
+- On the demonstration dataset it reproduces the thesis figures exactly: Random Forest 87.02 / 90.74 / 80.33 / 85.22, Decision Tree 77.86 / 75.00 / 78.69 / 76.80, b = 15, c = 3, exact p = 0.0075, H₀ rejected. Cross-validation gives Random Forest 91.07 (SD 4.07) vs. Decision Tree 87.49 (SD 5.48).
+- The rules-vs-forest card is now titled **Rules vs. forest on your labelled receipts**, so the two comparisons aren't confused.
+
 ## V10.2.11 — 2026-11-08
 
 ### Never guess: a value the OCR passes don't agree on isn't shown

@@ -125,7 +125,7 @@ export function ComparisonCard({ nTrees, maxDepth }: { nTrees: number; maxDepth:
     <div className="card" style={{ marginTop: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <FlaskConical size={16} color="var(--accent-light)" />
-        <span style={{ fontSize: 14, fontWeight: 700 }}>Does the Random Forest improve detection? (hypothesis test)</span>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>Rules vs. forest on your labelled receipts</span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.55 }}>
         On your labelled receipts, the same held-out 30 % is classified three ways: by the rule-based checks alone, by the forest alone, and by FraudSentry's combination of both. McNemar's test then asks whether the combination makes significantly fewer errors than the rules alone (H₀: no difference; α = 0.05).
