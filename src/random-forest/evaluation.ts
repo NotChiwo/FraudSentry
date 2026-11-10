@@ -81,3 +81,18 @@ export function mcnemar(yTrue: number[], predA: number[], predB: number[], alpha
   const p = erfc(Math.sqrt(chi2 / 2));     // chi-square, 1 degree of freedom
   return { onlyARight: b, onlyBRight: c, method: 'chi-square', statistic: chi2, pValue: p, significant: p < alpha };
 }
+
+export interface ClassScores { precision: number; recall: number; f1: number; support: number }
+/**
+ * Per-class precision, recall, F1 and support from a confusion matrix
+ * (thesis 10.1.3.16): the legitimate class is scored as if it were the
+ * positive one (TN / (TN + FN), TN / (TN + FP)).
+ */
+export function classLevel(m: { tp: number; fp: number; tn: number; fn: number }): { legitimate: ClassScores; fraudulent: ClassScores } {
+  const score = (hit: number, falseHit: number, miss: number): ClassScores => {
+    const precision = hit + falseHit ? hit / (hit + falseHit) : 0;
+    const recall = hit + miss ? hit / (hit + miss) : 0;
+    return { precision, recall, f1: precision + recall ? (2 * precision * recall) / (precision + recall) : 0, support: hit + miss };
+  };
+  return { legitimate: score(m.tn, m.fn, m.fp), fraudulent: score(m.tp, m.fp, m.fn) };
+}

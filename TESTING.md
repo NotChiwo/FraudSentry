@@ -396,7 +396,12 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Stratified 10-fold CV (seed 42) | RF accuracy 91.07 (SD 4.07), DT 87.49 (SD 5.48); RF higher in 6 folds, tied in 2, lower in 2. The thesis reports 91.58 (4.41) vs. 86.86 (5.54): same conclusion, different fold assignment |
 | Built offline app (Playwright, Chromium), 1280 px and 390 px | runs in about 1.3–1.7 s; no page errors; no sideways scrolling |
 
-Unit tests: `treeComparison.test.ts`.
+| Class-level table after training (demonstration data) | Legitimate 0.844 / 0.929 / 0.884 / 70, Fraudulent 0.907 / 0.803 / 0.852 / 61: identical to the thesis, 10.1.3.16 |
+| Dataset card | 440 total, 235 legitimate, 205 fraudulent, 309 training, 131 testing: identical to 10.1.3.11 |
+| Privacy & Data → "Keep my checks" off (built app) | saved state has `keepHistory: false` and no checks |
+| Alerts → pop-ups off (built app) | saved state has `alertPopups: false` |
+
+Unit tests: `treeComparison.test.ts`, `thesisFeatures.test.ts`.
 
 ## 3t. OCR passes must agree; batch test (V10.2.11)
 

@@ -1,5 +1,6 @@
 // Privacy & Data page: what is processed, what is kept on this device and for how long.
-import { Lock, Database, Eye, ShieldCheck, UserCheck, AlertCircle, ScanText, Server } from 'lucide-react';
+import { Lock, Database, Eye, ShieldCheck, UserCheck, AlertCircle, ScanText, Server, History } from 'lucide-react';
+import { useAppStore } from '../shared/store';
 
 const SECTIONS = [
   {
@@ -29,6 +30,8 @@ const SECTIONS = [
 ];
 
 export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => void } = {}) {
+  const keepHistory = useAppStore(s => s.keepHistory);
+  const setKeepHistory = useAppStore(s => s.setKeepHistory);
   return (
     <div className="page" style={{ maxWidth: 820 }}>
       <div className="page-head">
@@ -42,6 +45,21 @@ export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => v
       <div className="privacy-notice" style={{ marginBottom: 18 }}>
         <ShieldCheck size={15} color="var(--accent-light)" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>In short: your uploads are processed in your browser, not on a server. There is no login, no tracking, and no data resale. You stay in control and can clear everything at any time.</span>
+      </div>
+
+      <div className="card" style={{ padding: 18, marginBottom: 13, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+        <History size={18} color="var(--accent-light)" style={{ flexShrink: 0, marginTop: 2 }} />
+        <div>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={keepHistory} onChange={e => setKeepHistory(e.target.checked)} />
+            Keep my checks on this device for 30 days
+          </label>
+          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 5 }}>
+            {keepHistory
+              ? 'Your results, alerts and reports are saved in this browser so you can reopen them, and are deleted automatically after 30 days.'
+              : 'Your checks are kept only while FraudSentry is open. Nothing is saved to this device; closing the app clears them. The reused-receipt warning only compares receipts checked in the same session.'}
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>

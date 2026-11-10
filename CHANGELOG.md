@@ -12,6 +12,12 @@
 - On the demonstration dataset it reproduces the thesis figures exactly: Random Forest 87.02 / 90.74 / 80.33 / 85.22, Decision Tree 77.86 / 75.00 / 78.69 / 76.80, b = 15, c = 3, exact p = 0.0075, H₀ rejected. Cross-validation gives Random Forest 91.07 (SD 4.07) vs. Decision Tree 87.49 (SD 5.48).
 - The rules-vs-forest card is now titled **Rules vs. forest on your labelled receipts**, so the two comparisons aren't confused.
 
+### Everything the thesis describes is now in the app
+- **Class-level performance** (thesis 10.1.3.16): after training, a table gives precision, recall, F1 and support for the legitimate and the fraudulent class separately (on the demonstration data: 0.844 / 0.929 / 0.884 / 70 and 0.907 / 0.803 / 0.852 / 61).
+- **Dataset breakdown** (10.1.3.11): the Dataset card also shows the training and testing sizes of the 70:30 split (309 and 131 on the demonstration data), and the notice says about 6% of the demonstration labels are flipped on purpose.
+- **Keep my checks on this device** (data dictionary, retain_scan_results), on the Privacy & Data page: on (default), checks, alerts and reports are saved for 30 days; off, they are kept only while the app is open and nothing is written to the device.
+- **Pop-up alerts on/off** (data dictionary, notification_option), on the Alerts page: alerts are still listed and counted on the bell when pop-ups are off.
+
 ## V10.2.11 — 2026-11-08
 
 ### Never guess: a value the OCR passes don't agree on isn't shown

@@ -60,6 +60,12 @@ interface AppState {
   alerts: FraudAlert[];
   alertLevel: AlertLevel;
   setAlertLevel: (l: AlertLevel) => void;
+  /** show a pop-up when a new alert is created (data dictionary: notification_option); alerts are listed either way */
+  alertPopups: boolean;
+  setAlertPopups: (v: boolean) => void;
+  /** keep checks on this device for 30 days (data dictionary: retain_scan_results); off = kept only until the app is closed */
+  keepHistory: boolean;
+  setKeepHistory: (v: boolean) => void;
   setAlertStatus: (id: string, status: FraudAlert['status']) => void;
   markAllAlertsRead: () => void;
   removeAlert: (id: string) => void;
@@ -177,6 +183,10 @@ export function userDataFromSaved(p: Partial<UserData> | null | undefined, now =
   };
 }
 export const EMPTY_USER_DATA: UserData = { imageScans: [], messageScans: [], crossChecks: [], manualTransactions: [], alerts: [], alertLevel: DEFAULT_ALERT_LEVEL, reports: [] };
+/** What is written to the device: the history as above, or none of it when the user turned "Keep my checks" off. */
+export function historyToSave(s: UserData & { keepHistory: boolean }, now = Date.now()): UserData {
+  return s.keepHistory ? userDataToSave(s, now) : { ...EMPTY_USER_DATA, alertLevel: s.alertLevel };
+}
 
 /** Apply a history change, add the new check's alert (if any), and drop alerts whose check is gone. */
 function withHistory(s: AppState, change: Partial<History>, alert: FraudAlert | null = null): Partial<AppState> {
@@ -256,6 +266,10 @@ export const useAppStore = create<AppState>()(
       models: [],
       addModel: (m) => set(s => ({ models: withModel(s.models, m) })),
       removeModel: (id) => set(s => ({ models: s.models.filter(m => m.id !== id) })),
+      alertPopups: true,
+      setAlertPopups: (v) => set({ alertPopups: v }),
+      keepHistory: true,
+      setKeepHistory: (v) => set({ keepHistory: v }),
       focusResultId: null,
       setFocusResultId: (id) => set({ focusResultId: id }),
     }),
@@ -272,8 +286,10 @@ export const useAppStore = create<AppState>()(
         trainingRows: s.trainingRows,
         labelledModel: s.labelledModel,
         models: s.models,
-        // the history: expired items dropped, heavy images stripped
-        ...userDataToSave(s),
+        alertPopups: s.alertPopups, keepHistory: s.keepHistory,
+        // the history: expired items dropped, heavy images stripped — or nothing
+        // at all when the user chose not to keep checks after closing the app
+        ...historyToSave(s),
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState> & { legacyUserData?: Partial<UserData> };
@@ -287,6 +303,8 @@ export const useAppStore = create<AppState>()(
           trainingRows: Array.isArray(p.trainingRows) ? p.trainingRows : [],
           labelledModel: p.labelledModel ?? null,
           models: Array.isArray(p.models) ? p.models : [],
+          alertPopups: p.alertPopups ?? true,
+          keepHistory: p.keepHistory ?? true,
           ...userDataFromSaved(saved as Partial<UserData>),
         };
       },
