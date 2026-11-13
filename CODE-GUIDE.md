@@ -19,7 +19,7 @@ src/
 ├─ app/                    Home, About, Privacy, welcome notice, navigation
 ├─ shared/                 data store, types, helpers used by every module
 ├─ styles/                 all CSS
-└─ __tests__/              automated tests (386)
+└─ __tests__/              automated tests (392)
 ```
 
 ---
@@ -127,6 +127,6 @@ src/
 | "How do you read the receipt?" | `receipt-check/ocr/ocr.ts` → `runOcr()`, then `reading/receiptParser.ts` |
 | "How do you detect edited receipts?" | `receipt-check/checks/` (one file per kind of edit) |
 | "Where is the data stored? Is it private?" | `shared/store.ts`: in the device only, 30-day expiry, no server |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (386 tests) |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (392 tests) |
 | "How do you know genuine receipts pass?" | `random-forest/batchTest.ts` + `BatchTestCard.tsx`: the batch test on the Detection Model page (false-alarm rate with its 95% upper bound, fakes caught) |
 | "Does it ever guess a blurred value?" | `reading/receiptParser.ts` → `unagreedFields()` (the OCR passes must agree), and `checks/hiddenFields.ts` (values under a blur) |
