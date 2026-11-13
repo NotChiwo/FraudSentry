@@ -24,7 +24,7 @@ import { runOcr, OcrCancelled } from './ocr/ocr';
 import type { OcrProgress } from './ocr/ocr';
 import { analyzeForensics, inkCheckForFile } from './checks/imageForensics';
 import { parseReceiptMulti, amountFormattingSignal, isUnconfirmedTransaction, transactionTypeOf, transactionDirectionOf, payeeOf, ecpayReferenceOf, receivingAppOf, recipientLabelSeen, type TransactionDirection } from './reading/receiptParser';
-import { reconcileAmounts, checkReceiptDate, checkWeekday } from './checks/consistencyChecks';
+import { reconcileAmounts, checkReceiptDate, checkWeekday, checkHeadlineAmount } from './checks/consistencyChecks';
 import { assessHiddenFields, fieldsUnderBlur, nameLooksGarbled, walletNameLineGarbled, type ReadField } from './checks/hiddenFields';
 import { matchAgainstHistory, PriorScan } from './checks/historyMatch';
 import { buildFeatureVector } from '../random-forest/sampleDataset';
@@ -259,6 +259,16 @@ export async function analyzeTransactionImage(
     findings.push(finding('text', 'Amount Reconciliation', recon.detail, 'high', false, 0.40));
   }
 
+  // ── Headline amount: the big figure at the top must match the detail rows ──
+  // The common fake pastes a new number over the headline and leaves the
+  // Amount / Total rows untouched.
+  const headline = checkHeadlineAmount(ocrTexts, extracted.amount);
+  if (headline.status === 'consistent') {
+    findings.push(finding('text', 'Headline Amount Matches Details', headline.detail, 'low', true, 0.55));
+  } else if (headline.status === 'mismatch') {
+    findings.push(finding('text', 'Headline Amount Matches Details', headline.detail, 'critical', false, 0.55));
+  }
+
   // ── Timestamp sanity: no receipt can be dated in the future ──
   const dateCheck = checkReceiptDate(extracted.date, extracted.time, opts?.now);
   if (dateCheck.status === 'ok') {
@@ -307,6 +317,8 @@ export async function analyzeTransactionImage(
   // Same for a future date or totals that don't add up: never below High.
   // (Both are read from stable multi-pass OCR, so a lone misread can't trigger them.)
   if (dateCheck.status === 'future' || recon.status === 'mismatch' || hist.kind === 'edited-copy') scoreFloor = Math.max(scoreFloor, 0.45);
+  // Two different amounts for one transfer: the headline was replaced.
+  if (headline.status === 'mismatch') scoreFloor = Math.max(scoreFloor, 0.7);
   // The app prints the weekday it computed from the date: they never disagree on a genuine receipt.
   if (weekday.status === 'mismatch') scoreFloor = Math.max(scoreFloor, 0.45);
   // a repaint hint is not proof, but never shows as Low
@@ -425,6 +437,7 @@ function buildActionPlan(
     if (reused) plan.push('This exact receipt was submitted before — ask why the same proof is being used twice before going any further.');
     if (failed.some(f => f.label === 'Earlier Scan Comparison')) plan.push('You scanned a receipt with the same details before, but the figures differ. Put both screenshots side by side, and trust only the amount that actually arrived in your own account.');
     if (failed.some(f => f.label === 'Weekday Matches Date')) plan.push('The date on this receipt disagrees with the weekday the bank app printed next to it. Look for the transfer in your own account history by amount — don’t trust the date shown on the screenshot.');
+    if (failed.some(f => f.label === 'Headline Amount Matches Details')) plan.push('The big amount at the top of this receipt is different from the amount in its details. The details below show what the app actually recorded — and only the amount that arrived in your own account counts.');
     if (failed.some(f => f.label === 'Amount Reconciliation')) plan.push('The amount, fee and total on this receipt do not add up. Compare the amount that actually arrived in your account with BOTH figures — an edited amount is the most common fake.');
     if (failed.some(f => f.label === 'Receipt Date Plausibility' && f.weight >= 0.4)) plan.push('The receipt is dated in the future. Ask the sender to show the transaction live inside their app, and check the date and time in your own history.');
     if (failedLabel('No Recipient Identified')) plan.push('A genuine transfer receipt always names its recipient. Ask the sender to show the transaction inside their app on a live video call.');

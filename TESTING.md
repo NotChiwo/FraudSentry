@@ -386,6 +386,16 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3v. Headline amount vs. detail rows (V10.2.13)
+
+| Check | Result |
+|---|---|
+| Edited GoTyme InstaPay screenshot: "₱1000" box pasted over the headline, Amount / Total ₱200.00 (built offline app, Playwright, Chromium) | before: Low, "No problems found"; now: **Critical**, "Likely fake — do not accept", finding *Headline Amount Matches Details* (₱1,000.00 vs. ₱200.00); no page errors |
+| Every real-receipt fixture (19 receipts) | no false alarm; 4 headlines (GoTyme ×3, MariBank) match their details, the rest print no headline with a currency sign |
+| Full suite | 392 / 392 passing |
+
+Unit tests: `headlineAmount.test.ts`.
+
 ## 3u. Random Forest vs. Decision Tree (V10.2.12)
 
 | Check | Result |
