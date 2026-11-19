@@ -115,6 +115,18 @@ src/
 | `auditFeed.ts` | Turns every record into an audit event; `buildFeed()`, `filterEvents()`, `auditStats()` |
 | `simulator.ts` | Simulated incoming transactions across 19 apps, run through the real checks (`checkTransaction()`, `analyzeMessageText()`), about one in four with an injected anomaly; never saved |
 
+### Text model: `src/text-model/`
+| File | What it does |
+|---|---|
+| `textDataset.ts` | The synthetic labelled message set: `generateTextDataset()` (seeded templates, English / Tagalog / Taglish) |
+| `handwrittenTest.ts` | 60 hand-written messages never trained on: the honest generalisation test |
+| `textFeatures.ts` | Placeholders for links / phones / amounts / codes; words and two-word phrases (`features()`) |
+| `logisticRegression.ts` | **The model and its training:** `fit()` (mini-batch gradient descent, loss logged per epoch), `scorer()`, `topFeatures()` |
+| `trainTextModel.ts` | The whole run: split, train, evaluate vs. untrained / rules only / combined, learning curve, 5-fold CV |
+| `trainedTextModel.json`, `trainingReport.json` | The trained weights the app uses and the report (written by `npm run train:text`, `tools/train-text-model.ts`) |
+| `textModel.ts` | `textModelScore()`, used by `analyzeMessageText()` |
+| `TextModelCard.tsx` | Detection Model → Text model: the evidence, "Retrain now", try a message |
+
 ### Phone Protection (Android): `src/background/` and `android/app/src/main/java/com/fraudsentry/app/background/`
 | File | What it does |
 |---|---|
@@ -161,6 +173,7 @@ src/
 | "Has this fraud happened before?" | `database/fraudMemory.ts` → `findPriorCases()`, shown by `database/PriorCasesCard.tsx` |
 | "Show us the audit dashboard / the simulated stream." | `audit/AuditDashboardPage.tsx`, `audit/simulator.ts`, `audit/auditFeed.ts` → `filterEvents()` |
 | "Can it check messages without copy and paste?" | `android/.../background/MessageWatcherService.java` (background checks), `ScamAnalyzer.java` + `src/background/analyzerEntry.ts` (same rules), `src/background/PhoneProtectionPage.tsx` |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (453 tests) |
+| "Did you actually train the text model? How accurate is it?" | `text-model/logisticRegression.ts` → `fit()`; `text-model/trainTextModel.ts`; the results in `docs/text-model/REPORT.md`; in the app: Detection Model → Text model → **Retrain now in this browser** |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (467 tests) |
 | "How do you know genuine receipts pass?" | `random-forest/batchTest.ts` + `BatchTestCard.tsx`: the batch test on the Detection Model page (false-alarm rate with its 95% upper bound, fakes caught) |
 | "Does it ever guess a blurred value?" | `reading/receiptParser.ts` → `unagreedFields()` (the OCR passes must agree), and `checks/hiddenFields.ts` (values under a blur) |

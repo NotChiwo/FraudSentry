@@ -1,0 +1,73 @@
+// ============================================================
+// Messages written by hand, separately from the templates in
+// textDataset.ts, and NEVER used for training. They are the honest test of
+// whether the text model learned general signs of a scam or only memorised
+// the templates: different wording, different scam stories, and legitimate
+// messages that use "risky" words (OTP, link, send, refund, prize).
+// Modelled on common PH scam and everyday messages; names, numbers and
+// links are made up. Label 1 = scam, 0 = legitimate.
+// ============================================================
+export const HANDWRITTEN_TEST: { text: string; label: 0 | 1 }[] = [
+  // ── scams ──
+  { label: 1, text: 'GCash Advisory: Due to the new SIM registration law, your wallet will be frozen tonight. Re-register here: gcash-simreg.help/ph' },
+  { label: 1, text: 'Ma pasend nga ng 2k sa number na to, naiwan ko wallet ko sa jeep. Ibabalik ko mamaya promise' },
+  { label: 1, text: 'BPI: We noticed a transaction of P24,990.00 you may not have made. Cancel it now at bpi-cancel-txn.top' },
+  { label: 1, text: 'Hi! Gusto mo ba kumita ng 1k-5k a day? Like at share lang ng posts. PM mo ako sa telegram para sa details.' },
+  { label: 1, text: 'Your Shopee order was cancelled and refund of P1,299 is pending. To receive it, give the 6 digit code our agent will text you.' },
+  { label: 1, text: 'CONGRATS!!! Napili ang number mo sa grand draw ng Puregold. Claim your 25,000 by sending 500 handling fee via GCash 09175550192' },
+  { label: 1, text: 'Maya: Account verification needed. Your funds will be on hold until you confirm your MPIN at maya-ph-secure.vip' },
+  { label: 1, text: 'LBC Express: Item undeliverable. Pay P89 storage fee to reschedule: lbc-track.icu/pay' },
+  { label: 1, text: 'Good afternoon po, ako po si Atty. Reyes. May kaso po kayo sa korte, para ma-settle magpadala ng P5,000 sa account na ibibigay ko.' },
+  { label: 1, text: 'Hello beh, si tita mo to. New number ko ito. Pwede ba muna akong humiram ng 3,000? Emergency sa hospital, wag mo muna sabihin kay mama.' },
+  { label: 1, text: 'Pre-approved ka sa Cash Loan na P30,000! Walang interest. Send ka lang ng 499 for the release fee.' },
+  { label: 1, text: 'Earn 15% every week with our forex team. Guaranteed, no risk. Starter package only 2,000 pesos.' },
+  { label: 1, text: 'Sir na-transfer ko po sa inyo by accident yung 7,500 pambayad sana sa renta. Paki balik po sa 0928 555 0137 pls po.' },
+  { label: 1, text: 'Unionbank: Your online banking access is restricted. Unlock it by logging in at tinyurl.com/ub-unlock2' },
+  { label: 1, text: 'Hi I already paid for your bag via GCash, please click this link to accept the payment and receive the money: bit.ly/3pay-recv' },
+  { label: 1, text: 'You have been chosen for a work from home data entry job. Pay the 350 training fee first to get your account activated.' },
+  { label: 1, text: 'DSWD AYUDA: Makakatanggap ka ng P8,000. I-click ang link para mag-claim: dswd-ayuda.online' },
+  { label: 1, text: 'Customer service po ito ng Lazada. Para ma-process ang refund ninyo, paki-sabi po ang code na dumating sa SMS ninyo.' },
+  { label: 1, text: 'Your Netflix payment failed. Update your billing info within 24 hours to keep watching: netflix-billing-ph.site' },
+  { label: 1, text: 'Hello! I am a recruiter. Simple tasks, just rate hotels online. You will receive commission right away, first top up is 300 only.' },
+  { label: 1, text: 'Bro emergency lang, na-hold ako sa checkpoint, need ko 1500 pang multa. Send mo sa gcash ko 0995 555 0121 ngayon na.' },
+  { label: 1, text: 'BDO: Hindi ma-access ang inyong account. Mag-login dito para i-verify: bdo-ph-login.xyz' },
+  { label: 1, text: 'Final notice: unpaid toll fee of P256. Settle now at easytrip-pay.cfd to avoid penalties.' },
+  { label: 1, text: 'Sending 10k is easy money! Invest sa paluwagan namin, double after 10 days. Limited slots lang po.' },
+  { label: 1, text: 'Metrobank: Your card has been temporarily blocked. Reply with your card number and OTP to unblock.' },
+  { label: 1, text: 'Ikaw ang winner ng 2 sakong bigas at 10,000 sa pa-raffle ng barangay. Bayaran lang ang delivery fee na 350.' },
+  { label: 1, text: 'Reserve ko na sa iyo yung PS5 pero full payment muna sa Maya bago ship, 2 pa nag-aabang.' },
+  { label: 1, text: 'Hi this is your Grab driver, I accidentally sent you a code. Can you forward it to me please?' },
+  { label: 1, text: 'SSS: Your pension is on hold. Update your records at sss-online-update.live within today.' },
+  { label: 1, text: 'Payment confirmed! See the attached receipt of 15,000 via GCash. Please ship the iPhone now, I am in a hurry.' },
+  // ── legitimate ──
+  { label: 0, text: '482915 is your GCash authentication code. Do not share it with anyone. GCash will never ask for your code.' },
+  { label: 0, text: 'Ma nakarating na ako sa school, salamat sa baon. Uwi ako mga 5.' },
+  { label: 0, text: 'You have received P1,250.00 from JUAN D. via InstaPay. Ref No. 2026111900123.' },
+  { label: 0, text: 'Hi po, nakuha ko na yung parcel. Maayos naman, salamat po seller!' },
+  { label: 0, text: 'BPI: Reminder, your credit card statement is ready. View it in the BPI app. BPI will never ask for your OTP.' },
+  { label: 0, text: 'Pre, tara basketball mamaya 6pm sa court. Dala ka bola.' },
+  { label: 0, text: 'Your Meralco bill for November is P2,345.60, due Nov 28. Pay via the Meralco app or any accredited payment center.' },
+  { label: 0, text: 'J&T Express: Your parcel JT0012345678 has been delivered. Thank you!' },
+  { label: 0, text: 'Sige po, kukunin ko na po yung rice cooker. Meet up po tayo sa SM North 3pm?' },
+  { label: 0, text: 'Maya: You paid P560.00 to MERCURY DRUG. Ref 7781234. Thank you for using Maya!' },
+  { label: 0, text: 'Reminder: Dental appointment tomorrow at 10:00 AM. Reply YES to confirm or call the clinic to reschedule.' },
+  { label: 0, text: 'Bes nag-send na ako ng share ko sa regalo ni Mika, 300. Pa-check na lang.' },
+  { label: 0, text: 'Smart: You have successfully registered to GIGA99. Enjoy 8GB data valid for 7 days.' },
+  { label: 0, text: 'Hello team, the deadline for the report is moved to Friday. Please update the shared file.' },
+  { label: 0, text: 'Kuya pakibili na rin ng load pag dumaan ka sa tindahan, 50 lang. Babayaran kita mamaya.' },
+  { label: 0, text: 'Landbank: Your fund transfer of P3,000.00 to account ending 4471 was successful on 19-Nov-2026.' },
+  { label: 0, text: 'Thank you for your order! Your Jollibee delivery is on the way and will arrive in about 25 minutes.' },
+  { label: 0, text: 'GoTyme: Never share your OTP or password. We will never call or text you to ask for them.' },
+  { label: 0, text: 'Nanay, nagpadala na ako ng 5,000 sa GCash mo para sa gamot ni Lola. Pa-confirm na lang kung natanggap.' },
+  { label: 0, text: 'Your OTP for Shopee login is 309114. Valid for 5 minutes. Never share this OTP with anyone.' },
+  { label: 0, text: 'Good morning! Class is suspended today due to the storm. Stay safe everyone.' },
+  { label: 0, text: 'Received with thanks the amount of P1,500 for the deposit. See you on the 25th for the event.' },
+  { label: 0, text: 'Hi, this is Dr. Santos clinic. Your lab results are ready for pick-up anytime this week.' },
+  { label: 0, text: 'Globe: Your bill of P1,299 has been paid. Thank you! Track your usage in the GlobeOne app.' },
+  { label: 0, text: 'Sorry late reply, nasa byahe pa ako. Tawagan kita pagdating ko sa bahay.' },
+  { label: 0, text: 'Your Grab ride is arriving. Plate number ABC 1234, white Toyota Vios.' },
+  { label: 0, text: 'Security Bank: Your new card has been delivered. Activate it in the app. We will never ask for your PIN.' },
+  { label: 0, text: 'Pa-confirm po kung natanggap niyo na yung bayad ko kanina sa Maya, 850 po. Salamat po!' },
+  { label: 0, text: 'Lola, nakarating na kami sa Baguio. Malamig dito! Picture ko po mamaya.' },
+  { label: 0, text: 'Shopee: Your order has been delivered. Tap Order Received in the app to confirm.' },
+];

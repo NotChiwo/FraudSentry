@@ -212,6 +212,28 @@ function MessageResult({ result }: { result: MessageScanResult }) {
         </div>
       </div>
 
+      {result.textModel && (
+        <div className="card" style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: 14 }}>Trained text model</strong>
+            <span className="mono" style={{ fontWeight: 700 }}>{Math.round(result.textModel.probability * 100)}% scam-like</span>
+            <span className="small muted">· scam rules alone: {Math.round(result.textModel.rulesScore * 100)}% · final risk: {pct}%</span>
+          </div>
+          <div aria-hidden="true" style={{ height: 6, borderRadius: 3, background: 'var(--bg-input)', marginTop: 8, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.round(result.textModel.probability * 100)}%`, height: '100%', background: result.textModel.probability >= 0.5 ? 'var(--accent-orange, #f59e0b)' : 'var(--accent-emerald, #10b981)' }} />
+          </div>
+          {result.textModel.signals.length > 0 && (
+            <div className="small" style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className="muted">Words and phrases that weighed most:</span>
+              {result.textModel.signals.map(s => (
+                <span key={s.phrase} className={`badge ${s.weight > 0 ? 'badge-medium' : 'badge-low'}`} title={s.weight > 0 ? 'pushes towards scam' : 'pushes towards legitimate'}>{s.phrase} {s.weight > 0 ? '▲' : '▼'}</span>
+              ))}
+            </div>
+          )}
+          <div className="small muted" style={{ marginTop: 6 }}>Logistic regression trained on 2,400 labelled messages; it can raise the risk the rules found, never lower it. See Detection Model → Text model.</div>
+        </div>
+      )}
+
       <PriorCasesCard kind="message" record={result} />
 
       {/* Conversation risk mapping (Feature 2) */}

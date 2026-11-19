@@ -167,7 +167,7 @@ export type ScamType =
   | 'Impersonation' | 'Account Takeover' | 'Parcel Scam'
   | 'Wrong-Send Refund Scam' | 'Budol / Recruitment'
   | 'Money Mule Recruitment' | 'Government Impersonation' | 'QR Payment Scam'
-  | 'None Detected';
+  | 'Suspicious Wording' | 'None Detected';
 
 export interface MessageFlag {
   id: string;
@@ -201,6 +201,8 @@ export interface MessageScanResult {
   recommendedActions: string[];
   observations: string[];  // context notes (e.g. "confirmation text can be typed by anyone")
   scannedAt: string;
+  /** the trained text model's view (src/text-model/): how scam-like the wording is, the rules-only score it was blended with, and the words / phrases that weighed most (+ towards scam, − towards legitimate) */
+  textModel?: { probability: number; rulesScore: number; signals: { phrase: string; weight: number }[] };
   /** how it was checked: by Phone Protection in the background, or shared to the app (absent: typed / pasted / photo) */
   origin?: 'background' | 'share';
   /** Phone Protection: the app the message came in (e.g. "Viber") and the sender shown in its notification */

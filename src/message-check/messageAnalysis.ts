@@ -21,6 +21,7 @@ import {
   CrossEvidenceResult, ImageScanResult, EvidenceLinkage, FieldComparison, FieldMatchState,
 } from '../shared/types';
 import { generateId, scoreToRiskLevel, maxRisk, RISK_RANK } from '../shared/helpers';
+import { textModelScore, featureLabel } from '../text-model/textModel';
 
 interface PatternRule {
   keyword: RegExp; reason: string; weight: number; scamType: ScamType; severity: RiskLevel;
@@ -269,7 +270,8 @@ function contextObservations(text: string): string[] {
   return notes;
 }
 
-export function analyzeMessageText(rawText: string, platformHint?: MessagePlatform, ocrConfidence: number | null = null): MessageScanResult {
+export function analyzeMessageText(rawText: string, platformHint?: MessagePlatform, ocrConfidence: number | null = null,
+  options: { textModel?: boolean } = {}): MessageScanResult {
   const text = rawText.replace(/\r/g, '');
   const matched: { rule: PatternRule; start: number; end: number; excerpt: string }[] = [];
 
@@ -295,13 +297,23 @@ export function analyzeMessageText(rawText: string, platformHint?: MessagePlatfo
   if (matched.some(m => m.rule.severity === 'critical')) riskScore = Math.max(riskScore, 0.45);
   if (text.trim().length < 8) riskScore = 0;
 
+  // The trained text model (src/text-model/): logistic regression over the
+  // words and phrases, trained on a labelled message set. It can raise a
+  // message the rules missed, never lower one they flagged:
+  // final = max(rules, 0.6 × rules + 0.4 × model).
+  const tm = options.textModel !== false && text.trim().length >= 8 ? textModelScore(text) : null;
+  const rulesScore = riskScore;
+  if (tm) riskScore = Math.max(riskScore, 0.6 * riskScore + 0.4 * tm.probability);
+
   const threatLevel: RiskLevel = scoreToRiskLevel(riskScore);
 
   // Link-derived scam type (a critical phishing link should classify the message).
   const linkExtra: { type: ScamType; weight: number }[] = [];
   if (links.some(l => l.severity === 'critical')) linkExtra.push({ type: government ? 'Government Impersonation' : 'Phishing', weight: 0.6 });
   else if (links.some(l => l.severity === 'high')) linkExtra.push({ type: 'Phishing', weight: 0.32 });
-  const scamType = pickScamType(matched.map(m => m.rule), linkExtra);
+  const picked = pickScamType(matched.map(m => m.rule), linkExtra);
+  // flagged (by the text model, or by pressure words alone) without a specific scam script
+  const scamType: ScamType = picked === 'None Detected' && threatLevel !== 'low' ? 'Suspicious Wording' : picked;
 
   const platform = platformHint && platformHint !== 'Unknown' ? platformHint : detectPlatformFromText(text);
 
@@ -351,7 +363,13 @@ export function analyzeMessageText(rawText: string, platformHint?: MessagePlatfo
     id: generateId('msg'), platform, sourceText: text, textExcerpt: text.slice(0, 240),
     threatLevel, scamType, riskScore, confidence, ocrConfidence, explanation,
     flags, links, recommendedActions,
-    observations: text.trim().length < 8 ? [] : contextObservations(text),
+    observations: text.trim().length < 8 ? [] : [
+      ...contextObservations(text),
+      ...(tm && scoreToRiskLevel(rulesScore) !== threatLevel
+        ? [`The trained text model rates this message ${Math.round(tm.probability * 100)}% scam-like (it weighed: ${tm.signals.filter(x => x.weight > 0).slice(0, 3).map(x => `“${featureLabel(x.feature)}”`).join(', ') || 'the wording overall'}), so the risk was raised above what the scam rules alone found.`]
+        : []),
+    ],
+    textModel: tm ? { probability: tm.probability, rulesScore, signals: tm.signals.map(x => ({ phrase: featureLabel(x.feature), weight: x.weight })) } : undefined,
     scannedAt: new Date().toISOString(),
   };
 }

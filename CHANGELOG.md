@@ -1,5 +1,18 @@
 # Changelog
 
+## V10.5.0 — 2026-11-19
+
+### A trained text model for messages, with proof of training
+Check Message used to rely only on hand-written scam rules. It now also uses a **trained text model**, plus the evidence that it was trained and that the training worked.
+- **Training data:** 2,400 labelled Philippine SMS / chat messages (1,200 scam, 1,200 legitimate), generated with a seed from 66 templates in English, Tagalog and Taglish, with random slots (bank / e-wallet, amount, link, phone, name, courier) and variations (case, "po", punctuation, typos). 11 scam kinds: phishing link, OTP request, prize, task job, wrong-send refund, parcel fee, loan, investment, impersonation / new number, marketplace. 9 legitimate kinds, including messages that look risky but are not: real OTP texts, bank and e-wallet notices with amounts, official advisories, real job postings, government-office errands. 2 % of labels are flipped on purpose. Split 70 / 15 / 15 (train / validation / test), stratified.
+- **Model:** logistic regression on words and two-word phrases (2,360 features). Links, phone numbers, amounts and codes become placeholders ([suspicious link], [phone number] …). Trained by mini-batch gradient descent, 30 epochs, L2 regularisation.
+- **Results** (test set, never trained on): the untrained model scores 50.0 %, the rules alone 80.8 % accuracy, the trained model **98.1 %** (F1 98.1 %, ROC-AUC 0.978), rules + model as the app uses them 95.6 %. On **60 hand-written messages** written separately and never trained on: rules alone 75.0 % (they caught 15 of 30 scams), trained model **91.7 %** (26 of 30 scams, 1 false alarm). 5-fold cross-validation: mean F1 97.6 % ± 0.5 %. The learning curve rises from 83.9 % (34 training messages) to 98.1 %.
+- **What it learned:** towards scam: [phone number], account, [suspicious link], [short link], fee, "your account", "na-send ko", "ngayong araw"; towards legitimate: COD, ref, "po salamat", never, "with anyone", paid, receipt.
+- **In the app:** final score = max(rules, 0.6 × rules + 0.4 × model). The model can raise a message the rules missed (e.g. a "pre-approved loan, pay the release fee" text with no rule match), never lower one they flagged. Each message result shows the model's score and the words that weighed most. A message raised only by the model, or by pressure words alone, is labelled "Suspicious Wording" instead of "None Detected".
+- **Detection Model → Text model:** the training curve, the results tables, the learning curve, cross-validation, the learned words, a box to try any message, downloads of the dataset and the report, and **Retrain now in this browser**. That button repeats the whole training (about 1.5 s) and confirms the result is identical, weight for weight, to the model the app ships with.
+- `npm run train:text` retrains and writes the model, the report (docs/text-model/REPORT.md), the dataset, the hand-written test set with the model's scores, and the training log. A test retrains from scratch and checks the shipped model is exactly that output.
+- Limit: the training messages are synthetic. They prove the method and show what the model learns; real collected, labelled messages are needed to measure field accuracy.
+
 ## V10.4.0 — 2026-11-19
 
 ### Phone Protection (Android): incoming messages are checked automatically

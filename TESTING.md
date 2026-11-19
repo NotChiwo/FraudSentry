@@ -386,6 +386,24 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3y. Trained text model for messages (V10.5.0)
+
+| Check | Result |
+|---|---|
+| Training reproducible (`textModel.test.ts`) | retraining from scratch gives exactly the shipped weights and report |
+| Untrained vs. trained | epoch 0: loss 0.693 (ln 2), 50 % accuracy; after 30 epochs: training loss 0.095, validation loss 0.099, validation accuracy 98.3 % |
+| Test set (360 synthetic messages, never trained on) | rules alone 80.8 % accuracy / F1 78.0 %; trained model 98.1 % / 98.1 % (ROC-AUC 0.978); rules + model 95.6 % / 95.7 % |
+| Hand-written set (60 messages, different wording, never trained on) | rules alone 75.0 % (15 / 30 scams caught, 0 false alarms); trained model 91.7 % (26 / 30, 1 false alarm); rules + model 91.7 % |
+| 5-fold cross-validation | accuracy 97.1–98.3 %, mean F1 97.6 % ± 0.5 % |
+| Learning curve | 34 → 1,680 training messages: test accuracy 83.9 % → 98.1 % |
+| Learned words | scam: phone number, suspicious / short link, fee, account; legitimate: ref, COD, never; no filler words in the top lists |
+| No leakage | no hand-written message appears in the training data; the dataset has no duplicate messages |
+| In the checker | a loan-fee scam the rules miss is raised to Medium; nothing the rules flagged is lowered; ordinary messages and real OTP texts stay Low; all earlier message tests still pass |
+| Built app (1366 px and 390 px) | the Text model card renders; "Retrain now" retrains in 1.4 s and reports "identical to the model the app uses"; a message result shows "78 % scam-like" and the weighed words; no page errors, no sideways scrolling |
+| Full suite | 467 / 467 passing |
+
+**Not yet verified:** accuracy on real collected messages. The training and test messages are synthetic or hand-written to resemble real ones.
+
 ## 3x. Phone Protection: background message checks on Android (V10.4.0)
 
 | Check | Result |
