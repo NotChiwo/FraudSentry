@@ -2,13 +2,13 @@
 import { useState, useEffect } from 'react';
 import {
   Home, ScanLine, MessageSquareWarning, GitCompareArrows, BookOpen, History, Info, Lock,
-  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X, Bell, ReceiptText, FileBarChart, Activity,
+  ShieldCheck, ChevronRight, Sun, Moon, Trees, MoreHorizontal, X, Bell, ReceiptText, FileBarChart, Activity, Smartphone,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAppStore } from '../shared/store';
 import { unreadCount } from '../alerts/alerts';
 
-export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'history' | 'alerts' | 'privacy' | 'about' | 'transactions' | 'reports' | 'audit';
+export type PageId = 'home' | 'scanner' | 'analyzer' | 'cross' | 'model' | 'knowledge' | 'history' | 'alerts' | 'privacy' | 'about' | 'transactions' | 'reports' | 'audit' | 'protection';
 
 interface NavItem { id: PageId; label: string; icon: LucideIcon; sub: string }
 interface NavGroup { title: string; items: NavItem[]; note?: string }
@@ -20,6 +20,7 @@ export const NAV_GROUPS: NavGroup[] = [
     { id: 'scanner',  label: 'Check Receipt',  icon: ScanLine,             sub: 'Is this payment proof real?' },
     { id: 'analyzer', label: 'Check Message',  icon: MessageSquareWarning, sub: 'Spot scam texts & links' },
     { id: 'history',  label: 'History',        icon: History,              sub: 'Your checks, on this device' },
+    { id: 'protection', label: 'Phone Protection', icon: Smartphone, sub: 'Checks new messages automatically' },
     { id: 'transactions', label: 'Transactions', icon: ReceiptText,        sub: 'Payments and whether they arrived' },
     { id: 'audit', label: 'Audit Dashboard', icon: Activity, sub: 'Live feed & flagged anomalies' },
     { id: 'alerts',   label: 'Alerts',         icon: Bell,                 sub: 'Warnings from your checks' },

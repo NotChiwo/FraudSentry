@@ -9,6 +9,7 @@ import { formatDateTime, formatRelativeTime, formatPHP, downloadBlob } from '../
 import { RiskLevel, ImageScanResult } from '../shared/types';
 import TrainingLabel from '../transactions/TrainingLabel';
 import { counts, readiness, rowsToCsv } from '../random-forest/trainingData';
+import { originLabel } from '../background/backgroundScan';
 import { fraudTypesOf, fraudTypeCounts } from '../database/fraudMemory';
 
 type Kind = 'all' | 'receipt' | 'message' | 'cross';
@@ -76,8 +77,8 @@ export default function HistoryPage({ onNavigate }: { onNavigate?: (p: string) =
       })),
       ...messageScans.map(s => ({
         id: s.id, kind: 'message' as const, level: s.threatLevel, when: s.scannedAt,
-        title: s.scamType, meta: `${s.platform} · ${s.flags.length} warning sign${s.flags.length === 1 ? '' : 's'}`,
-        search: [s.scamType, s.platform, s.textExcerpt].join(' '),
+        title: s.scamType, meta: [originLabel(s) ?? s.platform, `${s.flags.length} warning sign${s.flags.length === 1 ? '' : 's'}`].join(' · '),
+        search: [s.scamType, s.platform, s.textExcerpt, s.sourceApp, s.sender, originLabel(s)].join(' '),
         types: fraudTypesOf('message', s),
         onDownload: () => generateMessageReport(s), onDelete: () => removeMessageScan(s.id),
       })),

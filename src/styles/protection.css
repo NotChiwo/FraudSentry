@@ -1,0 +1,22 @@
+/* Phone Protection page (background/PhoneProtectionPage.tsx) */
+.pp-page { display: flex; flex-direction: column; gap: 16px; }
+.pp-page > .page-head { margin-bottom: 0; }
+.pp-status-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.pp-status.on { border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.08); }
+.pp-status.on svg { color: #10b981; }
+.pp-steps { list-style: none; padding: 0; margin: 0 0 6px; display: flex; flex-direction: column; gap: 12px; }
+.pp-step { display: flex; gap: 10px; align-items: flex-start; }
+.pp-step p { margin: 6px 0; }
+.pp-step-ico { flex-shrink: 0; margin-top: 1px; color: var(--text-muted); }
+.pp-step-ico.ok { color: #10b981; }
+.pp-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.pp-apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 14px; margin-bottom: 4px; }
+.pp-app.missing { opacity: 0.6; }
+.pp-levels { display: flex; flex-direction: column; }
+.pp-list, .pp-list-plain { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.pp-list li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+.pp-list li svg { flex-shrink: 0; margin-top: 3px; color: var(--accent); }
+.pp-list-plain { padding-left: 18px; list-style: disc; gap: 6px; }
+.pp-found { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.pp-found .badge { margin-right: 8px; }
+.pp-excerpt { margin-top: 4px; color: var(--text-secondary); overflow-wrap: anywhere; }

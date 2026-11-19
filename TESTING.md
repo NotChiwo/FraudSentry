@@ -386,6 +386,22 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3x. Phone Protection: background message checks on Android (V10.4.0)
+
+| Check | Result |
+|---|---|
+| Background analyzer vs. Check Message page (`phoneProtection.test.ts`) | same risk level, scam type, risk score and number of signs for a scam SMS and an ordinary message; scam High+, ordinary Low (so not kept) |
+| Kept messages moved into the app | a queued message is read with its app and sender, labelled "Checked automatically · Messages (SMS) · from 0917 555 0142"; malformed items, unknown risk levels, duplicates and messages already saved are dropped; the store adds them to History newest first with their alerts |
+| Shared image | a data URL becomes an image file for Check Receipt |
+| Android manifest | still no INTERNET permission; notification listener bindable only by the system; share (text, image) and select-text targets; the `<queries>` list matches the watched-apps list |
+| Analyzer bundle | `npm run build:offline` makes `dist-offline/analyzer.js` (45 KB); run on its own in Node, the GCash phishing SMS is Critical and "Sent na po yung bayad, salamat!" is Low |
+| Android code | compiled with javac against Android 15's framework classes (only deprecation warnings); built into the APK by CI |
+| Android emulator, CI (`tools/android-smoke.sh`) | background analyzer gives High+ for the scam and Low for the ordinary text; Notification access allowed, a scam notification posted from another app → checked, kept and a "Possible …" warning posted; text shared to the app → Check Message shows "Shared to FraudSentry" with a High / Critical result |
+| Phone Protection page in a browser (built app, 1366 px and 390 px) | shows that it needs the Android app, with Share / Select text instructions; no sideways scrolling, no page errors; a user who accepted notice 5 sees the notice again |
+| Full suite | 453 / 453 passing |
+
+**Not yet verified on a real phone:** how each messaging app words its notifications (some show "2 new messages" instead of the text when the phone is locked or hidden content is on), and battery savers on some brands (Xiaomi, Oppo, Vivo, Huawei) that stop background apps. The page tells the user to set FraudSentry's battery use to Unrestricted.
+
 ## 3w. Database, audit dashboard and other apps (V10.3.0)
 
 | Check | Result |
@@ -569,5 +585,6 @@ Re-scan in the built app:
 Do not fill these in with estimated values.
 
 ## 6. Known limitations (open, by design)
+- Phone Protection works only in the Android app: websites, iPhones and computers do not let an app read other apps' notifications. It sees only what a notification shows (some apps hide the text on the lock screen or summarise several messages), and it cannot read messages inside apps that post no notification. It does not scan files or other apps' storage.
 - The masked destination account number and asterisk-masked sender names on some GoTyme receipts OCR as different noise each time (e.g. `Deeeeee/803`). Not regex-patched on purpose — it needs better image preprocessing.
 - The built-in Random Forest is trained on a seeded **demonstration** dataset; real thesis metrics require a real labelled evidence CSV.

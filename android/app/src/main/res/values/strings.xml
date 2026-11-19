@@ -4,4 +4,6 @@
     <string name="title_activity_main">FraudSentry</string>
     <string name="package_name">com.fraudsentry.app</string>
     <string name="custom_url_scheme">com.fraudsentry.app</string>
+    <string name="check_with_fraudsentry">Check with FraudSentry</string>
+    <string name="message_protection">FraudSentry Phone Protection</string>
 </resources>
