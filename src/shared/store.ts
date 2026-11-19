@@ -16,6 +16,7 @@
 import { create } from 'zustand';
 import { stripHeavy, type DbStatus } from '../database/sync';
 import { mergeBackup, type BackupData } from '../database/backup';
+import type { SimEvent } from '../audit/simulator';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ThemeMode, ImageScanResult, MessageScanResult, CrossEvidenceResult, TransactionStatus } from './types';
 import type { ManualTransaction } from '../transactions/transactionCheck';
@@ -74,6 +75,10 @@ interface AppState {
   dbStatus: DbStatus;
   /** merge a backup file's records into the history (nothing present is replaced or duplicated) */
   restoreBackup: (b: BackupData) => void;
+  /** Audit Dashboard: simulated incoming transactions (memory only — never saved, never in the history) */
+  simEvents: SimEvent[];
+  addSimEvent: (e: SimEvent) => void;
+  clearSimEvents: () => void;
   setKeepHistory: (v: boolean) => void;
   setAlertStatus: (id: string, status: FraudAlert['status']) => void;
   markAllAlertsRead: () => void;
@@ -124,6 +129,8 @@ export function acceptedCurrentNotice(p: { hasConsented?: boolean; consentVersio
   return !!p?.hasConsented && p.consentVersion === CONSENT_VERSION;
 }
 const MAX_TRAINING_ROWS = 5000;
+/** simulated events kept for the Audit Dashboard (memory only) */
+export const MAX_SIM_EVENTS = 1000;
 
 type History = Pick<AppState, 'imageScans' | 'messageScans' | 'crossChecks' | 'manualTransactions'>;
 /** An alert lives only as long as the check it was generated for. */
@@ -257,6 +264,9 @@ export const useAppStore = create<AppState>()(
       keepHistory: true,
       setKeepHistory: (v) => set({ keepHistory: v }),
       dbStatus: 'loading',
+      simEvents: [],
+      addSimEvent: (e) => set(s => ({ simEvents: [e, ...s.simEvents].slice(0, MAX_SIM_EVENTS) })),
+      clearSimEvents: () => set({ simEvents: [] }),
       restoreBackup: (b) => set(s => {
         const { data } = mergeBackup({ imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, manualTransactions: s.manualTransactions, alerts: s.alerts, reports: s.reports }, b);
         return { ...data, alerts: keepLinkedAlerts(data.alerts, data) };
