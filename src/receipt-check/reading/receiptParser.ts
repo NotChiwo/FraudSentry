@@ -50,7 +50,7 @@ const KEYWORD_RES: [EvidenceSource, RegExp][] = Object.entries(SOURCE_KEYWORDS).
 // "Destination  BDO", "Recipient bank: Maya"). Those mentions say where the money
 // went, not which app made the receipt — the cause of the GoTyme→GCash
 // misclassification. Strip them before looking for the issuer by keyword.
-const DEST_LABEL = /(?:^\s*to\b|\bto\s*:|\b(?:destination|recipient(?:'?s)?(?:\s+bank)?|receiving\s+(?:bank|institution)|beneficiary(?:\s+bank)?|bank\s*name|send\s+to|transfer(?:red)?\s+to|sent\s+to|credited\s+to|receiver(?:\s+bank)?|via\s+(?:instapay|pesonet))\b)\s*[:.\-]?/i;
+const DEST_LABEL = /(?:^\s*to\b|\bto\s*:|^\s*bank(?=\s*:?\s+(?!of\b|transfer\b|account\b))|\b(?:destination|recipient(?:'?s)?(?:\s+bank)?|receiving\s+(?:bank|institution)|beneficiary(?:\s+bank)?|bank\s*name|send\s+to|transfer(?:red)?\s+to|sent\s+to|credited\s+to|receiver(?:\s+bank)?|via\s+(?:instapay|pesonet))\b)\s*[:.\-]?/i;
 function issuerText(text: string): string {
   const lines = text.split(/\r?\n/);
   const out: string[] = [];
@@ -155,6 +155,8 @@ function isNameFragment(s: string): boolean {
   return /^[A-Z][A-Z.'’-]+$/.test(t);     // one all-caps word
 }
 
+const LINE_START_LABELS = new Set(['sent to', 'transferred to', 'transfer to']);
+
 function valueForLabel(lines: string[], labels: string[], maxFollow = 3): string | null {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -163,6 +165,9 @@ function valueForLabel(lines: string[], labels: string[], maxFollow = 3): string
     for (const label of labels) {
       const at = low.indexOf(label);
       if (at === -1) continue;
+      // these three are labels only at the start of a row ("Sent to  JUAN"), never
+      // inside a sentence ("The amount has been sent to the merchant.")
+      if (LINE_START_LABELS.has(label) && !/^\s*(successfully\s+)?$/.test(low.slice(0, at))) continue;
       const after = cleanName(line.slice(at + label.length).replace(/^[\s:.\-–—]+/, ''));
       const parts: string[] = [];
       if (looksLikeName(after) || isNameFragment(after)) parts.push(after);
@@ -214,6 +219,16 @@ function extractPhone(text: string): string | null {
   if (PHONE_RE.test(text)) return null;   // only payer numbers were visible
   // 2) masked GCash mobile — only attempt on GCash-style receipts to avoid
   //    mis-reading other digit groups as a phone number.
+  // 2) a masked mobile or account printed with explicit mask characters, on any
+  //    app ("+63 917 ••• 4821", "09•••••7712", "Account number  ••••8821").
+  //    The payer's own number (after a From / Source label) is skipped.
+  for (let i = 0; i < lines.length; i++) {
+    if (PAYER_LABEL.test(lines[i]) || (i > 0 && PAYER_LABEL.test(lines[i - 1]) && !/\bto\b/i.test(lines[i]))) continue;
+    const mob = lines[i].match(/(?:\+?63|0)\s?9\d{0,2}\s?[•*]{2,}[\s•*]*(\d{3,4})(?!\d)/);
+    if (mob) return `+63 9•••••${mob[1]}`;
+    const acct = lines[i].match(/(?:^|\s)([•*]{3,}\s?\d{3,6})(?!\d)/);
+    if (acct) return acct[1].replace(/\s+/g, '');
+  }
   const gcashContext = /sent\s+via|total\s+amount\s+sent|gcash|carbon footprint|going digital/i.test(text);
   if (!gcashContext) return null;
   // "63" (opt +/space), an optional "9", a short masked gap (anything non-digit),
@@ -470,7 +485,8 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
     /\brel\.?\s*[nm]o\.?\s*[:.\-]?\s*(\d[\d ]{8,22}\d)/i,
     // an alphanumeric reference must contain at least one digit — stops plain
     // words (e.g. the label "REFERENCE NUMBER" itself) being captured
-    /ref(?:erence)?\.?\s*(?:no\.?|number|#|id|code)?\s*[:.\-]?\s*((?=[A-Z]*\d)[A-Z0-9]{6,24})/i,
+    // GrabPay / Coins.ph print a hyphen inside ("A-7XK2P9QM", "CPH-88124590")
+    /ref(?:erence)?\.?\s*(?:no\.?|number|#|id|code)?\s*[:.\-]?\s*((?=[A-Z-]*\d)[A-Z0-9](?:[A-Z0-9]|-(?=[A-Z0-9])){5,24})(?![A-Z0-9])/i,
     // BPI (and several banks) print "Confirmation No. 1782743489365"
     /confirmation\s*(?:[nm]o\.?|number|#|code)\s*[:.\-]?\s*(\d[\d ]{8,22}\d)(?![\d])/i,
     /confirmation\s*(?:[nm]o\.?|number|#|code)\s*[:.\-]?\s*((?=[A-Z]*\d)[A-Z0-9]{8,24})(?![A-Z0-9])/i,
@@ -491,12 +507,16 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
   const date = purchased ? purchased[1] : firstMatch(text, [
     new RegExp(`\\b(${MONTH_DAY_YEAR})`, 'i'),
     new RegExp(`\\b(${DAY_MONTH_YEAR})`, 'i'),
+    // Landbank and other banks: "18-Nov-2026"
+    /\b(\d{1,2}-[A-Za-z]{3,9}-\d{4})\b/,
     /\b(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})\b/,
     /\b(\d{4}-\d{2}-\d{2})\b/,
   ]);
   const time = purchased && purchased[2] ? purchased[2] : firstMatch(text, [
     /\b(\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm))\b/i,
     /(?:time|at)\s*[:.\-]?\s*(\d{1,2}:\d{2}(?::\d{2})?)\b/i,
+    // 24-hour time right after a date ("18/11/2026 10:10", "2026-11-18 14:05")
+    /\d{4}\s*[,|]?\s+(\d{1,2}:\d{2}(?::\d{2})?)\b(?!\s*[ap]\.?m)/i,
   ]);
 
   // Parties — label-driven for banks; GCash falls back to the top-of-receipt name.
@@ -504,7 +524,7 @@ export function parseReceipt(rawText: string, filename = ''): { data: ExtractedT
   const transferTo = transferToBlock(lines);
   let receiverName = transferTo.name ?? valueForLabel(lines, [
     'account name', 'recipient name', 'recipient', 'receiver', 'beneficiary',
-    'pay to', 'send money to', 'send to', 'received by', 'credit to', 'payee',
+    'pay to', 'send money to', 'send to', 'sent to', 'transferred to', 'transfer to', 'received by', 'credit to', 'payee',
   ]);
   if (!receiverName) receiverName = fromToName(lines, 'to');
   const toAccount = !receiverContact && !transferTo.account ? toAccountNo(lines) : null;

@@ -65,7 +65,7 @@ export function checkTransaction(input: TransactionInput, history: PriorScan[], 
   if (!ref) findings.push(f('ref-present', 'Reference Number', 'No reference number was given. Every completed bank or e-wallet transfer has one; ask for it and look it up in your own account.', 'medium', false, 0.2));
   else {
     const fmt = refFormatFor(input.institution, input.type);
-    if (fmt && !fmt.test(ref)) findings.push(f('ref-format', 'Reference Format', `“${ref}” does not have the shape of a ${input.institution} reference number. A made-up or mistyped number is a common sign of a fake payment claim.`, 'high', false, 0.35));
+    if (fmt && !fmt.test(ref.replace(/-/g, ''))) findings.push(f('ref-format', 'Reference Format', `“${ref}” does not have the shape of a ${input.institution} reference number. A made-up or mistyped number is a common sign of a fake payment claim.`, 'high', false, 0.35));
     else findings.push(f('ref-format', 'Reference Format', fmt ? `The reference has the usual ${input.institution} format.` : 'A reference number was given.', 'low', true, 0));
   }
 

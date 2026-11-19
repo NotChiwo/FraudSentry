@@ -193,3 +193,8 @@
 .metric-l { font-size: 12px; color: var(--text-muted); }
 .metric-v { font-size: 14px; font-weight: 650; color: var(--text-primary); overflow-wrap: anywhere; }
 .verdict-class { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0; }
+
+/* Which apps can it read? (under the drop zone) */
+.supported-apps { margin-top: 14px; }
+.supported-apps summary { cursor: pointer; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.supported-apps p { margin: 10px 0 0; line-height: 1.55; }

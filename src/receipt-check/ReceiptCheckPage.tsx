@@ -13,6 +13,7 @@ import type { OcrProgress } from './ocr/ocr';
 import { generateImageReport } from '../reports/pdfReports';
 import { validateExtraction, FieldCheck, FieldStatus, FieldConfidence } from './reading/fieldValidation';
 import { validateImageFile, shrinkLargePhoto, ACCEPTED_IMAGE_TYPES } from './checks/uploadValidation';
+import { TESTED_ON_REAL_RECEIPTS, LAYOUT_BASED } from './reading/supportedApps';
 import { locateFields, FieldBox } from './reading/fieldLocator';
 import { useAppStore } from '../shared/store';
 import CameraScanner from './CameraScanner';
@@ -226,6 +227,14 @@ export default function ReceiptCheckPage() {
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden aria-label="Take a photo of a receipt"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f, true); e.target.value = ''; }} />
         </div>
+      )}
+
+      {phase === 'idle' && (
+        <details className="card pad supported-apps">
+          <summary><strong>Which apps can it read?</strong> <span className="muted small">{TESTED_ON_REAL_RECEIPTS.length + LAYOUT_BASED.length} banks and e-wallets</span></summary>
+          <p className="small"><strong>Tested on real receipts:</strong> {TESTED_ON_REAL_RECEIPTS.join(', ')} (MariBank includes its former name, SeaBank).</p>
+          <p className="small"><strong>Read from their known layout:</strong> {LAYOUT_BASED.join(', ')}. The amount, reference number, date and recipient are read the same way, but these layouts have not yet been checked on real screenshots, so look at the "Details we read" section after a check.</p>
+        </details>
       )}
 
       {camOpen && (
