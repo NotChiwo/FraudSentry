@@ -1,0 +1,684 @@
+{
+ "seed": 42,
+ "dataset": {
+  "size": 2400,
+  "scam": 1200,
+  "legitimate": 1200,
+  "templates": 66,
+  "labelNoise": 0.02,
+  "byCategory": [
+   {
+    "category": "Phishing link",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 2
+   },
+   {
+    "category": "OTP request",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 2
+   },
+   {
+    "category": "Prize / raffle",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 2
+   },
+   {
+    "category": "Task / job scam",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 4
+   },
+   {
+    "category": "Wrong-send refund",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 4
+   },
+   {
+    "category": "Parcel / customs fee",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 1
+   },
+   {
+    "category": "Loan scam",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 3
+   },
+   {
+    "category": "Investment scam",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 2
+   },
+   {
+    "category": "Impersonation / new number",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 4
+   },
+   {
+    "category": "Marketplace scam",
+    "kind": "scam",
+    "count": 120,
+    "flipped": 4
+   },
+   {
+    "category": "Real OTP notice",
+    "kind": "legitimate",
+    "count": 134,
+    "flipped": 1
+   },
+   {
+    "category": "Transaction notice",
+    "kind": "legitimate",
+    "count": 134,
+    "flipped": 4
+   },
+   {
+    "category": "Official advisory",
+    "kind": "legitimate",
+    "count": 134,
+    "flipped": 5
+   },
+   {
+    "category": "Delivery update",
+    "kind": "legitimate",
+    "count": 133,
+    "flipped": 4
+   },
+   {
+    "category": "Buy and sell chat",
+    "kind": "legitimate",
+    "count": 133,
+    "flipped": 3
+   },
+   {
+    "category": "Personal chat",
+    "kind": "legitimate",
+    "count": 133,
+    "flipped": 3
+   },
+   {
+    "category": "Real job posting",
+    "kind": "legitimate",
+    "count": 133,
+    "flipped": 3
+   },
+   {
+    "category": "Errands and offices",
+    "kind": "legitimate",
+    "count": 133,
+    "flipped": 0
+   },
+   {
+    "category": "Legit promo / bill",
+    "kind": "legitimate",
+    "count": 133,
+    "flipped": 5
+   }
+  ]
+ },
+ "split": {
+  "train": 1680,
+  "validation": 360,
+  "test": 360,
+  "handwritten": 60
+ },
+ "options": {
+  "epochs": 30,
+  "learningRate": 0.5,
+  "l2": 0.0001,
+  "batchSize": 32,
+  "minCount": 2,
+  "seed": 42
+ },
+ "vocabularySize": 2360,
+ "history": [
+  {
+   "epoch": 0,
+   "trainLoss": 0.693147,
+   "valLoss": 0.693147,
+   "valAccuracy": 0.5
+  },
+  {
+   "epoch": 1,
+   "trainLoss": 0.164929,
+   "valLoss": 0.163226,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 2,
+   "trainLoss": 0.13547,
+   "valLoss": 0.130213,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 3,
+   "trainLoss": 0.124959,
+   "valLoss": 0.118266,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 4,
+   "trainLoss": 0.118856,
+   "valLoss": 0.111797,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 5,
+   "trainLoss": 0.114947,
+   "valLoss": 0.107998,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 6,
+   "trainLoss": 0.112191,
+   "valLoss": 0.105784,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 7,
+   "trainLoss": 0.110072,
+   "valLoss": 0.104363,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 8,
+   "trainLoss": 0.108345,
+   "valLoss": 0.103129,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 9,
+   "trainLoss": 0.10692,
+   "valLoss": 0.102158,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 10,
+   "trainLoss": 0.105705,
+   "valLoss": 0.101428,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 11,
+   "trainLoss": 0.104634,
+   "valLoss": 0.101262,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 12,
+   "trainLoss": 0.103703,
+   "valLoss": 0.101058,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 13,
+   "trainLoss": 0.102856,
+   "valLoss": 0.100672,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 14,
+   "trainLoss": 0.102093,
+   "valLoss": 0.100287,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 15,
+   "trainLoss": 0.101397,
+   "valLoss": 0.10009,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 16,
+   "trainLoss": 0.100755,
+   "valLoss": 0.099955,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 17,
+   "trainLoss": 0.100164,
+   "valLoss": 0.099865,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 18,
+   "trainLoss": 0.099613,
+   "valLoss": 0.099735,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 19,
+   "trainLoss": 0.0991,
+   "valLoss": 0.099477,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 20,
+   "trainLoss": 0.098619,
+   "valLoss": 0.099416,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 21,
+   "trainLoss": 0.098164,
+   "valLoss": 0.099356,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 22,
+   "trainLoss": 0.097734,
+   "valLoss": 0.099354,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 23,
+   "trainLoss": 0.097325,
+   "valLoss": 0.099391,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 24,
+   "trainLoss": 0.096937,
+   "valLoss": 0.099286,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 25,
+   "trainLoss": 0.096566,
+   "valLoss": 0.099248,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 26,
+   "trainLoss": 0.096212,
+   "valLoss": 0.099313,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 27,
+   "trainLoss": 0.095872,
+   "valLoss": 0.099255,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 28,
+   "trainLoss": 0.095545,
+   "valLoss": 0.099269,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 29,
+   "trainLoss": 0.095231,
+   "valLoss": 0.099207,
+   "valAccuracy": 0.983333
+  },
+  {
+   "epoch": 30,
+   "trainLoss": 0.094928,
+   "valLoss": 0.099184,
+   "valAccuracy": 0.983333
+  }
+ ],
+ "test": {
+  "untrained": {
+   "accuracy": 0.5,
+   "precision": 0.5,
+   "recall": 1,
+   "f1": 0.666667,
+   "tp": 180,
+   "fp": 180,
+   "tn": 0,
+   "fn": 0,
+   "support": 360,
+   "auc": 0.5
+  },
+  "majority": {
+   "accuracy": 0.5,
+   "precision": 0.5,
+   "recall": 1,
+   "f1": 0.666667,
+   "tp": 180,
+   "fp": 180,
+   "tn": 0,
+   "fn": 0,
+   "support": 360,
+   "auc": 0.5
+  },
+  "rulesOnly": {
+   "accuracy": 0.808333,
+   "precision": 0.917293,
+   "recall": 0.677778,
+   "f1": 0.779553,
+   "tp": 122,
+   "fp": 11,
+   "tn": 169,
+   "fn": 58,
+   "support": 360,
+   "auc": 0.852022
+  },
+  "trained": {
+   "accuracy": 0.980556,
+   "precision": 0.977901,
+   "recall": 0.983333,
+   "f1": 0.980609,
+   "tp": 177,
+   "fp": 4,
+   "tn": 176,
+   "fn": 3,
+   "support": 360,
+   "auc": 0.977639
+  },
+  "combined": {
+   "accuracy": 0.955556,
+   "precision": 0.931579,
+   "recall": 0.983333,
+   "f1": 0.956757,
+   "tp": 177,
+   "fp": 13,
+   "tn": 167,
+   "fn": 3,
+   "support": 360,
+   "auc": 0.982083
+  }
+ },
+ "handwritten": {
+  "untrained": {
+   "accuracy": 0.5,
+   "precision": 0.5,
+   "recall": 1,
+   "f1": 0.666667,
+   "tp": 30,
+   "fp": 30,
+   "tn": 0,
+   "fn": 0,
+   "support": 60,
+   "auc": 0.5
+  },
+  "rulesOnly": {
+   "accuracy": 0.75,
+   "precision": 1,
+   "recall": 0.5,
+   "f1": 0.666667,
+   "tp": 15,
+   "fp": 0,
+   "tn": 30,
+   "fn": 15,
+   "support": 60,
+   "auc": 0.766667
+  },
+  "trained": {
+   "accuracy": 0.916667,
+   "precision": 0.962963,
+   "recall": 0.866667,
+   "f1": 0.912281,
+   "tp": 26,
+   "fp": 1,
+   "tn": 29,
+   "fn": 4,
+   "support": 60,
+   "auc": 0.987778
+  },
+  "combined": {
+   "accuracy": 0.916667,
+   "precision": 0.962963,
+   "recall": 0.866667,
+   "f1": 0.912281,
+   "tp": 26,
+   "fp": 1,
+   "tn": 29,
+   "fn": 4,
+   "support": 60,
+   "auc": 0.994444
+  },
+  "mistakes": [
+   {
+    "label": 1,
+    "text": "Customer service po ito ng Lazada. Para ma-process ang refund ninyo, paki-sabi po ang code na dumating sa SMS ninyo.",
+    "probability": 0.423363
+   },
+   {
+    "label": 1,
+    "text": "Metrobank: Your card has been temporarily blocked. Reply with your card number and OTP to unblock.",
+    "probability": 0.479387
+   },
+   {
+    "label": 1,
+    "text": "Reserve ko na sa iyo yung PS5 pero full payment muna sa Maya bago ship, 2 pa nag-aabang.",
+    "probability": 0.349715
+   },
+   {
+    "label": 1,
+    "text": "Hi this is your Grab driver, I accidentally sent you a code. Can you forward it to me please?",
+    "probability": 0.383513
+   },
+   {
+    "label": 0,
+    "text": "Nanay, nagpadala na ako ng 5,000 sa GCash mo para sa gamot ni Lola. Pa-confirm na lang kung natanggap.",
+    "probability": 0.648881
+   }
+  ]
+ },
+ "learningCurve": [
+  {
+   "trainSize": 34,
+   "accuracy": 0.861111,
+   "f1": 0.85119
+  },
+  {
+   "trainSize": 84,
+   "accuracy": 0.933333,
+   "f1": 0.932584
+  },
+  {
+   "trainSize": 168,
+   "accuracy": 0.958333,
+   "f1": 0.958904
+  },
+  {
+   "trainSize": 420,
+   "accuracy": 0.980556,
+   "f1": 0.980609
+  },
+  {
+   "trainSize": 840,
+   "accuracy": 0.980556,
+   "f1": 0.980609
+  },
+  {
+   "trainSize": 1680,
+   "accuracy": 0.980556,
+   "f1": 0.980609
+  }
+ ],
+ "crossValidation": {
+  "folds": 5,
+  "accuracy": [
+   0.970588,
+   0.973039,
+   0.973039,
+   0.980392,
+   0.982843
+  ],
+  "f1": [
+   0.970874,
+   0.972973,
+   0.973105,
+   0.980198,
+   0.982801
+  ],
+  "meanAccuracy": 0.97598,
+  "meanF1": 0.97599,
+  "sdF1": 0.004641
+ },
+ "topScam": [
+  {
+   "feature": "__phone__",
+   "weight": 0.932898
+  },
+  {
+   "feature": "account",
+   "weight": 0.797053
+  },
+  {
+   "feature": "__risklink__",
+   "weight": 0.654108
+  },
+  {
+   "feature": "__shortlink__",
+   "weight": 0.637557
+  },
+  {
+   "feature": "number",
+   "weight": 0.619163
+  },
+  {
+   "feature": "fee",
+   "weight": 0.537004
+  },
+  {
+   "feature": "ng __amount__",
+   "weight": 0.488353
+  },
+  {
+   "feature": "__amount__",
+   "weight": 0.45638
+  },
+  {
+   "feature": "now",
+   "weight": 0.44432
+  },
+  {
+   "feature": "send",
+   "weight": 0.394373
+  },
+  {
+   "feature": "your account",
+   "weight": 0.38258
+  },
+  {
+   "feature": "na-send ko",
+   "weight": 0.381225
+  },
+  {
+   "feature": "para sa",
+   "weight": 0.380235
+  },
+  {
+   "feature": "this is",
+   "weight": 0.33874
+  },
+  {
+   "feature": "first",
+   "weight": 0.327127
+  },
+  {
+   "feature": "will be",
+   "weight": 0.322007
+  },
+  {
+   "feature": "araw",
+   "weight": 0.299782
+  },
+  {
+   "feature": "ngayong",
+   "weight": 0.299782
+  },
+  {
+   "feature": "ngayong araw",
+   "weight": 0.299782
+  },
+  {
+   "feature": "kailangan",
+   "weight": 0.293839
+  }
+ ],
+ "topLegitimate": [
+  {
+   "feature": "cod",
+   "weight": -0.541822
+  },
+  {
+   "feature": "__number__",
+   "weight": -0.499982
+  },
+  {
+   "feature": "ref",
+   "weight": -0.499982
+  },
+  {
+   "feature": "po salamat",
+   "weight": -0.486014
+  },
+  {
+   "feature": "na ako",
+   "weight": -0.452006
+  },
+  {
+   "feature": "never",
+   "weight": -0.432522
+  },
+  {
+   "feature": "paid",
+   "weight": -0.400357
+  },
+  {
+   "feature": "paid the",
+   "weight": -0.400357
+  },
+  {
+   "feature": "already __amount__",
+   "weight": -0.385085
+  },
+  {
+   "feature": "receipt",
+   "weight": -0.379215
+  },
+  {
+   "feature": "receipt is",
+   "weight": -0.379215
+  },
+  {
+   "feature": "is with",
+   "weight": -0.373276
+  },
+  {
+   "feature": "with me",
+   "weight": -0.373276
+  },
+  {
+   "feature": "app",
+   "weight": -0.35984
+  },
+  {
+   "feature": "bring",
+   "weight": -0.3552
+  },
+  {
+   "feature": "share",
+   "weight": -0.349418
+  },
+  {
+   "feature": "with anyone",
+   "weight": -0.349418
+  },
+  {
+   "feature": "all done",
+   "weight": -0.333534
+  },
+  {
+   "feature": "done",
+   "weight": -0.333534
+  },
+  {
+   "feature": "i went",
+   "weight": -0.333534
+  }
+ ]
+}

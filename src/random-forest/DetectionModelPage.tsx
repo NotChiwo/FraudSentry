@@ -13,6 +13,7 @@ import {
 import { classLevel, type RocPoint } from './evaluation';
 import { RocChart, ModelRegistryCard, ComparisonCard } from './ModelCards';
 import BatchTestCard from './BatchTestCard';
+import TextModelCard from '../text-model/TextModelCard';
 import TreeComparisonCard from './TreeComparisonCard';
 import { nextVersion, defaultModelName, type ModelRecord } from './modelRegistry';
 import {
@@ -405,6 +406,7 @@ export default function DetectionModelPage() {
 
       <TreeComparisonCard dataset={dataset} nTrees={nTrees} maxDepth={maxDepth}
         datasetLabel={datasetSource === 'demo' ? `the demonstration dataset (${dataset.y.length} samples)` : datasetSource === 'labelled' ? `your ${dataset.y.length} labelled receipts` : `your uploaded dataset (${dataset.y.length} rows)`} />
+      <TextModelCard />
       <BatchTestCard />
       <ComparisonCard nTrees={nTrees} maxDepth={maxDepth} />
       <ModelRegistryCard live={liveMeta} />
