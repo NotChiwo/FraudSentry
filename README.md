@@ -19,6 +19,8 @@ The source in `src/` has one folder per module. See **[CODE-GUIDE.md](CODE-GUIDE
 | **Alerts**: an alert for every High / Critical check, unread / read, history | `src/alerts/` | `AlertsPage.tsx` | `alerts.ts` |
 | **Transactions**: every payment checked and whether the money arrived | `src/transactions/` | `TransactionsPage.tsx` | `transactionCheck.ts` |
 | **Reports**: summary / detailed reports for a period, PDF / CSV | `src/reports/` | `ReportsPage.tsx` | `fraudReports.ts`, `pdfReports.ts` |
+| **Database**: every check kept on the device until deleted, "seen before" lookups, backup / restore | `src/database/` | `DatabaseCard.tsx` (Privacy & Data) | `db.ts` (IndexedDB), `sync.ts`, `fraudMemory.ts` |
+| **Audit Dashboard**: live feed of real and simulated transactions, filters for flagged anomalies | `src/audit/` | `AuditDashboardPage.tsx` | `auditFeed.ts`, `simulator.ts` |
 | History, Knowledge Base, Home / About / Privacy | `src/history/`, `src/knowledge-base/`, `src/app/` | | |
 
 ### How a receipt is scored

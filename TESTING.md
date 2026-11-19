@@ -386,6 +386,22 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Release `v10.1.0` | APK, Windows installer and portable exe, macOS dmg, Linux AppImage and the offline HTML attached by the workflow |
 | Hosted copy for iPhone (Netlify) | uploaded; **check it in Safari on a real iPhone** (the sandbox cannot reach netlify.app) |
 
+## 3w. Database, audit dashboard and other apps (V10.3.0)
+
+| Check | Result |
+|---|---|
+| Database (fake-indexeddb, `database.test.ts`, 17 tests) | a check is written through; after a restart it is loaded back; a deleted check is removed with its image; 150 records over two years all kept; an older version's localStorage history migrated; "Save my checks" off pauses saving and on saves what was made meanwhile; no IndexedDB → falls back; fraud types, same reference / recipient / phone found, later records never counted; backup round-trip, restore merges without duplicates, foreign or newer backups refused |
+| Built offline app, Chromium | two similar phishing messages: the second shows "Phishing has been seen 1 time before" and the same link / phone number; both in IndexedDB with their fraud types; localStorage holds no history; after a reload, History shows both |
+| Edited GoTyme receipt checked twice (built app) | Critical both times; the second time "Pasted headline amount has been seen 1 time before" and "the same reference number is in 1 earlier check"; receipt images stored (~16 KB each) |
+| Upgrade from an older version (fresh profile: history in localStorage, consent 4) | the changed privacy notice is shown again; 2 records in the old localStorage → 2 in the database, localStorage then empty; still 2 after another reload |
+| Audit Dashboard (`auditDashboard.test.ts`, 9 tests) | the simulated stream is reproducible, covers ≥ 15 apps; every future-date, malformed-reference, edited-copy and reused-reference payment is flagged by the real checks, no normal payment or ordinary message is; > 80 % of scam messages are High+; filters by source, flagged, risk, app, fraud type, PH date and search |
+| Audit Dashboard in the built app, 1366 px and 390 px | streams, mixes the real check with simulated ones, "flagged anomalies only" shows only flagged rows, row details and side panels work; no sideways scrolling; no page errors |
+| Other banks and e-wallets (`paymentApps.test.ts`, 21 tests, made-up receipts in each app's layout) | issuer, amount, reference, date, recipient and masked number read on Maya (send and bank transfer), BDO, UnionBank, Landbank, Metrobank, Security Bank, RCBC, PNB, Chinabank, GrabPay, Coins.ph, PalawanPay, Tonik, CIMB, ShopeePay; no headline false alarm; day-first and "18-Nov-2026" dates; no change on the 19 real-receipt fixtures |
+| Every page opens (built app) | 13 pages, no page errors |
+| Full suite | 442 / 442 passing |
+
+**Not yet verified:** the layouts of the apps other than GCash, Maya, GoTyme, BPI and MariBank are modelled on their usual wording, not on real screenshots. Real receipts from those apps are needed to confirm the reading accuracy.
+
 ## 3v. Headline amount vs. detail rows (V10.2.13)
 
 | Check | Result |
