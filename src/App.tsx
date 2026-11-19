@@ -19,6 +19,8 @@ import { unreadCount } from './alerts/alerts';
 import TransactionsPage from './transactions/TransactionsPage';
 import ReportsPage from './reports/ReportsPage';
 import AuditDashboardPage from './audit/AuditDashboardPage';
+import PhoneProtectionPage from './background/PhoneProtectionPage';
+import { usePhoneProtection } from './background/usePhoneProtection';
 import { App as NativeApp } from '@capacitor/app';
 import { isAndroidApp } from './app/nativeApp';
 import { useAppStore } from './shared/store';
@@ -105,6 +107,9 @@ export default function App() {
     requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true }));
   };
 
+  // Android: messages Phone Protection found in the background, and things shared to the app
+  usePhoneProtection(hasConsented, navigate);
+
   if (!hasConsented || welcomeOpen) return <ConsentGate onClose={hasConsented ? closeWelcome : undefined} />;
 
   return (
@@ -143,6 +148,7 @@ export default function App() {
             {shown === 'transactions' && <TransactionsPage onNavigate={navigate} />}
             {shown === 'reports' && <ReportsPage />}
             {shown === 'audit' && <AuditDashboardPage onNavigate={navigate} />}
+            {shown === 'protection' && <PhoneProtectionPage onNavigate={navigate} />}
             {shown === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {shown === 'about'     && <AboutPage />}
           </div>

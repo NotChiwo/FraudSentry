@@ -20,6 +20,7 @@ The source in `src/` has one folder per module. See **[CODE-GUIDE.md](CODE-GUIDE
 | **Transactions**: every payment checked and whether the money arrived | `src/transactions/` | `TransactionsPage.tsx` | `transactionCheck.ts` |
 | **Reports**: summary / detailed reports for a period, PDF / CSV | `src/reports/` | `ReportsPage.tsx` | `fraudReports.ts`, `pdfReports.ts` |
 | **Database**: every check kept on the device until deleted, "seen before" lookups, backup / restore | `src/database/` | `DatabaseCard.tsx` (Privacy & Data) | `db.ts` (IndexedDB), `sync.ts`, `fraudMemory.ts` |
+| **Phone Protection** (Android): checks new messages from messaging apps in the background and warns about scams; Share / Select text → FraudSentry | `src/background/`, `android/.../background/` | `PhoneProtectionPage.tsx` | `MessageWatcherService.java`, `analyzerEntry.ts` |
 | **Audit Dashboard**: live feed of real and simulated transactions, filters for flagged anomalies | `src/audit/` | `AuditDashboardPage.tsx` | `auditFeed.ts`, `simulator.ts` |
 | History, Knowledge Base, Home / About / Privacy | `src/history/`, `src/knowledge-base/`, `src/app/` | | |
 
@@ -82,11 +83,12 @@ Every push also builds them under Actions → **Apps** → Artifacts (kept 30 da
 
 **Android app**
 - It has **no INTERNET permission**, so Android itself guarantees the app cannot send anything anywhere.
-- It requests only the **camera** (for the live receipt camera).
+- It asks for the **camera** (live receipt camera), and, only when Phone Protection is set up, **Notification access** (to check new messages), **notifications** (warnings) and optionally **photos** (to offer to check new screenshots).
+- **Phone Protection:** checks new notifications from SMS, Messenger, Viber, Telegram, WhatsApp, Gmail and other chosen apps on the phone, with the same analyzer as Check Message (`analyzer.js` in a hidden WebView); warns about suspicious ones and keeps only those. Also a **Share** target and a **Select text → "Check with FraudSentry"** action.
 - `allowBackup` is off, so the history never goes into cloud or adb backups.
 - The hardware back button closes an open panel, then returns to Home, then leaves the app.
 - PDFs and CSVs open the Android **share sheet** ("Save to Files", Drive, Messenger …), because a WebView cannot download.
-- CI installs the APK on an Android 14 emulator and drives the app's WebView: the page must load from inside the app, and the welcome screen must open (`tools/android-smoke.sh`).
+- CI installs the APK on an Android 14 emulator and drives the app's WebView: the page must load from inside the app, and the welcome screen must open; then a scam notification must be caught in the background and a shared text checked (`tools/android-smoke.sh`).
 
 **Desktop app**
 - Every http(s) request is blocked, and the page runs sandboxed without Node.js.

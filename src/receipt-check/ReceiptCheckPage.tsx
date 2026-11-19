@@ -1,6 +1,7 @@
 // Receipt Check module — the page: upload or photograph a receipt, follow the scan,
 // and see the verdict, the fields read, the reasons and what to do next.
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { dataUrlToFile } from '../background/backgroundScan';
 import {
   ScanLine, FileImage, X, RefreshCw, Download, AlertTriangle, CheckCircle2, ShieldAlert,
   Pencil, Camera, ClipboardPaste, ChevronDown, Info, WifiOff, Copy, Smartphone, Clock,
@@ -67,12 +68,12 @@ export default function ReceiptCheckPage() {
     setError(''); setNotice(''); setEditing(false); setEditData(null); setLive(null);
   };
 
-  const handleFile = useCallback(async (picked: File, autoScan = false) => {
+  const handleFile = useCallback(async (picked: File, autoScan = false, fromCamera = autoScan) => {
     const f = (await shrinkLargePhoto(picked)) ?? picked;
     const err = await validateImageFile(f);
     if (err) { setError(err); return; }
     autoScanRef.current = autoScan;
-    fromCameraRef.current = autoScan;
+    fromCameraRef.current = fromCamera;
     setError(''); setNotice(''); setResult(null); setEditing(false);
     setFile(f);
     setPhase('selected');
@@ -80,6 +81,16 @@ export default function ReceiptCheckPage() {
     reader.onload = () => setPreview(reader.result as string);
     reader.readAsDataURL(f);
   }, []);
+
+  // Android: a screenshot or image shared to the app (Share → FraudSentry, or a
+  // tapped "check this new screenshot?" offer) is checked at once.
+  const pendingShared = useAppStore(s => s.pendingShared);
+  useEffect(() => {
+    if (pendingShared?.kind !== 'image') return;
+    useAppStore.getState().setPendingShared(null);
+    try { void handleFile(dataUrlToFile(pendingShared.dataUrl, pendingShared.name), true, false); }
+    catch { setError('That shared file could not be opened as an image.'); }
+  }, [pendingShared, handleFile]);
 
   // Paste a screenshot straight from the clipboard (Ctrl/Cmd+V).
   const busy = phase === 'scanning';

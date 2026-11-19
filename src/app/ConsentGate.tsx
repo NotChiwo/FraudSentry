@@ -1,6 +1,6 @@
 // Welcome screen: the RA 10173 privacy notice the user accepts before using the app.
 import { useState } from 'react';
-import { ShieldCheck, Lock, Eye, Database, AlertTriangle, ArrowRight, ScanText, UserX } from 'lucide-react';
+import { ShieldCheck, Lock, Eye, Database, AlertTriangle, ArrowRight, ScanText, UserX, Smartphone } from 'lucide-react';
 import { useAppStore } from '../shared/store';
 
 const POINTS = [
@@ -18,6 +18,11 @@ const POINTS = [
     icon: Lock, color: '#10b981',
     title: 'What is kept on this device',
     body: 'Uploaded files are never sent to a server. Your results are kept in a database on this device until you delete them, so a new check can be compared with earlier ones (the same receipt, reference number or recipient, or the same kind of fraud). You can delete them, or back them up to a file, anytime.',
+  },
+  {
+    icon: Smartphone, color: '#0ea5e9',
+    title: 'Phone Protection (Android app, optional)',
+    body: 'Off until you turn it on and allow Notification access. Then new messages from the apps you choose are checked on your phone as they arrive; only suspicious ones (with the app and sender shown in the notification) are kept on this device, and ordinary messages are forgotten. The Android app has no internet permission.',
   },
   {
     icon: UserX, color: '#6366f1',

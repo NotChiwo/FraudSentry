@@ -115,6 +115,17 @@ src/
 | `auditFeed.ts` | Turns every record into an audit event; `buildFeed()`, `filterEvents()`, `auditStats()` |
 | `simulator.ts` | Simulated incoming transactions across 19 apps, run through the real checks (`checkTransaction()`, `analyzeMessageText()`), about one in four with an injected anomaly; never saved |
 
+### Phone Protection (Android): `src/background/` and `android/app/src/main/java/com/fraudsentry/app/background/`
+| File | What it does |
+|---|---|
+| `analyzerEntry.ts` | The message analyzer packaged on its own (`vite.analyzer.config.ts` → `dist-offline/analyzer.js`), as `FraudSentryAnalyze(text, platform)` |
+| `MessageWatcherService.java` | Android notification listener: reads each new notification from a watched app, checks it, keeps Medium+ messages, posts a warning at the chosen level |
+| `ScamAnalyzer.java` | Runs `analyzer.js` in a hidden WebView (no network), so the background check uses the same rules |
+| `Notifier.java`, `ScreenshotWatcher.java`, `ScanQueue.java`, `ProtectionSettings.java`, `WatchedApps.java` | Warnings and screenshot offers; noticing new screenshots; the queue of kept messages; settings; the known apps |
+| `BackgroundScanPlugin.java` | The app's bridge (`BackgroundScan`): status, settings, permission screens, `drain()`, `takeShared()` (Share / Select text / tapped notifications), `analyzeNow()`, `testAlert()` |
+| `backgroundScan.ts`, `usePhoneProtection.ts` | The web side: reads kept messages into the database (`newBackgroundScans()`), routes shared text and images to Check Message / Check Receipt |
+| `PhoneProtectionPage.tsx` | The Phone Protection page |
+
 ### Message Check, Cross-Evidence, Knowledge Base
 | File | What it does |
 |---|---|
@@ -149,6 +160,7 @@ src/
 | "Where is the data stored? Is it private?" | `database/db.ts` (the IndexedDB schema) and `database/sync.ts`: on the device only, kept until the user deletes it, backup to a file, no server |
 | "Has this fraud happened before?" | `database/fraudMemory.ts` → `findPriorCases()`, shown by `database/PriorCasesCard.tsx` |
 | "Show us the audit dashboard / the simulated stream." | `audit/AuditDashboardPage.tsx`, `audit/simulator.ts`, `audit/auditFeed.ts` → `filterEvents()` |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (442 tests) |
+| "Can it check messages without copy and paste?" | `android/.../background/MessageWatcherService.java` (background checks), `ScamAnalyzer.java` + `src/background/analyzerEntry.ts` (same rules), `src/background/PhoneProtectionPage.tsx` |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (453 tests) |
 | "How do you know genuine receipts pass?" | `random-forest/batchTest.ts` + `BatchTestCard.tsx`: the batch test on the Detection Model page (false-alarm rate with its 95% upper bound, fakes caught) |
 | "Does it ever guess a blurred value?" | `reading/receiptParser.ts` → `unagreedFields()` (the OCR passes must agree), and `checks/hiddenFields.ts` (values under a blur) |

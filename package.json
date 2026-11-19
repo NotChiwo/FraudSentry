@@ -1,7 +1,7 @@
 {
   "name": "fraudsentry",
   "private": true,
-  "version": "10.3.0",
+  "version": "10.4.0",
   "type": "module",
   "description": "FraudSentry: An Online Transaction Fraud Detection System Using Random Forest Algorithm (single-file, no backend)",
   "scripts": {
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:offline": "vite build --mode offline",
+    "build:offline": "vite build --mode offline && vite build -c vite.analyzer.config.ts",
     "android:sync": "npm run build:offline && cap sync android",
     "android:open": "cap open android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",

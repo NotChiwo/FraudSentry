@@ -15,6 +15,7 @@ import { validateImageFile, shrinkLargePhoto, ACCEPTED_IMAGE_TYPES } from '../re
 import CameraScanner from '../receipt-check/CameraScanner';
 import { Camera, FileImage } from 'lucide-react';
 import PriorCasesCard from '../database/PriorCasesCard';
+import { originLabel } from '../background/backgroundScan';
 
 const PLATFORMS: MessagePlatform[] = ['Unknown', 'SMS', 'Messenger', 'Facebook', 'WhatsApp', 'Telegram', 'Viber', 'Discord', 'Email'];
 
@@ -45,9 +46,19 @@ export default function MessageCheckPage() {
     }
   }, []);
 
-  const analyze = (raw: string, ocrConf: number | null) => {
+  // Android: text shared to the app (Share → FraudSentry, or Select text →
+  // "Check with FraudSentry") is checked at once — no copy and paste.
+  const pendingShared = useAppStore(s => s.pendingShared);
+  useEffect(() => {
+    if (pendingShared?.kind !== 'text') return;
+    useAppStore.getState().setPendingShared(null);
+    setMode('text'); setText(pendingShared.text); setExampleText(null); setError('');
+    analyze(pendingShared.text, null, 'share');
+  }, [pendingShared]);
+
+  const analyze = (raw: string, ocrConf: number | null, origin?: 'share') => {
     if (!raw.trim()) { setError('There is no text to analyze yet.'); return; }
-    const res = analyzeMessageText(raw, platform, ocrConf);
+    const res: MessageScanResult = { ...analyzeMessageText(raw, platform, ocrConf), ...(origin ? { origin } : {}) };
     setResult(res);
     if (!(exampleText !== null && raw === exampleText)) addMessageScan(res);
   };
@@ -188,6 +199,7 @@ function MessageResult({ result }: { result: MessageScanResult }) {
               <span className={`badge badge-${badgeClass}`}>{meta.label}</span>
               <span className="badge badge-neutral">{result.platform}</span>
             </div>
+            {originLabel(result) && <div className="small muted" style={{ marginTop: 4 }}>{originLabel(result)}</div>}
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 5, lineHeight: 1.55 }}>{result.explanation}</div>
           </div>
           <div style={{ textAlign: 'center', flexShrink: 0 }}>

@@ -24,7 +24,39 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Share → FraudSentry: a message's text, or a receipt / chat screenshot -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+
+            <!-- Select text in any app → "Check with FraudSentry" -->
+            <intent-filter android:label="@string/check_with_fraudsentry">
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
         </activity>
+
+        <!-- Phone Protection: reads new notifications from the watched messaging apps and
+             checks them on the phone. Off until the user turns it on AND allows
+             Notification access in Android's settings (only the system can bind it). -->
+        <service
+            android:name=".background.MessageWatcherService"
+            android:label="@string/message_protection"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -40,7 +72,38 @@
     <!-- Permissions
          No INTERNET permission: the app (with its OCR engine built in) works fully
          offline, and Android itself guarantees it cannot send anything anywhere.
-         CAMERA: the live receipt camera (Check Receipt → Use camera). -->
+         CAMERA: the live receipt camera (Check Receipt → Use camera).
+         POST_NOTIFICATIONS: Phone Protection's scam warnings.
+         READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE: only if the user turns on
+         "Offer to check new screenshots". Asked for when needed, never at install. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Phone Protection's app list: which of these known messaging apps are installed
+         (keep in step with background/WatchedApps.java) -->
+    <queries>
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.samsung.android.messaging" />
+        <package android:name="com.android.mms" />
+        <package android:name="com.android.messaging" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="com.facebook.mlite" />
+        <package android:name="com.viber.voip" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.microsoft.office.outlook" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.instagram.android" />
+        <package android:name="com.discord" />
+        <package android:name="jp.naver.line.android" />
+        <package android:name="com.globe.gcash.android" />
+        <package android:name="com.paymaya" />
+        <package android:name="com.shopee.ph" />
+        <package android:name="com.lazada.android" />
+    </queries>
 </manifest>

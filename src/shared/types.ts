@@ -201,6 +201,11 @@ export interface MessageScanResult {
   recommendedActions: string[];
   observations: string[];  // context notes (e.g. "confirmation text can be typed by anyone")
   scannedAt: string;
+  /** how it was checked: by Phone Protection in the background, or shared to the app (absent: typed / pasted / photo) */
+  origin?: 'background' | 'share';
+  /** Phone Protection: the app the message came in (e.g. "Viber") and the sender shown in its notification */
+  sourceApp?: string;
+  sender?: string;
 }
 
 // ── Cross-evidence correlation ──────────────────────────────

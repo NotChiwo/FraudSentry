@@ -34,7 +34,13 @@ jobs:
       - run: npm test
       - run: npm run build:offline
       - uses: actions/upload-artifact@v4
-        with: { name: web-offline, path: dist-offline/index.html, retention-days: 7 }
+        # index.html (the app) and analyzer.js (Phone Protection's background checker, Android)
+        with:
+          name: web-offline
+          retention-days: 7
+          path: |
+            dist-offline/index.html
+            dist-offline/analyzer.js
 
   android:
     needs: web
@@ -80,7 +86,7 @@ jobs:
           script: bash tools/android-smoke.sh FraudSentry-android.apk
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: android-smoke-screenshot, path: android-smoke.png, if-no-files-found: ignore, retention-days: 14 }
+        with: { name: android-smoke-screenshot, path: "android-smoke*.png", if-no-files-found: ignore, retention-days: 14 }
 
   desktop:
     needs: web

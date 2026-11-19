@@ -28,6 +28,8 @@ import {
   DEFAULT_ALERT_LEVEL, type FraudAlert, type AlertLevel,
 } from '../alerts/alerts';
 
+export type PendingShared = { kind: 'text'; text: string } | { kind: 'image'; dataUrl: string; name: string };
+
 interface AppState {
   theme: ThemeMode;
   toggleTheme: () => void;
@@ -54,6 +56,11 @@ interface AppState {
   /** Knowledge Base "try this" example waiting to be prefilled in Check Message (never persisted) */
   pendingExample: string | null;
   setPendingExample: (t: string | null) => void;
+  /** Phone Protection: suspicious messages found in the background (Android), added with their alerts */
+  addBackgroundScans: (rs: MessageScanResult[]) => void;
+  /** something shared to the app (Share / Select text / a tapped screenshot offer), waiting for its page to check it */
+  pendingShared: PendingShared | null;
+  setPendingShared: (p: PendingShared | null) => void;
   /** receipts you labelled genuine/fake for training — numbers only (see trainingData.ts) */
   trainingRows: TrainingRow[];
   /** label a scan (0 genuine, 1 fake), or remove its label (null) */
@@ -123,7 +130,7 @@ const systemTheme = (): ThemeMode => {
 // Bump when the privacy notice changes, so everyone sees and accepts it again.
 // (5 = the current notice: the history is kept in an on-device database until the user deletes it,
 //  instead of 30 days, so an earlier case of the same fraud can be found; it can be backed up to a file.)
-export const CONSENT_VERSION = 5;
+export const CONSENT_VERSION = 6;
 /** Was the CURRENT privacy notice accepted? (An older one is shown again.) */
 export function acceptedCurrentNotice(p: { hasConsented?: boolean; consentVersion?: number } | null | undefined): boolean {
   return !!p?.hasConsented && p.consentVersion === CONSENT_VERSION;
@@ -224,6 +231,15 @@ export const useAppStore = create<AppState>()(
       removeCrossCheck: (id) => set(s => withHistory(s, { crossChecks: s.crossChecks.filter(x => x.id !== id) })),
       pendingExample: null,
       setPendingExample: (t) => set({ pendingExample: t }),
+      addBackgroundScans: (rs) => set(s => {
+        if (!rs.length) return {};
+        const change = withHistory(s, { messageScans: [...[...rs].reverse(), ...s.messageScans] });
+        let alerts = change.alerts ?? s.alerts;
+        for (const r of rs) alerts = withAlert(alerts, alertForMessage(r, s.alertLevel));
+        return { ...change, alerts };
+      }),
+      pendingShared: null,
+      setPendingShared: (p) => set({ pendingShared: p }),
       trainingRows: [],
       labelScan: (scan, label) => set(s => {
         const rest = s.trainingRows.filter(r => r.id !== scan.id);

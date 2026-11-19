@@ -8,6 +8,7 @@ import "./styles/pages.css";
 import "./styles/camera.css";
 import "./styles/knowledge-base.css";
 import "./styles/audit.css";
+import "./styles/protection.css";
 import App from "./App";
 import { registerOfflineCopy } from "./app/nativeApp";
 import { useAppStore } from "./shared/store";

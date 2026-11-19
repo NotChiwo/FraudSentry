@@ -1,5 +1,22 @@
 # Changelog
 
+## V10.4.0 — 2026-11-19
+
+### Phone Protection (Android): incoming messages are checked automatically
+Copying a message and pasting it into FraudSentry is tiring, so the Android app now checks messages as they arrive.
+- **Background checks.** With Phone Protection on and Android's **Notification access** allowed, every new notification from the watched apps is read and checked on the phone, even while FraudSentry is closed. Watched by default: the SMS apps (Google Messages, Samsung Messages and others), Messenger, Viber, Telegram, WhatsApp and Gmail; Facebook, Instagram, Discord, LINE, Outlook, GCash, Maya, Shopee and Lazada can be ticked; or watch all other apps too.
+- **The same rules.** The check runs FraudSentry's own message analyzer, built into a small script (`analyzer.js`) that the Android service loads into a hidden WebView. There is no second copy of the rules, so a background check gives exactly the same result as the Check Message page (tested).
+- **Warnings.** A message at or above the chosen level (Medium, High (default) or Critical) posts a notification: "Possible phishing (critical risk) — in Messages from 0917…: <main sign>". Tapping it opens the result.
+- **Only suspicious messages are kept.** Messages at Medium risk or above are saved, with the app and the sender shown in the notification, and moved into the on-device database and History (with their alerts) when FraudSentry is opened. They are labelled "Checked automatically · <app>". Ordinary messages are checked and forgotten.
+- **Share → FraudSentry.** Share a message's text or a screenshot from any app to FraudSentry; it is checked at once. Text goes to Check Message, an image to Check Receipt.
+- **Select text → "Check with FraudSentry".** Select a message in any app and pick FraudSentry from the text menu.
+- **New screenshots (optional).** With photo access allowed, a new screenshot shows a notification offering to check it; tapping it opens Check Receipt with the screenshot.
+- New page **Phone Protection**: setup steps (Notification access, including Android 13+'s "Allow restricted settings" for apps installed from an APK; notifications; on/off), apps to watch, warning level, screenshots, counts of messages checked, kept and warned about, a **test warning**, and the list of messages found in the background. On the website, iPhone and desktop it explains that this needs the Android app (no other platform allows reading other apps' notifications).
+- **Privacy.** Off until turned on. Nothing leaves the phone: the Android app still has **no internet permission**, and the hidden analyzer cannot load anything from the network. The privacy notice describes Phone Protection and is shown once again (consent version 6). New Android permissions, each asked for only when needed: notifications (warnings) and photos (only for the screenshot offer).
+
+### Testing
+- 11 new unit tests (`phoneProtection.test.ts`). The Android emulator test in CI now turns on Notification access, posts a scam notification from another app and checks it is analyzed, kept and warned about; then shares a scam text to the app and checks Check Message flags it on its own.
+
 ## V10.3.0 — 2026-11-19
 
 Changes requested by the panel at the final defense.
