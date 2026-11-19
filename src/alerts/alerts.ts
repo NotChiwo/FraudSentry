@@ -8,7 +8,7 @@
 //   status ('unread' | 'read'), date_generated → dateGenerated
 // (there is no user_id: FraudSentry has no user accounts, one user per device).
 // An alert belongs to the check it came from: deleting that check (or the
-// 30-day history expiry) removes its alert too. Like the rest of the
+// whole history) removes its alert too. Like the rest of the
 // history, alerts never leave this device.
 // Pure functions only — the store (useAppStore) keeps the records.
 // ============================================================

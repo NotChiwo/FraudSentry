@@ -200,8 +200,13 @@ export function parseReceiptDate(date: string | null, time?: string | null): Dat
     mo = MONTHS.indexOf(m[2]); day = +m[1]; y = +m[3];
   } else if ((m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
     y = +m[1]; mo = +m[2] - 1; day = +m[3];
+  } else if ((m = d.match(/^(\d{1,2})-([a-z]{3})[a-z]*-(\d{4})$/))) {
+    mo = MONTHS.indexOf(m[2]); day = +m[1]; y = +m[3];          // "18-Nov-2026"
   } else if ((m = d.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/))) {
-    mo = +m[1] - 1; day = +m[2]; y = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+    // month/day is the PH apps' usual order; a first number above 12 can only be
+    // a day ("18/11/2026", printed day-first by CIMB and other banks)
+    const dayFirst = +m[1] > 12 && +m[2] <= 12;
+    mo = (dayFirst ? +m[2] : +m[1]) - 1; day = dayFirst ? +m[1] : +m[2]; y = +m[3] < 100 ? 2000 + +m[3] : +m[3];
   } else return null;
   if (mo < 0 || mo > 11 || day < 1 || y < 2000 || y > 2100) return 'invalid';
 

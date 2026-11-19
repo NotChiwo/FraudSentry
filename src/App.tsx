@@ -18,6 +18,7 @@ import AlertToast from './alerts/AlertToast';
 import { unreadCount } from './alerts/alerts';
 import TransactionsPage from './transactions/TransactionsPage';
 import ReportsPage from './reports/ReportsPage';
+import AuditDashboardPage from './audit/AuditDashboardPage';
 import { App as NativeApp } from '@capacitor/app';
 import { isAndroidApp } from './app/nativeApp';
 import { useAppStore } from './shared/store';
@@ -141,6 +142,7 @@ export default function App() {
             {shown === 'alerts'    && <AlertsPage onNavigate={navigate} />}
             {shown === 'transactions' && <TransactionsPage onNavigate={navigate} />}
             {shown === 'reports' && <ReportsPage />}
+            {shown === 'audit' && <AuditDashboardPage onNavigate={navigate} />}
             {shown === 'privacy'   && <PrivacyPage onShowWelcome={openWelcome} />}
             {shown === 'about'     && <AboutPage />}
           </div>

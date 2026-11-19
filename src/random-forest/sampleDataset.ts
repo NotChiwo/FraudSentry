@@ -152,7 +152,7 @@ export function buildFeatureVector(
   source: EvidenceSource,
   failedChecks: number,
 ): number[] {
-  const refValid = extracted.referenceNo ? (/^[A-Z0-9]{8,20}$/i.test(extracted.referenceNo.replace(/\s/g, '')) ? 1 : 0) : 0;
+  const refValid = extracted.referenceNo ? (/^[A-Z0-9]{8,20}$/i.test(extracted.referenceNo.replace(/[\s-]/g, '')) ? 1 : 0) : 0;
   return [
     forensics.elaHotspotPct ?? 0,
     forensics.hasExif ? 1 : 0,

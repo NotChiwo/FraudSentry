@@ -2,20 +2,26 @@
 // FraudSentry — Application State
 // No accounts. Tracks theme, consent, the local history (receipts, messages,
 // cross-evidence, typed transactions), alerts, reports, training labels and
-// the model registry. Persisted in this browser / app only, never transmitted.
+// the model registry. Kept on this device only, never transmitted.
 //
-// IMPORTANT: scan results carry large base64 blobs (the receipt preview
-// and the ELA heatmap). Those are kept in memory for the live result view
-// but are STRIPPED before writing to localStorage — otherwise a dozen image
-// scans blow past the browser's ~5MB quota and saving throws. A safety net
-// also trims history if a write ever fails for any other reason.
+// Where things are saved:
+//   • settings (theme, consent, alert level, training rows, models) → localStorage
+//   • the history — every receipt, message, cross-evidence result, typed
+//     transaction, alert and report → the on-device database (IndexedDB,
+//     src/database/), permanently, until the user deletes it. This store holds
+//     the same records in memory; database/sync.ts writes every change through.
+// If a browser has no IndexedDB, the history falls back to localStorage (as
+// before V10.3), without the large images, which would not fit.
 // ============================================================
 import { create } from 'zustand';
+import { stripHeavy, type DbStatus } from '../database/sync';
+import { mergeBackup, type BackupData } from '../database/backup';
+import type { SimEvent } from '../audit/simulator';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ThemeMode, ImageScanResult, MessageScanResult, CrossEvidenceResult, TransactionStatus } from './types';
 import type { ManualTransaction } from '../transactions/transactionCheck';
 import { withModel, type ModelRecord } from '../random-forest/modelRegistry';
-import { reportsWithinRetention, MAX_REPORTS, type FraudReport } from '../reports/fraudReports';
+import type { FraudReport } from '../reports/fraudReports';
 import { rowFromScan, type TrainingRow, type LabelledModelOptions } from '../random-forest/trainingData';
 import {
   alertForReceipt, alertForMessage, alertForCross, alertForTransaction, withAlert, alertsForResults,
@@ -63,8 +69,16 @@ interface AppState {
   /** show a pop-up when a new alert is created (data dictionary: notification_option); alerts are listed either way */
   alertPopups: boolean;
   setAlertPopups: (v: boolean) => void;
-  /** keep checks on this device for 30 days (data dictionary: retain_scan_results); off = kept only until the app is closed */
+  /** save checks in the on-device database (data dictionary: retain_scan_results); off = new checks are kept only until the app is closed */
   keepHistory: boolean;
+  /** the on-device database: loading at start-up, ready, or unavailable in this browser (history then kept in localStorage) */
+  dbStatus: DbStatus;
+  /** merge a backup file's records into the history (nothing present is replaced or duplicated) */
+  restoreBackup: (b: BackupData) => void;
+  /** Audit Dashboard: simulated incoming transactions (memory only — never saved, never in the history) */
+  simEvents: SimEvent[];
+  addSimEvent: (e: SimEvent) => void;
+  clearSimEvents: () => void;
   setKeepHistory: (v: boolean) => void;
   setAlertStatus: (id: string, status: FraudAlert['status']) => void;
   markAllAlertsRead: () => void;
@@ -89,7 +103,7 @@ interface AppState {
   setFocusResultId: (id: string | null) => void;
 }
 
-/** The local history (expires after 30 days; see userDataToSave). */
+/** The history: every check, alert and report (kept until the user deletes it). */
 export interface UserData {
   imageScans: ImageScanResult[];
   messageScans: MessageScanResult[];
@@ -106,38 +120,22 @@ const systemTheme = (): ThemeMode => {
   try { return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch { return 'dark'; }
 };
 
-// RA 10173 data minimisation: saved results hold names, numbers and message
-// text, so they are kept on this device for a limited time only. Anything
-// older than this is removed when the app loads and whenever history is saved.
 // Bump when the privacy notice changes, so everyone sees and accepts it again.
-// (4 = the current notice: no accounts; history includes payment outcomes, typed transactions and saved reports.)
-export const CONSENT_VERSION = 4;
+// (5 = the current notice: the history is kept in an on-device database until the user deletes it,
+//  instead of 30 days, so an earlier case of the same fraud can be found; it can be backed up to a file.)
+export const CONSENT_VERSION = 5;
 /** Was the CURRENT privacy notice accepted? (An older one is shown again.) */
 export function acceptedCurrentNotice(p: { hasConsented?: boolean; consentVersion?: number } | null | undefined): boolean {
   return !!p?.hasConsented && p.consentVersion === CONSENT_VERSION;
 }
-export const HISTORY_RETENTION_DAYS = 30;
 const MAX_TRAINING_ROWS = 5000;
-export function withinRetention<T extends { scannedAt: string }>(items: T[], now = Date.now()): T[] {
-  const cutoff = now - HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-  return items.filter(i => { const t = Date.parse(i.scannedAt); return isNaN(t) || t >= cutoff; });
-}
+/** simulated events kept for the Audit Dashboard (memory only) */
+export const MAX_SIM_EVENTS = 1000;
 
 type History = Pick<AppState, 'imageScans' | 'messageScans' | 'crossChecks' | 'manualTransactions'>;
 /** An alert lives only as long as the check it was generated for. */
 function keepLinkedAlerts(alerts: FraudAlert[], h: History): FraudAlert[] {
   return alertsForResults(alerts, [...h.imageScans, ...h.messageScans, ...h.crossChecks, ...h.manualTransactions].map(x => x.id));
-}
-export const MAX_MANUAL_TRANSACTIONS = 100;
-
-// Drop the heavy base64 fields so persisted history stays tiny.
-function stripHeavy(scan: ImageScanResult): ImageScanResult {
-  return {
-    ...scan,
-    previewDataUrl: undefined,
-    ocr: { ...scan.ocr, words: undefined },
-    forensics: { ...scan.forensics, elaThumbnail: '' },
-  };
 }
 
 // Quota-safe localStorage wrapper: if a write fails, retry without history.
@@ -161,31 +159,26 @@ const safeStorage = {
   },
 };
 
-/** The user's data as it is saved: expired items dropped, heavy images stripped, alerts kept only with their check. */
-export function userDataToSave(s: UserData, now = Date.now()): UserData {
-  const h: History = {
-    imageScans: withinRetention(s.imageScans, now), messageScans: withinRetention(s.messageScans, now), crossChecks: withinRetention(s.crossChecks, now),
-    manualTransactions: withinRetention(s.manualTransactions, now),
-  };
-  return { ...h, imageScans: h.imageScans.map(stripHeavy), alerts: keepLinkedAlerts(s.alerts, h), alertLevel: s.alertLevel, reports: reportsWithinRetention(s.reports, HISTORY_RETENTION_DAYS, now) };
+/** The user's data as it is saved: nothing expires; heavy images are stripped (the database keeps a small copy); alerts are kept only with their check. */
+export function userDataToSave(s: UserData): UserData {
+  const h: History = { imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, manualTransactions: s.manualTransactions };
+  return { ...h, imageScans: h.imageScans.map(stripHeavy), alerts: keepLinkedAlerts(s.alerts, h), alertLevel: s.alertLevel, reports: s.reports };
 }
-/** Saved user data (possibly old or partial) → what the app loads. */
-export function userDataFromSaved(p: Partial<UserData> | null | undefined, now = Date.now()): UserData {
-  const h: History = {
-    imageScans: withinRetention(Array.isArray(p?.imageScans) ? p!.imageScans : [], now),
-    messageScans: withinRetention(Array.isArray(p?.messageScans) ? p!.messageScans : [], now),
-    crossChecks: withinRetention(Array.isArray(p?.crossChecks) ? p!.crossChecks : [], now),
-    manualTransactions: withinRetention(Array.isArray(p?.manualTransactions) ? p!.manualTransactions : [], now),
-  };
-  return {
-    ...h, alerts: keepLinkedAlerts(Array.isArray(p?.alerts) ? p!.alerts : [], h), alertLevel: p?.alertLevel ?? DEFAULT_ALERT_LEVEL,
-    reports: reportsWithinRetention(Array.isArray(p?.reports) ? p!.reports : [], HISTORY_RETENTION_DAYS, now),
-  };
+/** Saved user data (possibly old or partial, e.g. an older version's localStorage history) → what the app loads. */
+export function userDataFromSaved(p: Partial<UserData> | null | undefined): UserData {
+  const arr = <T>(v: T[] | undefined): T[] => (Array.isArray(v) ? v : []);
+  const h: History = { imageScans: arr(p?.imageScans), messageScans: arr(p?.messageScans), crossChecks: arr(p?.crossChecks), manualTransactions: arr(p?.manualTransactions) };
+  return { ...h, alerts: keepLinkedAlerts(arr(p?.alerts), h), alertLevel: p?.alertLevel ?? DEFAULT_ALERT_LEVEL, reports: arr(p?.reports) };
 }
 export const EMPTY_USER_DATA: UserData = { imageScans: [], messageScans: [], crossChecks: [], manualTransactions: [], alerts: [], alertLevel: DEFAULT_ALERT_LEVEL, reports: [] };
-/** What is written to the device: the history as above, or none of it when the user turned "Keep my checks" off. */
-export function historyToSave(s: UserData & { keepHistory: boolean }, now = Date.now()): UserData {
-  return s.keepHistory ? userDataToSave(s, now) : { ...EMPTY_USER_DATA, alertLevel: s.alertLevel };
+/**
+ * What goes into localStorage: only the alert level once the database holds
+ * the history; the whole history (images stripped) only while the database
+ * is loading or in a browser without one; nothing when "Save my checks" is off.
+ */
+export function historyToSave(s: UserData & { keepHistory: boolean; dbStatus?: DbStatus }): UserData {
+  if (!s.keepHistory || s.dbStatus === 'ready') return { ...EMPTY_USER_DATA, alertLevel: s.alertLevel };
+  return userDataToSave(s);
 }
 
 /** Apply a history change, add the new check's alert (if any), and drop alerts whose check is gone. */
@@ -206,23 +199,23 @@ export const useAppStore = create<AppState>()(
       imageScans: [],
       messageScans: [],
       crossChecks: [],
-      addImageScan: (r) => set(s => withHistory(s, { imageScans: [r, ...s.imageScans].slice(0, 40) }, alertForReceipt(r, s.alertLevel))),
+      addImageScan: (r) => set(s => withHistory(s, { imageScans: [r, ...s.imageScans] }, alertForReceipt(r, s.alertLevel))),
       replaceImageScan: (oldId, r) => set(s => {
         const old = s.imageScans.find(x => x.id === oldId);
         const outcome = old?.txStatus && old.txStatus !== 'pending' ? old.txStatus : null;
         const next = outcome ? { ...r, txStatus: outcome, txStatusAt: old!.txStatusAt } : r;
         const rest = s.trainingRows.filter(t => t.id !== oldId);
         return {
-          ...withHistory(s, { imageScans: [next, ...s.imageScans.filter(x => x.id !== oldId)].slice(0, 40) }, alertForReceipt(next, s.alertLevel)),
+          ...withHistory(s, { imageScans: [next, ...s.imageScans.filter(x => x.id !== oldId)] }, alertForReceipt(next, s.alertLevel)),
           trainingRows: outcome ? [...rest, rowFromScan(next, outcome === 'received' ? 0 : 1)].slice(-MAX_TRAINING_ROWS) : rest,
         };
       }),
-      addMessageScan: (r) => set(s => withHistory(s, { messageScans: [r, ...s.messageScans].slice(0, 40) }, alertForMessage(r, s.alertLevel))),
-      addCrossCheck: (r) => set(s => withHistory(s, { crossChecks: [r, ...s.crossChecks].slice(0, 20) }, alertForCross(r, s.alertLevel))),
+      addMessageScan: (r) => set(s => withHistory(s, { messageScans: [r, ...s.messageScans] }, alertForMessage(r, s.alertLevel))),
+      addCrossCheck: (r) => set(s => withHistory(s, { crossChecks: [r, ...s.crossChecks] }, alertForCross(r, s.alertLevel))),
       addCrossEvidence: (receipt, message, cross) => set(s => withHistory(s, {
-        imageScans: [receipt, ...s.imageScans].slice(0, 40),
-        messageScans: [message, ...s.messageScans].slice(0, 40),
-        crossChecks: [cross, ...s.crossChecks].slice(0, 20),
+        imageScans: [receipt, ...s.imageScans],
+        messageScans: [message, ...s.messageScans],
+        crossChecks: [cross, ...s.crossChecks],
       }, alertForCross(cross, s.alertLevel))),
       // saved reports list references and amounts too, so they go with the history
       clearHistory: () => set({ imageScans: [], messageScans: [], crossChecks: [], manualTransactions: [], alerts: [], reports: [] }),
@@ -247,7 +240,7 @@ export const useAppStore = create<AppState>()(
       removeAlert: (id) => set(s => ({ alerts: s.alerts.filter(a => a.id !== id) })),
       clearAlerts: () => set({ alerts: [] }),
       manualTransactions: [],
-      addManualTransaction: (t) => set(s => withHistory(s, { manualTransactions: [t, ...s.manualTransactions].slice(0, MAX_MANUAL_TRANSACTIONS) }, alertForTransaction(t, s.alertLevel))),
+      addManualTransaction: (t) => set(s => withHistory(s, { manualTransactions: [t, ...s.manualTransactions] }, alertForTransaction(t, s.alertLevel))),
       removeManualTransaction: (id) => set(s => withHistory(s, { manualTransactions: s.manualTransactions.filter(x => x.id !== id) })),
       setTxStatus: (kind, id, status) => set(s => {
         const at = new Date().toISOString();
@@ -261,7 +254,7 @@ export const useAppStore = create<AppState>()(
         return { imageScans: s.imageScans.map(x => (x.id === id ? updated : x)), trainingRows };
       }),
       reports: [],
-      addReport: (r) => set(s => ({ reports: [r, ...s.reports].slice(0, MAX_REPORTS) })),
+      addReport: (r) => set(s => ({ reports: [r, ...s.reports] })),
       removeReport: (id) => set(s => ({ reports: s.reports.filter(r => r.id !== id) })),
       models: [],
       addModel: (m) => set(s => ({ models: withModel(s.models, m) })),
@@ -270,6 +263,14 @@ export const useAppStore = create<AppState>()(
       setAlertPopups: (v) => set({ alertPopups: v }),
       keepHistory: true,
       setKeepHistory: (v) => set({ keepHistory: v }),
+      dbStatus: 'loading',
+      simEvents: [],
+      addSimEvent: (e) => set(s => ({ simEvents: [e, ...s.simEvents].slice(0, MAX_SIM_EVENTS) })),
+      clearSimEvents: () => set({ simEvents: [] }),
+      restoreBackup: (b) => set(s => {
+        const { data } = mergeBackup({ imageScans: s.imageScans, messageScans: s.messageScans, crossChecks: s.crossChecks, manualTransactions: s.manualTransactions, alerts: s.alerts, reports: s.reports }, b);
+        return { ...data, alerts: keepLinkedAlerts(data.alerts, data) };
+      }),
       focusResultId: null,
       setFocusResultId: (id) => set({ focusResultId: id }),
     }),
@@ -287,8 +288,8 @@ export const useAppStore = create<AppState>()(
         labelledModel: s.labelledModel,
         models: s.models,
         alertPopups: s.alertPopups, keepHistory: s.keepHistory,
-        // the history: expired items dropped, heavy images stripped — or nothing
-        // at all when the user chose not to keep checks after closing the app
+        // the history lives in the database; localStorage only holds it while the
+        // database is loading or unavailable (see historyToSave)
         ...historyToSave(s),
       }),
       merge: (persisted, current) => {

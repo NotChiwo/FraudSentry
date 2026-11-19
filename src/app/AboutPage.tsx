@@ -6,7 +6,7 @@ const MODULES = [
   { icon: MessageSquareWarning, color: '#f59e0b', title: 'Check Message', body: 'Detects scam language, known patterns, and suspicious links in text or screenshots, highlighting the exact risky phrases.' },
   { icon: GitCompareArrows, color: '#6366f1', title: 'Cross-Evidence', body: 'Compares a receipt with its conversation: matching, contradictory, or unrelated evidence.' },
   { icon: Trees, color: '#2563eb', title: 'Detection Model', body: 'The Random Forest that scores receipt evidence, with its metrics, the comparison with a Decision Tree, and retraining on labelled receipts.' },
-  { icon: Bell, color: '#ef4444', title: 'Alerts, History and Reports', body: 'Warnings for risky results, every check kept on this device for 30 days, and summary or detailed reports as PDF or CSV.' },
+  { icon: Bell, color: '#ef4444', title: 'Alerts, History and Reports', body: 'Warnings for risky results, every check kept permanently in an on-device database (with "seen before" lookups and backup), and summary or detailed reports as PDF or CSV.' },
   { icon: BookOpen, color: '#10b981', title: 'Scam Knowledge Base', body: 'An educational reference of the scam patterns the analyzer checks against, with red flags and protective advice.' },
 ];
 

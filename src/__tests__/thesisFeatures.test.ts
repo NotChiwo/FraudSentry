@@ -41,6 +41,11 @@ describe('retain_scan_results: "Keep my checks on this device"', () => {
   it('on: the history is saved', () => {
     expect(historyToSave({ ...data, keepHistory: true }).imageScans).toHaveLength(1);
   });
+  it('once the database holds the history, localStorage keeps only the settings', () => {
+    const saved = historyToSave({ ...data, keepHistory: true, dbStatus: 'ready' });
+    expect(saved.imageScans).toEqual([]);
+    expect(saved.alertLevel).toBe('medium');
+  });
   it('off: nothing from the history is written to the device, the alert setting is', () => {
     const saved = historyToSave({ ...data, keepHistory: false });
     expect(saved.imageScans).toEqual([]);

@@ -38,7 +38,8 @@ function finding(category: VerificationFinding['category'], label: string, detai
 // Reference-number shape per institution (used only when a ref was read)
 function validateReference(source: EvidenceSource, ref: string | null, type?: string): VerificationFinding | null {
   if (!ref) return null;
-  const clean = ref.replace(/\s/g, '');
+  // spaces and hyphens are printing only (GrabPay "A-7XK2P9QM", Coins.ph "CPH-88124590")
+  const clean = ref.replace(/[\s-]/g, '');
   // Per-app shape where we know it (e.g. MariBank refs can be 6 digits);
   // otherwise a generic 6–24 character alphanumeric shape.
   const fmt = refFormatFor(source, type);
@@ -184,6 +185,11 @@ export async function analyzeTransactionImage(
   if (extracted.referenceNo) {
     const refFinding = validateReference(source, extracted.referenceNo, transactionType);
     if (refFinding) findings.push(refFinding);
+  } else if (!detailsHidden && extracted.transactionId && extracted.transactionId.replace(/[\s-]/g, '').length >= 8) {
+    // Wallets such as ShopeePay print a long Transaction ID instead of a "Reference No.": it serves the same purpose.
+    findings.push(finding('reference', 'Reference Number Detection',
+      `No "Reference No." is printed, but a transaction ID (${extracted.transactionId}) was read. Apps such as ShopeePay and GrabPay use it as the reference: search it in your own app's history.`,
+      'low', true, 0.07));
   } else if (!detailsHidden) {   // when details are hidden, that finding already explains it
     findings.push(finding('reference', 'Reference Number Detection',
       notShown('referenceNo')

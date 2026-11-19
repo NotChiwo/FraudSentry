@@ -14,12 +14,14 @@ src/
 ├─ alerts/                 MODULE: fraud alerts
 ├─ transactions/           MODULE: transactions and their real outcome
 ├─ reports/                MODULE: fraud detection reports (PDF / CSV)
+├─ database/               MODULE: the on-device database (IndexedDB), "seen before", backup
+├─ audit/                  MODULE: Transaction Audit Dashboard (live + simulated feed)
 ├─ history/                History page (every check on this device)
 ├─ knowledge-base/         Scam Knowledge Base page
 ├─ app/                    Home, About, Privacy, welcome notice, navigation
 ├─ shared/                 data store, types, helpers used by every module
 ├─ styles/                 all CSS
-└─ __tests__/              automated tests (392)
+└─ __tests__/              automated tests (442)
 ```
 
 ---
@@ -41,8 +43,9 @@ src/
    4. **Rule score:** every failed check adds its weight.
    5. **Random Forest:** `random-forest/sampleDataset.ts` → `buildFeatureVector()` turns the evidence into 10 numbers, and `random-forest/sharedModel.ts` → `scoreWithSharedModel()` returns the forest's fraud probability.
    6. **Final score** = ½ rules + ½ forest, never below the floor a definitive finding sets (for example, hidden details ⇒ at least High). The risk level comes from that score: Low / Medium / High / Critical. **Classification:** High or Critical means *possibly fraudulent*; anything lower means *legitimate*.
-3. **`shared/store.ts`** saves the result in the local history and, when it is High or above, calls **`alerts/alerts.ts`** → `alertForReceipt()`.
-4. **`alerts/AlertToast.tsx`** shows the pop-up; the bell and **`alerts/AlertsPage.tsx`** list it.
+3. **`shared/store.ts`** adds the result to the history and, when it is High or above, calls **`alerts/alerts.ts`** → `alertForReceipt()`. **`database/sync.ts`** writes the new record through to the on-device database (IndexedDB), where it is kept until the user deletes it.
+4. **`database/PriorCasesCard.tsx`** (shown with the result) looks the check up against every earlier record: the same fraud type, reference number or recipient (`database/fraudMemory.ts` → `findPriorCases()`).
+5. **`alerts/AlertToast.tsx`** shows the pop-up; the bell and **`alerts/AlertsPage.tsx`** list it.
 
 ---
 
@@ -55,7 +58,8 @@ src/
 | `CameraScanner.tsx` | Live camera with framing and blur/glare hints (`checks/frameQuality.ts`) |
 | `verifyReceipt.ts` | **The engine:** runs every check and computes the score (start here) |
 | `ocr/` | Text recognition (Tesseract) and image pre-processing |
-| `reading/receiptParser.ts` | Reads fields from the OCR text for GCash, Maya, BPI, BDO, GoTyme, MariBank and others |
+| `reading/receiptParser.ts` | Reads fields from the OCR text for GCash, Maya, BPI, BDO, GoTyme, MariBank and about 20 other banks and e-wallets (day-first dates, hyphenated references, masked numbers) |
+| `reading/supportedApps.ts` | Which apps are tested on real receipts and which are read from their known layout (shown on Check Receipt) |
 | `reading/fieldValidation.ts` | Is each field plausible? (reference format per bank, amount, date) |
 | `reading/fieldLocator.ts` | Where on the screenshot each field was read (for the highlights) |
 | `checks/` | The individual fraud checks listed in the flow above |
@@ -63,7 +67,7 @@ src/
 ### Random Forest: `src/random-forest/`
 | File | What it does |
 |---|---|
-| `randomForest.ts` | **The algorithm, written from scratch:** bootstrap sampling, √n random features per split, Gini impurity, majority vote, feature importance; `trainTestSplit()`, `computeMetrics()` |
+| `randomForest.ts` | **The algorithm, written from scratch:** bootstrap sampling, √n random features per split, Gini impurity, soft voting (the mean of the trees' leaf probabilities), feature importance; `trainTestSplit()`, `computeMetrics()` |
 | `sampleDataset.ts` | The 10 evidence features, and the seeded demonstration dataset |
 | `sharedModel.ts` | The forest the checks use, and switching it when a new model is trained |
 | `trainingData.ts` | Training on labelled receipts; `compareApproaches()` (rules vs. forest vs. both) |
@@ -77,7 +81,7 @@ src/
 ### Alerts: `src/alerts/`
 | File | What it does |
 |---|---|
-| `alerts.ts` | When an alert is created (High+ by default), its message, read / unread. The fields follow the ERD's ALERT table: `id`, `resultId`, `userId`, `message`, `riskLevel`, `status`, `dateGenerated` |
+| `alerts.ts` | When an alert is created (High+ by default), its message, read / unread. The fields follow the ERD's ALERT table: `id`, `resultId`, `message`, `riskLevel`, `status`, `dateGenerated` (no user id: there are no accounts) |
 | `AlertsPage.tsx` | The Alerts page: filter, mark read / unread, view the check, alert-level setting |
 | `AlertToast.tsx` | The pop-up when a new alert is raised |
 
@@ -95,6 +99,22 @@ src/
 | `pdfReports.ts` | PDF output: the per-receipt and per-message reports, and period reports |
 | `ReportsPage.tsx` | The page: choose type and period, view, download, reopen saved reports |
 
+### Database: `src/database/`
+| File | What it does |
+|---|---|
+| `db.ts` | **The on-device database** (IndexedDB): tables `receipts`, `messages`, `crossChecks`, `transactions`, `alerts`, `reports`, `receiptImages`; indexes by date, risk, app, reference number, recipient and fraud type (`SCHEMA`, `openDatabase()`) |
+| `sync.ts` | `connectDatabase()`: loads every record at start-up, moves an older version's localStorage history into the database, then writes every change through; keeps a small copy of each receipt image |
+| `fraudMemory.ts` | Fraud types of each record (`fraudTypesOf()`), and "has this happened before?" (`findPriorCases()`: same fraud type, reference, recipient, link or phone number) |
+| `PriorCasesCard.tsx` | "Seen before in your records", shown with each receipt, message and typed-transaction result |
+| `backup.ts`, `DatabaseCard.tsx` | Back up the database to a JSON file and restore it (merging); the database card on Privacy & Data |
+
+### Audit Dashboard: `src/audit/`
+| File | What it does |
+|---|---|
+| `AuditDashboardPage.tsx` | **Transaction Audit Dashboard:** live feed, KPIs, filters for flagged anomalies, breakdown by fraud type and by app |
+| `auditFeed.ts` | Turns every record into an audit event; `buildFeed()`, `filterEvents()`, `auditStats()` |
+| `simulator.ts` | Simulated incoming transactions across 19 apps, run through the real checks (`checkTransaction()`, `analyzeMessageText()`), about one in four with an injected anomaly; never saved |
+
 ### Message Check, Cross-Evidence, Knowledge Base
 | File | What it does |
 |---|---|
@@ -106,7 +126,7 @@ src/
 ### Shared and app-wide
 | File | What it does |
 |---|---|
-| `shared/store.ts` | The saved data (history, alerts, reports, settings) and the 30-day expiry (RA 10173) |
+| `shared/store.ts` | The data in memory (history, alerts, reports, settings); settings are saved in localStorage, the history in the on-device database (`database/`) |
 | `shared/types.ts` | The shape of every record (scan result, alert, transaction …) |
 | `shared/helpers.ts` | Formatting, risk levels, the classification threshold, file saving |
 | `app/` | Home, About, Privacy, the welcome / consent notice, sidebar, `nativeApp.ts` (Android / desktop differences) |
@@ -126,7 +146,9 @@ src/
 | "How does the alert system work?" | `alerts/alerts.ts`, then `shared/store.ts` (`addImageScan` creates the alert) |
 | "How do you read the receipt?" | `receipt-check/ocr/ocr.ts` → `runOcr()`, then `reading/receiptParser.ts` |
 | "How do you detect edited receipts?" | `receipt-check/checks/` (one file per kind of edit) |
-| "Where is the data stored? Is it private?" | `shared/store.ts`: in the device only, 30-day expiry, no server |
-| "Is it tested?" | `src/__tests__/`; run `npm test` (392 tests) |
+| "Where is the data stored? Is it private?" | `database/db.ts` (the IndexedDB schema) and `database/sync.ts`: on the device only, kept until the user deletes it, backup to a file, no server |
+| "Has this fraud happened before?" | `database/fraudMemory.ts` → `findPriorCases()`, shown by `database/PriorCasesCard.tsx` |
+| "Show us the audit dashboard / the simulated stream." | `audit/AuditDashboardPage.tsx`, `audit/simulator.ts`, `audit/auditFeed.ts` → `filterEvents()` |
+| "Is it tested?" | `src/__tests__/`; run `npm test` (442 tests) |
 | "How do you know genuine receipts pass?" | `random-forest/batchTest.ts` + `BatchTestCard.tsx`: the batch test on the Detection Model page (false-alarm rate with its 95% upper bound, fakes caught) |
 | "Does it ever guess a blurred value?" | `reading/receiptParser.ts` → `unagreedFields()` (the OCR passes must agree), and `checks/hiddenFields.ts` (values under a blur) |

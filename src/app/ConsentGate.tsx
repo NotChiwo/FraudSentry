@@ -16,8 +16,8 @@ const POINTS = [
   },
   {
     icon: Lock, color: '#10b981',
-    title: 'Temporary file handling',
-    body: 'Uploaded files live only in memory for the duration of your scan. A short history of your results is kept on this device so you can re-open past results; it is deleted automatically after 30 days, and you can clear it anytime.',
+    title: 'What is kept on this device',
+    body: 'Uploaded files are never sent to a server. Your results are kept in a database on this device until you delete them, so a new check can be compared with earlier ones (the same receipt, reference number or recipient, or the same kind of fraud). You can delete them, or back them up to a file, anytime.',
   },
   {
     icon: UserX, color: '#6366f1',

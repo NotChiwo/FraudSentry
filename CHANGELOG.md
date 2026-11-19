@@ -1,5 +1,33 @@
 # Changelog
 
+## V10.3.0 — 2026-11-19
+
+Changes requested by the panel at the final defense.
+
+### A permanent on-device database: one safe place that keeps every check
+- **Nothing expires any more.** The history used to live in localStorage, was deleted after 30 days, and kept only the latest 40 receipts, 40 messages, 20 cross-evidence results, 100 typed transactions and 50 reports. Every check is now kept until the user deletes it.
+- **A real database:** IndexedDB, the database built into every browser and into the Android and desktop apps' WebView. One table per record type: receipts, messages, cross-evidence results, typed transactions, alerts, reports, and a small copy of each receipt image (about 16 KB). Indexes by date, risk, app, reference number, recipient and fraud type (`src/database/db.ts`).
+- **Has this happened before?** Every record is tagged with the fraud types it shows (e.g. *Pasted headline amount*, *Amounts don't add up*, *OTP Scam*, *Phishing link*). Each receipt, message and typed-transaction result now shows **Seen before in your records**: how many earlier cases of the same fraud type (and when last), and any earlier check with the same reference number, the same recipient, or the same suspicious link or phone number. History can be filtered by fraud type.
+- **Safe:** Privacy & Data has a database card that shows what is stored and the space used. It can ask the browser to protect the database from its automatic clean-up, **back it up to a file** and **restore** it (restoring merges: nothing already present is duplicated).
+- **Upgrading keeps everything:** the history an older version kept in localStorage is moved into the database, and localStorage lets it go only after it is written. In a browser without IndexedDB, the history stays in localStorage as before.
+- Still only on the device, never uploaded. The privacy notice, welcome screen and About page say so, and the changed notice is shown once again (consent version 5).
+
+### Transaction Audit Dashboard
+- New page **Audit Dashboard**: a live feed of every receipt, typed transaction, message and cross-evidence result in the database, updating as checks are made.
+- **Simulate incoming transactions:** a seeded stream of payments across 19 banks and e-wallets, plus scam and ordinary messages, every 1, 2 or 5 seconds. Each one is run through the **same checks** as a typed transaction (reference format, real and not-future date, reuse of an earlier reference) and the same message analyzer. About one in four payments carries an injected anomaly. They are labelled **Simulated**, kept only while the app is open, and never saved to the database or the history.
+- **Filters for flagged anomalies:** source (real or simulated), flagged anomalies only (Medium risk or above), risk level, bank or e-wallet, fraud type, kind, date range and search.
+- KPIs: events, flagged anomalies and their rate, possibly fraudulent (High or above), critical, last flagged. Side panels count flagged anomalies by fraud type and by app. Each row opens its failed checks, and a real row opens the full check.
+
+### Receipts from more banks and e-wallets
+Most real receipts used in development were GCash. Written in each app's usual layout and wording, receipts from 15 other apps exposed these gaps, all fixed:
+- A Maya bank transfer was identified as **BDO**, its destination ("Bank  BDO Unibank").
+- **A day-first date** ("18/11/2026", CIMB) was read as month 18, so a genuine receipt was flagged as having an impossible date. A first number above 12 is now the day.
+- "18-Nov-2026" (Landbank) and a 24-hour time after a date were not read.
+- The recipient after **Transferred to**, **Transfer to** and **Sent to** was missed (only at the start of a row, so "…has been sent to the merchant." is not a label).
+- **References with a hyphen** (GrabPay "A-7XK2P9QM", Coins.ph "CPH-88124590") were missed or called malformed. A **ShopeePay Transaction ID** counted as a missing reference.
+- **Masked numbers** such as "+63 917 ••• 4821" and "••••8821" were not read.
+- Check Receipt now lists which apps are tested on real receipts (GCash, Maya, GoTyme, BPI, MariBank) and which are read from their known layout (the rest).
+
 ## V10.2.13 — 2026-11-13
 
 ### A pasted headline amount is caught

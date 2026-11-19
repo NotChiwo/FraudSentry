@@ -205,3 +205,25 @@
 
 .form-error { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; font-size: 14px; color: var(--risk-critical); background: var(--risk-critical-bg);
   border: 1px solid color-mix(in srgb, var(--risk-critical) 35%, transparent); }
+
+/* Privacy & Data → On-device database */
+.db-card { padding: 18px; margin-bottom: 13px; }
+.db-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.db-head h2 { font-size: 15px; margin: 0; color: var(--text-primary); }
+.db-status { margin-left: auto; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--bg-elevated, rgba(127,127,127,.12)); color: var(--text-secondary); }
+.db-status.db-ready { color: #059669; background: rgba(16,185,129,.12); }
+.db-status.db-unavailable { color: #b45309; background: rgba(245,158,11,.14); }
+.db-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+.db-counts > div { border: 1px solid var(--border-color, rgba(127,127,127,.25)); border-radius: 10px; padding: 9px 11px; display: flex; flex-direction: column; }
+.db-counts strong { font-size: 19px; color: var(--text-primary); }
+.db-counts span { font-size: 12px; color: var(--text-secondary); }
+.db-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.db-note { margin: 10px 0 0; color: var(--text-secondary); }
+
+/* "Seen before in your records" (database/PriorCasesCard.tsx) */
+.prior-card .prior-block + .prior-block { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color, rgba(127,127,127,.25)); }
+.prior-card p { margin: 0; line-height: 1.55; }
+.prior-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.prior-list li { margin: 2px 0; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent-light, #2563eb); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.fraud-type-filter { width: auto; min-width: 190px; padding: 6px 10px; font-size: 13px; }
