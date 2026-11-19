@@ -9,12 +9,15 @@ import { formatDateTime, formatRelativeTime, formatPHP, downloadBlob } from '../
 import { RiskLevel, ImageScanResult } from '../shared/types';
 import TrainingLabel from '../transactions/TrainingLabel';
 import { counts, readiness, rowsToCsv } from '../random-forest/trainingData';
+import { fraudTypesOf, fraudTypeCounts } from '../database/fraudMemory';
 
 type Kind = 'all' | 'receipt' | 'message' | 'cross';
 type LevelFilter = 'any' | 'risky';
 interface Row {
   id: string; kind: Exclude<Kind, 'all'>; title: string; meta: string; level: RiskLevel; when: string;
   search: string; onDownload?: () => void; onDelete: () => void;
+  /** fraud types this record shows (see database/fraudMemory.ts) */
+  types: string[];
   /** receipts only: for the Genuine / Fake training label */
   scan?: ImageScanResult;
 }
@@ -40,6 +43,7 @@ export default function HistoryPage({ onNavigate }: { onNavigate?: (p: string) =
   const [kind, setKind] = useState<Kind>('all');
   const [level, setLevel] = useState<LevelFilter>('any');
   const [q, setQ] = useState('');
+  const [fraudType, setFraudType] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
   const trainingRows = useAppStore(s => s.trainingRows);
   const clearTrainingRows = useAppStore(s => s.clearTrainingRows);
@@ -67,18 +71,20 @@ export default function HistoryPage({ onNavigate }: { onNavigate?: (p: string) =
         title: RECEIPT_TITLE[s.riskLevel],
         meta: [s.source !== 'Unknown' ? s.source : null, s.extracted.amount != null ? formatPHP(s.extracted.amount) : null, s.extracted.referenceNo ? `Ref ${s.extracted.referenceNo}` : null].filter(Boolean).join(' · ') || s.filename,
         search: [s.filename, s.source, s.extracted.referenceNo, s.extracted.receiverName, s.extracted.amount].join(' '),
+        types: fraudTypesOf('receipt', s),
         onDownload: () => generateImageReport(s), onDelete: () => removeImageScan(s.id), scan: s,
       })),
       ...messageScans.map(s => ({
         id: s.id, kind: 'message' as const, level: s.threatLevel, when: s.scannedAt,
         title: s.scamType, meta: `${s.platform} · ${s.flags.length} warning sign${s.flags.length === 1 ? '' : 's'}`,
         search: [s.scamType, s.platform, s.textExcerpt].join(' '),
+        types: fraudTypesOf('message', s),
         onDownload: () => generateMessageReport(s), onDelete: () => removeMessageScan(s.id),
       })),
       ...crossChecks.map(s => ({
         id: s.id, kind: 'cross' as const, level: s.combinedRiskLevel, when: s.scannedAt,
         title: s.verdict, meta: `Receipt ${LEVEL_LABEL[s.transactionRiskLevel]} · Conversation ${LEVEL_LABEL[s.conversationRiskLevel]}`,
-        search: s.verdict, onDelete: () => removeCrossCheck(s.id),
+        search: s.verdict, types: fraudTypesOf('cross', s), onDelete: () => removeCrossCheck(s.id),
       })),
     ];
     return r.sort((a, b) => b.when.localeCompare(a.when));
@@ -87,8 +93,11 @@ export default function HistoryPage({ onNavigate }: { onNavigate?: (p: string) =
   const shown = rows.filter(r =>
     (kind === 'all' || r.kind === kind) &&
     (level === 'any' || r.level === 'high' || r.level === 'critical') &&
+    (!fraudType || r.types.includes(fraudType)) &&
     (!q.trim() || r.search.toLowerCase().includes(q.trim().toLowerCase())),
   );
+  // fraud types across the records this page lists (receipts, messages, cross-evidence)
+  const typeCounts = useMemo(() => fraudTypeCounts({ imageScans, messageScans, crossChecks, manualTransactions: [] }), [imageScans, messageScans, crossChecks]);
   const count = (k: Kind) => (k === 'all' ? rows.length : rows.filter(r => r.kind === k).length);
 
   return (
@@ -97,7 +106,7 @@ export default function HistoryPage({ onNavigate }: { onNavigate?: (p: string) =
         <div className="page-head-ico"><History size={22} /></div>
         <div>
           <h1>History</h1>
-          <p>Every check you run is kept in this browser only, so you can look back or download a report. Nothing here is sent anywhere.</p>
+          <p>Every check you run is kept in the on-device database until you delete it, so you can look back, find earlier cases of the same fraud, or download a report. Nothing here is sent anywhere.</p>
         </div>
       </div>
 
@@ -137,6 +146,12 @@ export default function HistoryPage({ onNavigate }: { onNavigate?: (p: string) =
               <button type="button" className={`filter-btn${level === 'risky' ? ' active' : ''}`} aria-pressed={level === 'risky'} onClick={() => setLevel(l => (l === 'risky' ? 'any' : 'risky'))}>
                 High risk only
               </button>
+              {typeCounts.length > 0 && (
+                <select className="input-field fraud-type-filter" value={fraudType} onChange={e => setFraudType(e.target.value)} aria-label="Filter by fraud type">
+                  <option value="">Any fraud type</option>
+                  {typeCounts.map(t => <option key={t.type} value={t.type}>{t.type} ({t.count})</option>)}
+                </select>
+              )}
             </div>
           </div>
 

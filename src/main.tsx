@@ -9,6 +9,8 @@ import "./styles/camera.css";
 import "./styles/knowledge-base.css";
 import App from "./App";
 import { registerOfflineCopy } from "./app/nativeApp";
+import { useAppStore } from "./shared/store";
+import { connectDatabase } from "./database/sync";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -17,3 +19,5 @@ createRoot(document.getElementById("root")!).render(
 );
 
 registerOfflineCopy();
+// open the on-device database: load every saved check, then save each change
+void connectDatabase(useAppStore);

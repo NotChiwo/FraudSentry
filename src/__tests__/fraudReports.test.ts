@@ -1,7 +1,7 @@
 // V9.2 reports: period statistics, classification vs confirmed outcome,
 // breakdowns, the plain-language description and CSV.
 import { describe, it, expect } from 'vitest';
-import { buildReport, reportStats, reportToCsv, describeReport, reportsWithinRetention } from '../reports/fraudReports';
+import { buildReport, reportStats, reportToCsv, describeReport } from '../reports/fraudReports';
 import { EMPTY_USER_DATA, userDataToSave, type UserData } from '../shared/store';
 import { checkTransaction } from '../transactions/transactionCheck';
 import type { ImageScanResult, RiskLevel, TransactionStatus, MessageScanResult } from '../shared/types';
@@ -72,10 +72,8 @@ describe('reports', () => {
     expect(csv[0]).toBe('checked_at,kind,app_or_platform,type,direction,amount,reference,risk_level,classification,outcome');
     expect(csv).toHaveLength(9);
   });
-  it('saved reports expire after 30 days with the history', () => {
-    const r = buildReport(owner, { type: 'summary', from: '2026-10-01', to: '2026-10-31' }, new Date('2026-10-01T00:00:00Z'));
-    expect(reportsWithinRetention([r], 30, Date.parse('2026-10-20T00:00:00Z'))).toHaveLength(1);
-    expect(reportsWithinRetention([r], 30, Date.parse('2026-11-05T00:00:00Z'))).toHaveLength(0);
-    expect(userDataToSave({ ...EMPTY_USER_DATA, reports: [r] }, Date.parse('2026-11-05T00:00:00Z')).reports).toEqual([]);
+  it('saved reports are kept with the history (they no longer expire)', () => {
+    const r = buildReport(owner, { type: 'summary', from: '2025-10-01', to: '2025-10-31' }, new Date('2025-10-01T00:00:00Z'));
+    expect(userDataToSave({ ...EMPTY_USER_DATA, reports: [r] }).reports).toEqual([r]);
   });
 });

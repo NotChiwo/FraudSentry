@@ -11,6 +11,7 @@ import type { PriorScan } from '../receipt-check/checks/historyMatch';
 import { formatDateTime, formatPHP, downloadBlob, classificationOf, classificationShown, CLASSIFICATION_LABEL } from '../shared/helpers';
 import { phDay } from '../reports/fraudReports';
 import type { EvidenceSource, RiskLevel, TransactionStatus, Classification } from '../shared/types';
+import PriorCasesCard from '../database/PriorCasesCard';
 
 const LEVEL: Record<RiskLevel, string> = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' };
 export const STATUS_LABEL: Record<TransactionStatus, string> = { pending: 'Not confirmed yet', received: 'Money received', 'not-received': 'Not received' };
@@ -289,6 +290,7 @@ function EntryForm({ onDone }: { onDone: (id: string) => void }) {
           <span>{result.findings.filter(f => !f.passed).length ? `Main reason: ${result.findings.filter(f => !f.passed).sort((a, b) => b.weight - a.weight)[0].label}.` : 'The details are consistent.'} Saved to the list below — mark it once you have checked your account.</span>
         </div>
       )}
+      {result && <div style={{ marginTop: 12 }}><PriorCasesCard kind="transaction" record={result} /></div>}
     </section>
   );
 }

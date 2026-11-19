@@ -2,7 +2,7 @@
 // with read/unread status and a history that follows the checks it belongs to.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { alertForReceipt, alertForMessage, alertForCross, withAlert, unreadCount, MAX_ALERTS, type FraudAlert } from '../alerts/alerts';
-import { useAppStore, HISTORY_RETENTION_DAYS, userDataToSave, userDataFromSaved, type UserData } from '../shared/store';
+import { useAppStore, userDataToSave, userDataFromSaved, type UserData } from '../shared/store';
 import type { ImageScanResult, MessageScanResult, CrossEvidenceResult, RiskLevel, VerificationFinding } from '../shared/types';
 
 const NOW = '2026-10-20T08:00:00.000Z';
@@ -99,10 +99,10 @@ describe('alerts in the store', () => {
     expect(st().alerts).toEqual([]);
     expect(st().reports).toEqual([]);   // saved reports list references and amounts too
   });
-  it('a check pushed out of the 40-item history takes its alert with it', () => {
+  it('an older check is never pushed out, so its alert stays (the history has no limit)', () => {
     st().addImageScan(receipt('old', 'high'));
     for (let i = 0; i < 40; i++) st().addImageScan(receipt(`n${i}`, 'low'));
-    expect(st().alerts).toEqual([]);
+    expect(st().alerts.map(a => a.resultId)).toEqual(['old']);
   });
   it('a Cross-Evidence run saves three records but raises one alert', () => {
     st().addCrossEvidence(receipt('cx-r', 'critical'), message('cx-m', 'critical'), cross('cx', 'critical'));
@@ -110,19 +110,18 @@ describe('alerts in the store', () => {
     expect(st().messageScans.map(s => s.id)).toEqual(['cx-m']);
     expect(st().alerts.map(a => a.resultId)).toEqual(['cx']);
   });
-  it('saving and reopening keeps alerts of kept checks (with their status) and drops expired ones', () => {
-    const old = new Date(Date.now() - (HISTORY_RETENTION_DAYS + 1) * 864e5).toISOString();
+  it('saving and reopening keeps every alert of a saved check (with its status), however old', () => {
+    const old = new Date(Date.now() - 400 * 864e5).toISOString();
     const fresh = new Date().toISOString();
-    st().addImageScan(receipt('expired', 'high', old));
+    st().addImageScan(receipt('old', 'high', old));
     st().addImageScan(receipt('kept', 'high', fresh));
     st().setAlertStatus('alert-kept', 'read');
-    // what goes into the user's encrypted vault
     const saved = JSON.parse(JSON.stringify(userDataToSave(st()))) as UserData;
-    expect(saved.alerts.map(a => a.resultId)).toEqual(['kept']);
+    expect(saved.alerts.map(a => a.resultId).sort()).toEqual(['kept', 'old']);
     expect(saved.alertLevel).toBe('high');
-    // reopened: the saved alerts come back; an alert whose check expired meanwhile is dropped
-    const reopened = userDataFromSaved({ ...saved, alerts: [...saved.alerts, { ...saved.alerts[0], id: 'alert-expired', resultId: 'expired' }] });
-    expect(reopened.alerts.map(a => [a.resultId, a.status])).toEqual([['kept', 'read']]);
+    // reopened: the saved alerts come back; an alert whose check was deleted is dropped
+    const reopened = userDataFromSaved({ ...saved, alerts: [...saved.alerts, { ...saved.alerts[0], id: 'alert-gone', resultId: 'deleted-check' }] });
+    expect(reopened.alerts.map(a => [a.resultId, a.status]).sort()).toEqual([['kept', 'read'], ['old', 'unread']]);
     // older saved data (before V8.7) has no alerts: none, and the default level
     const before = userDataFromSaved({ imageScans: [] });
     expect([before.alerts, before.alertLevel]).toEqual([[], 'high']);

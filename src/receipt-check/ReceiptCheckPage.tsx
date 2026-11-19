@@ -14,6 +14,7 @@ import { generateImageReport } from '../reports/pdfReports';
 import { validateExtraction, FieldCheck, FieldStatus, FieldConfidence } from './reading/fieldValidation';
 import { validateImageFile, shrinkLargePhoto, ACCEPTED_IMAGE_TYPES } from './checks/uploadValidation';
 import { TESTED_ON_REAL_RECEIPTS, LAYOUT_BASED } from './reading/supportedApps';
+import PriorCasesCard from '../database/PriorCasesCard';
 import { locateFields, FieldBox } from './reading/fieldLocator';
 import { useAppStore } from '../shared/store';
 import CameraScanner from './CameraScanner';
@@ -581,6 +582,9 @@ function ResultView(props: {
           <p className="muted small" style={{ marginTop: 12 }}>The text reader couldn't run. Tap “Correct text” to type the details yourself, then re-check.</p>
         )}
       </section>
+
+      {/* earlier cases in the on-device database */}
+      <PriorCasesCard kind="receipt" record={result} />
 
       {/* 5 · how this was decided (technical, collapsed) */}
       <section className="card pad">

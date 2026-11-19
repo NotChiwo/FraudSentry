@@ -1,6 +1,7 @@
-// Privacy & Data page: what is processed, what is kept on this device and for how long.
+// Privacy & Data page: what is processed, what is kept on this device, and the on-device database.
 import { Lock, Database, Eye, ShieldCheck, UserCheck, AlertCircle, ScanText, Server, History } from 'lucide-react';
 import { useAppStore } from '../shared/store';
+import DatabaseCard from '../database/DatabaseCard';
 
 const SECTIONS = [
   {
@@ -12,8 +13,8 @@ const SECTIONS = [
     body: 'Screenshots are analyzed using Optical Character Recognition (OCR) that runs inside your own browser. The extracted text is shown to you, used for the analysis, and kept only in your local scan history. It is never transmitted to an external server by this application.',
   },
   {
-    icon: Server, color: '#6366f1', title: 'Temporary file handling',
-    body: 'Uploaded files are held in memory only for the duration of a scan and are not written to any server. A short history of your results is stored locally in your browser (localStorage) so you can re-open and export them. New receipts are compared against the fields in this local history (reference number, amount, recipient, date) to warn you about a reused or edited copy of an earlier receipt; that comparison also happens only in your browser. When a result is risky, an alert (title, risk level, short message, date and read/unread status) is stored with it in the same local history; it is deleted together with its result. Results and alerts are deleted automatically after 30 days, and clearing your history from the History page removes them immediately. If you label receipts as genuine or fake for training the detection model, only the 10 numeric evidence values and your label are kept (no names, numbers, amounts or text); you can delete them from the History page.',
+    icon: Server, color: '#6366f1', title: 'What is kept, and where',
+    body: 'Uploaded files are not written to any server. Your results — receipts (with a small copy of the image), messages, cross-evidence results, typed transactions, alerts and reports — are kept in an on-device database (IndexedDB) inside this browser or app, until you delete them. They are kept so that a new check can be compared with every earlier one: a reused or edited copy of a receipt, the same reference number or recipient, or an earlier case of the same kind of fraud. That comparison happens only on this device. You can delete any check, or everything, from the History page, and back the database up to a file or restore it below. If you label receipts as genuine or fake for training the detection model, only the 10 numeric evidence values and your label are kept (no names, numbers, amounts or text).',
   },
   {
     icon: Eye, color: '#10b981', title: 'How results are used',
@@ -52,15 +53,17 @@ export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => v
         <div>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={keepHistory} onChange={e => setKeepHistory(e.target.checked)} />
-            Keep my checks on this device for 30 days
+            Save my checks in the on-device database
           </label>
           <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 5 }}>
             {keepHistory
-              ? 'Your results, alerts and reports are saved in this browser so you can reopen them, and are deleted automatically after 30 days.'
-              : 'Your checks are kept only while FraudSentry is open. Nothing is saved to this device; closing the app clears them. The reused-receipt warning only compares receipts checked in the same session.'}
+              ? 'Your results, alerts and reports are saved on this device until you delete them, so earlier cases can always be found.'
+              : 'New checks are kept only while FraudSentry is open and are not saved; closing the app clears them. Checks saved earlier stay in the database until you delete them. Turning this back on saves the checks made meanwhile.'}
           </div>
         </div>
       </div>
+
+      <DatabaseCard />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
         {SECTIONS.map((s, i) => {
@@ -84,7 +87,7 @@ export default function PrivacyPage({ onShowWelcome }: { onShowWelcome?: () => v
         <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
           You have the right to be informed, to object to processing, and to access, correct, or erase your data. Because
           FraudSentry processes everything locally and retains nothing on a server, you can exercise these rights directly:
-          stop using the tool, edit any extracted text before analysis, and clear your local history whenever you wish.
+          stop using the tool, edit any extracted text before analysis, and delete any check — or the whole on-device database — whenever you wish.
         </div>
         {onShowWelcome && (
           <button type="button" className="btn-secondary" style={{ marginTop: 12 }} onClick={onShowWelcome}>

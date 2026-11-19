@@ -42,7 +42,7 @@ export interface ManualTransaction {
   classification: Classification;
   txStatus: TransactionStatus;
   txStatusAt?: string;
-  /** when it was entered (also drives the 30-day expiry) */
+  /** when it was entered */
   scannedAt: string;
 }
 

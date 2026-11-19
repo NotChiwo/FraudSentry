@@ -14,6 +14,7 @@ import { RISK_META } from '../shared/helpers';
 import { validateImageFile, shrinkLargePhoto, ACCEPTED_IMAGE_TYPES } from '../receipt-check/checks/uploadValidation';
 import CameraScanner from '../receipt-check/CameraScanner';
 import { Camera, FileImage } from 'lucide-react';
+import PriorCasesCard from '../database/PriorCasesCard';
 
 const PLATFORMS: MessagePlatform[] = ['Unknown', 'SMS', 'Messenger', 'Facebook', 'WhatsApp', 'Telegram', 'Viber', 'Discord', 'Email'];
 
@@ -198,6 +199,8 @@ function MessageResult({ result }: { result: MessageScanResult }) {
           <button className="btn-primary" onClick={() => generateMessageReport(result)}><Download size={15} /> Download PDF report</button>
         </div>
       </div>
+
+      <PriorCasesCard kind="message" record={result} />
 
       {/* Conversation risk mapping (Feature 2) */}
       <div className="card" style={{ padding: 18 }}>

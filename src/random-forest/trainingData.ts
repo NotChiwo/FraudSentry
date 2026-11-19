@@ -8,7 +8,7 @@
 // What is kept for each labelled scan: only the 10 numeric evidence features
 // the forest scored at scan time (ELA %, OCR confidence, "reference present",
 // …) and the label. No name, number, amount, reference or text — so it is
-// not personal data and is not removed by the 30-day history expiry.
+// not personal data, and is kept apart from the history (deleting a check keeps its row).
 //
 // Training uses a fixed, seeded 70/30 split, so the same rows always build
 // the same forest: the model connected on the Model page is rebuilt exactly

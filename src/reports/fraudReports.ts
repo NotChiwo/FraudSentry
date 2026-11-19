@@ -9,7 +9,7 @@
 //   • summary  — the numbers and the breakdowns
 //   • detailed — the same, plus every check in the period
 // Reports are saved in the local history, so they can be
-// reopened later; like the history, they expire after 30 days.
+// reopened later; like the history, they are kept until the user deletes them.
 // Pure functions.
 // ============================================================
 import type { RiskLevel, TransactionStatus, Classification } from '../shared/types';
@@ -67,7 +67,6 @@ export interface FraudReport {
   rows?: ReportRow[];
 }
 
-export const MAX_REPORTS = 50;
 
 /** the Philippine calendar day of a timestamp (UTC+8, no DST) */
 export const phDay = (when: string) => { const t = Date.parse(when); return isNaN(t) ? when.slice(0, 10) : new Date(t + 8 * 3600_000).toISOString().slice(0, 10); };
@@ -192,9 +191,4 @@ export function reportToCsv(r: FraudReport): string {
     ['confirmed outcomes', s.agreement.confirmed], ['agreement accuracy', s.agreement.accuracy ?? ''], ['TP', s.agreement.tp], ['FP', s.agreement.fp], ['TN', s.agreement.tn], ['FN', s.agreement.fn],
     ...s.byApp.map(a => [`app ${a.app}`, `${a.checks} checks, ${a.fraudulent} flagged, ${a.notReceived} not received`])];
   return lines.map(l => l.map(esc).join(',')).join('\n') + '\n';
-}
-
-export function reportsWithinRetention(reports: FraudReport[], days: number, now = Date.now()): FraudReport[] {
-  const cutoff = now - days * 864e5;
-  return reports.filter(r => { const t = Date.parse(r.generatedAt); return isNaN(t) || t >= cutoff; });
 }
