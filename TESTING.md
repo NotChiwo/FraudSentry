@@ -395,7 +395,7 @@ The same check was run against headless Chromium here: "Welcome to FraudSentry",
 | Test set (360 synthetic messages, never trained on) | rules alone 80.8 % accuracy / F1 78.0 %; trained model 98.1 % / 98.1 % (ROC-AUC 0.978); rules + model 95.6 % / 95.7 % |
 | Hand-written set (60 messages, different wording, never trained on) | rules alone 75.0 % (15 / 30 scams caught, 0 false alarms); trained model 91.7 % (26 / 30, 1 false alarm); rules + model 91.7 % |
 | 5-fold cross-validation | accuracy 97.1–98.3 %, mean F1 97.6 % ± 0.5 % |
-| Learning curve | 34 → 1,680 training messages: test accuracy 83.9 % → 98.1 % |
+| Learning curve | 34 → 1,680 training messages: test accuracy 86.1 % → 98.1 % |
 | Learned words | scam: phone number, suspicious / short link, fee, account; legitimate: ref, COD, never; no filler words in the top lists |
 | No leakage | no hand-written message appears in the training data; the dataset has no duplicate messages |
 | In the checker | a loan-fee scam the rules miss is raised to Medium; nothing the rules flagged is lowered; ordinary messages and real OTP texts stay Low; all earlier message tests still pass |
